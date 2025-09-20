@@ -151,7 +151,7 @@ export default function Home() {
       });
       
       // Redirect to Spotify authorization with form data
-      const spotifyUrl = `https://accounts.spotify.com/authorize?client_id=5c8d50a5daf2413981076204bb36f6b2&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI}&scope=user-top-read%20user-read-recently-played%20user-read-private&show_dialog=true&state=${encodeURIComponent(params.toString())}`;
+      const spotifyUrl = `https://accounts.spotify.com/authorize?client_id=${process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI}&scope=user-top-read%20user-read-recently-played%20user-read-private&show_dialog=true&state=${encodeURIComponent(params.toString())}`;
       window.location.href = spotifyUrl;
     }
   };
