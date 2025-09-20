@@ -1,103 +1,279 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { createUser } from "./actions";
+
+type AccountStatus =  "created" | "existing" | "error" | null;
 
 export default function Home() {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    phoneNumber: "",
+    spotifyCode: "",
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [accountStatus, setAccountStatus] = useState<AccountStatus>(null);
+  const [showPhoneError, setShowPhoneError] = useState(false);
+
+  const formSteps = [
+    {
+      id: "firstName",
+      label: "First Name",
+      type: "text",
+      placeholder: "Enter your first name",
+    },
+    {
+      id: "lastName", 
+      label: "Last Name",
+      type: "text",
+      placeholder: "Enter your last name",
+    },
+    {
+      id: "phoneNumber",
+      label: "Phone Number", 
+      type: "tel",
+      placeholder: "Enter your phone number",
+    },
+  ];
+
+  const currentField = formSteps[currentStep];
+  const currentValue = formData[currentField.id as keyof typeof formData];
+  const isLastStep = currentStep === formSteps.length - 1;
+
+  const checkAuth = async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const state = urlParams.get('state');
+    
+    if (code) {
+      console.log('Spotify authorization code:', code);
+      
+      // Restore form data from state parameter
+      let userData = {
+        firstName: '',
+        lastName: '',
+        phoneNumber: '',
+        spotifyCode: code,
+      };
+      
+      if (state) {
+        try {
+          const formParams = new URLSearchParams(decodeURIComponent(state));
+          userData = {
+            firstName: formParams.get('firstName') || '',
+            lastName: formParams.get('lastName') || '',
+            phoneNumber: formParams.get('phoneNumber') || '',
+            spotifyCode: code,
+          };
+        } catch (error) {
+          console.error('Error parsing form data from URL:', error);
+        }
+      }
+      
+      setFormData(userData);
+      
+      // Make server action call to create/check user
+      try {
+        console.log('Creating user...', userData);
+        const result = await createUser({
+          first_name: userData.firstName,
+          last_name: userData.lastName,
+          phone_number: userData.phoneNumber,
+          spotify_code: code
+        });
+
+        if (result.ok) {
+          setAccountStatus(result.created ? 'created' : 'existing')
+        } else {
+          setAccountStatus('error')
+        }
+
+        console.log('Server action response:', result);
+      } catch (error) {
+        console.error('Error calling createUser server action:', error);
+      }
+      
+      // Clean up the URL by removing the code and state parameters
+      const newUrl = window.location.origin + window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+    }
+    
+    setIsLoading(false);
+  };
+
+  // Check for Spotify authorization code on page load
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const handleInputChange = (value: string) => {
+    // For phone number field, only allow numbers and '+'
+    if (currentField.id === 'phoneNumber') {
+      const filteredValue = value.replace(/[^0-9+]/g, '');
+      
+      // Show error if user tried to type invalid characters
+      setShowPhoneError(value !== filteredValue);
+      
+      setFormData(prev => ({
+        ...prev,
+        [currentField.id]: filteredValue,
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [currentField.id]: value,
+      }));
+    }
+  };
+
+  const handleNext = () => {
+    if (currentValue.trim() && currentStep < formSteps.length - 1) {
+      setCurrentStep(prev => prev + 1);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (currentValue.trim()) {
+      console.log("Form submitted:", formData);
+
+        //   check if user already exists by phone number
+      
+      // Store form data in URL parameters
+      const params = new URLSearchParams({
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        phoneNumber: formData.phoneNumber,
+      });
+      
+      // Redirect to Spotify authorization with form data
+      const spotifyUrl = `https://accounts.spotify.com/authorize?client_id=5c8d50a5daf2413981076204bb36f6b2&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI}&scope=user-top-read%20user-read-recently-played%20user-read-private&show_dialog=true&state=${encodeURIComponent(params.toString())}`;
+      window.location.href = spotifyUrl;
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && currentValue.trim()) {
+      e.preventDefault();
+      if (!isLastStep) {
+        handleNext();
+      } else {
+        handleSubmit(e);
+      }
+    }
+  };
+
+  // Show loading state while checking for auth code
+  if (isLoading) {
+    return (
+      <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
+        <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
+          <div>Welcome to Echo</div>
+          <div>Loading...</div>
+        </main>
+      </div>
+    );
+  }
+
+  if (accountStatus == 'error') {
+    return (
+        <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
+          <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
+            <div>Welcome to Echo</div>
+            <div>There was an error creating your account</div>
+          </main>
+        </div>
+      );
+  }
+
+  if (accountStatus == 'created') {
+    return (
+        <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
+          <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
+            <div>Welcome to Echo</div>
+            <div>Your account has been successfully created and you should be getting a text from us shortly!</div>
+          </main>
+        </div>
+      );
+  }
+
+  if (accountStatus == 'existing'){
+    return (
+        <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
+          <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
+            <div>Welcome to Echo</div>
+            <div>An account already exists with this phone nunber</div>
+          </main>
+        </div>
+      );
+  }
+
   return (
     <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
       <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
+          <div className="w-full max-w-md min-w-0 space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-4 min-w-0 w-full">
+            <div className="flex items-center justify-center space-x-2">
+                {formSteps.map((_, index) => (
+                <div
+                    key={index}
+                    className={`h-2 w-12 rounded-full transition-colors duration-300 ${
+                    index <= currentStep 
+                        ? 'bg-black dark:bg-white' 
+                        : 'bg-gray-300 dark:bg-gray-600'
+                    }`}
+                />
+                ))}
+            </div>
+            
+            <div className="mx-auto w-[360px]">
+              <Input 
+                id={currentField.id}
+                type={currentField.type}
+                placeholder={currentField.placeholder}
+                value={currentValue}
+                onChange={(e) => handleInputChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                autoFocus
+                className="block"
+              />
+            </div>
+            
+            <div className="text-center min-w-0 w-full">
+              <p 
+                className={`text-sm text-red-500 truncate ${
+                  currentField.id === 'phoneNumber' && showPhoneError ? 'block' : 'hidden'
+                }`}
+              >
+                Only numbers and + are allowed for phone numbers
+              </p>
+            </div>
+            
+            {!isLastStep ? (
+              <Button 
+                type="button"
+                onClick={handleNext}
+                disabled={!currentValue.trim()}
+                className="w-full border-2 border-gray-300 hover:border-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                Next
+              </Button>
+            ) : (
+              <Button 
+                type="submit"
+                disabled={!currentValue.trim()}
+                className="w-full border-2 border-gray-300 hover:border-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                Submit
+              </Button>
+            )}
+          </form>
+          </div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
   );
 }
