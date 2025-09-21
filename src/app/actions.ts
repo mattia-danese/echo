@@ -1,5 +1,6 @@
 "use server";
 
+import { onboardingTask } from '@/trigger';
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize the Supabase client with the service role key
@@ -99,3 +100,13 @@ export async function createUser(payload: {
     };
   }
 }
+
+export async function sendOnboardingMessage(payload: { 
+    phone_number: string;
+  }) {
+    await onboardingTask.trigger({ phone_number: payload.phone_number });
+    return {
+      ok: true,
+      message: `onboarding message sent to ${payload.phone_number}`,
+    };
+  }

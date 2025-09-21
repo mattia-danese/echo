@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { createUser } from "./actions";
+import { createUser, sendOnboardingMessage } from "./actions";
 
 type AccountStatus =  "created" | "existing" | "error" | null;
 
@@ -66,7 +66,7 @@ export default function Home() {
           userData = {
             firstName: formParams.get('firstName') || '',
             lastName: formParams.get('lastName') || '',
-            phoneNumber: formParams.get('phoneNumber') || '',
+            phoneNumber: decodeURIComponent(formParams.get('phoneNumber') || ''),
             spotifyCode: code,
           };
         } catch (error) {
@@ -87,6 +87,10 @@ export default function Home() {
         });
 
         if (result.ok) {
+        //   if (result.created) {
+        //     sendOnboardingMessage({ phone_number: userData.phoneNumber });
+        //   }
+
           setAccountStatus(result.created ? 'created' : 'existing')
         } else {
           setAccountStatus('error')
@@ -140,17 +144,15 @@ export default function Home() {
     e.preventDefault();
     if (currentValue.trim()) {
       console.log("Form submitted:", formData);
-
-        //   check if user already exists by phone number
       
       // Store form data in URL parameters
       const params = new URLSearchParams({
         firstName: formData.firstName,
         lastName: formData.lastName,
-        phoneNumber: formData.phoneNumber,
+        phoneNumber: encodeURIComponent(formData.phoneNumber),
       });
       
-      // Redirect to Spotify authorization with form data
+    //   Redirect to Spotify authorization with form data
       const spotifyUrl = `https://accounts.spotify.com/authorize?client_id=${process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI}&scope=user-top-read%20user-read-recently-played%20user-read-private&show_dialog=true&state=${encodeURIComponent(params.toString())}`;
       window.location.href = spotifyUrl;
     }
