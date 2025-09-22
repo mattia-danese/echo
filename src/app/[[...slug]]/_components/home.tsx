@@ -199,7 +199,7 @@ export default function Home({ inviter }: HomeProps) {
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8">
       <main className="flex flex-col items-center gap-8 max-w-md w-full">
           {/* Logo */}
-          <h1 className="text-9xl font-bold text-white">echo</h1>
+          <h1 className="text-9xl font-bold text-blue-400">echo</h1>
 
           {/* Tagline */}
           <div className="text-white text-3xl">Discover music through friends.</div>
@@ -237,7 +237,6 @@ export default function Home({ inviter }: HomeProps) {
                   placeholder=''
                   value={formData.phoneNumber}
                   onChange={(e) => handlePhoneNumberChange(e.target.value)}
-                  autoFocus
                   className="border-0 border-b border-white bg-transparent text-white placeholder-gray-500 focus:border-white focus:ring-0 rounded-none"
                 />
                 {isCheckingPhoneNumber ? (
@@ -304,7 +303,7 @@ export default function Home({ inviter }: HomeProps) {
                   type="submit" 
                   disabled={!formData.firstName.trim() || !formData.lastName.trim() || !formData.phoneNumber.trim()} 
                 >
-                  accept
+                  {inviter.firstName ? 'accept' : 'register'}
                 </Button>
               </div>
             )}
