@@ -228,7 +228,7 @@ export default function Home({ inviter }: HomeProps) {
           {/* Form */}
           <form onSubmit={handleSubmit} className="w-full space-y-6">
             {/* Phone input */}
-            {accountStatus ?? <div className="flex flex-col space-y-2">
+            {!accountStatus && <div className="flex flex-col space-y-2">
               <label className="text-white text-sm">phone (include +1)</label>
               <div className="flex items-center space-x-3">
                 <Input 
