@@ -14,7 +14,13 @@ export const onboardingTask = task({
     logger.log("onboarding task starting", { payload, ctx });
 
     const message = await client.messages.create({
-        body: "perfect - you're all set. reply back with 3 friends' contacts or phone numbers to add them\n\n ps: they don’t have to be on echo yet :)",
+        body: `
+        welcome to echo - thanks for signing up :)
+        here is how it works:
+
+        1. we'll text you every 3 days to share a song
+        2. submit your song
+        3. at the end of the day, we'll text you the songs your friends shared`,
         from: fromNumber,
         to: payload.phone_number,
       });

@@ -2,6 +2,7 @@
 
 import { onboardingTask } from '@/trigger';
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 
 // Initialize the Supabase client with the service role key
 const supabase = createClient(
@@ -14,8 +15,9 @@ export async function createUser(payload: {
   last_name: string; 
   phone_number: string;
   spotify_code: string;
+  referral_friend_link_token: string;
 }) {
-  try {
+  try {    
     // First, check if user already exists
     const { data: existingUser, error: fetchError } = await supabase
       .from('users')
@@ -65,6 +67,9 @@ export async function createUser(payload: {
     // Calculate expiration timestamp
     const expiresAt = new Date(Date.now() + spotifyData.expires_in * 1000);
 
+    // Generate friend link
+    const friend_link_token = crypto.randomBytes(16).toString("base64url");
+
     // Create new user with Spotify tokens
     const { data: newUser, error: insertError } = await supabase
       .from('users')
@@ -72,6 +77,7 @@ export async function createUser(payload: {
         first_name: payload.first_name,
         last_name: payload.last_name,
         phone_number: payload.phone_number,
+        friend_link_token: friend_link_token,
         spotify_access_token: spotifyData.access_token,
         spotify_refresh_token: spotifyData.refresh_token,
         spotify_token_expires_at: expiresAt
@@ -81,6 +87,17 @@ export async function createUser(payload: {
 
     if (insertError) {
       throw insertError;
+    }
+
+    if (payload.referral_friend_link_token) {
+      const { ok, message } = await createFriendships({ 
+        user_id: newUser.id, 
+        referral_friend_link_token: payload.referral_friend_link_token 
+      });
+
+      if (!ok) {
+        console.error('Error creating friendship:', message);
+      }
     }
 
     return {
@@ -101,9 +118,61 @@ export async function createUser(payload: {
   }
 }
 
+export async function createFriendships(payload: { 
+  user_id: string;
+  referral_friend_link_token: string;
+}) {
+    const { data: friend, error: friendError } = await supabase
+    .from('users')
+    .select('id')
+    .eq('friend_link_token', payload.referral_friend_link_token)
+    .single();
+
+  if (friendError) {
+    console.error('Error finding friend based on referral token:', friendError);
+    return { ok: false, message: 'Error finding friend based on referral token' };
+  }
+
+  if (!friend) {
+    console.error('Friend not found based on referral token:', payload);
+    return { ok: false, message: 'Friend not found based on referral token' };
+  }
+
+  if (friend.id === payload.user_id) {
+    console.error('Friend is the same as the user:', payload);
+    return { ok: false, message: 'Friend is the same as the user' };
+  }
+
+  // Create friendship relationship (bidirectional)
+  const now = new Date().toISOString();
+
+   const { error: friendshipError } = await supabase
+   .from('friends')
+   .upsert([
+     {
+       user_id: payload.user_id,
+       friend_id: friend.id,
+       updated_at: now
+     },
+     {
+       user_id: friend.id,
+       friend_id: payload.user_id,
+       updated_at: now
+     }
+   ]);
+
+  if (friendshipError) {
+    console.error('Error creating friendship:', friendshipError);
+    return { ok: false, message: 'Error creating friendship' };
+  }
+
+  return { ok: true, message: 'Friendship created successfully' };
+}
+
 export async function sendOnboardingMessage(payload: { 
     phone_number: string;
   }) {
+    console.log('Triggering onboarding task... ', payload.phone_number);
     await onboardingTask.trigger({ phone_number: payload.phone_number });
     return {
       ok: true,
