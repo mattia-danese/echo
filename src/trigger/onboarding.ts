@@ -1,4 +1,5 @@
 import { logger, task, wait } from "@trigger.dev/sdk/v3";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const twilio = require("twilio");
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
