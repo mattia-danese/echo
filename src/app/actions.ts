@@ -65,7 +65,7 @@ export async function createUser(payload: {
     const spotifyData = await spotifyResponse.json();
     
     // Calculate expiration timestamp
-    const expiresAt = new Date(Date.now() + spotifyData.expires_in * 1000);
+    const expiresAt = new Date(Date.now() + spotifyData.expires_in * 1000).toISOString();
 
     // Generate friend link
     const friend_link_token = crypto.randomBytes(16).toString("base64url");
