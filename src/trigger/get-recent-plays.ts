@@ -1,4 +1,4 @@
-import { logger, task } from "@trigger.dev/sdk/v3";
+import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -6,12 +6,19 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export const getRecentPlaysTask = task({
+export const getRecentPlaysTask = schedules.task({
   id: "get-recent-plays",
   // Set an optional maxDuration to prevent tasks from running indefinitely
   maxDuration: 300, // Stop executing after 300 secs (5 mins) of compute
-  run: async (payload: Record<string, never>, { ctx }) => {
-    logger.log("get recent plays task starting", { payload, ctx });
+
+  cron : {
+    pattern: "0 0 * * *", // run every day at 12:00 AM
+    timezone: "America/New_York",
+    environments: ["DEVELOPMENT"],
+  },
+
+  run: async (payload) => {
+    logger.log("get recent plays task starting ...");
 
     const { data, error } = await supabase
       .from('users')
@@ -91,7 +98,10 @@ export const getRecentPlaysTask = task({
         logger.log("writing recent plays into 'user_track_plays' table ...", { userTrackPlays });
         const {error: writeRecentPlaysError} = await supabase
             .from('user_track_plays')
-            .insert(userTrackPlays);
+            .upsert(userTrackPlays, { 
+                onConflict: 'user_id,spotify_track_id,played_at',
+                ignoreDuplicates: true 
+            });
 
         if (writeRecentPlaysError) {
             logger.error("error writing recent plays", {user, writeRecentPlaysError });
