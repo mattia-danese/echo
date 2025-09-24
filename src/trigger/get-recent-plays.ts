@@ -1,4 +1,4 @@
-import { logger, task, wait } from "@trigger.dev/sdk/v3";
+import { logger, task } from "@trigger.dev/sdk/v3";
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -10,7 +10,7 @@ export const getRecentPlaysTask = task({
   id: "get-recent-plays",
   // Set an optional maxDuration to prevent tasks from running indefinitely
   maxDuration: 300, // Stop executing after 300 secs (5 mins) of compute
-  run: async (payload: {}, { ctx }) => {
+  run: async (payload: Record<string, never>, { ctx }) => {
     logger.log("get recent plays task starting", { payload, ctx });
 
     const { data, error } = await supabase

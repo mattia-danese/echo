@@ -27,7 +27,6 @@ export default function FriendRequest({ inviter, accountStatus }: FriendRequestP
     spotifyCode: "",
     friendLinkToken: inviter.link || '',
   });
-  const [showPhoneError, setShowPhoneError] = useState(false);
   const [showRegistration, setShowRegistration] = useState(false);
   const [isCheckingPhoneNumber, setIsCheckingPhoneNumber] = useState(false);
   const [phoneNumberChecked, setPhoneNumberChecked] = useState(false);
@@ -40,8 +39,6 @@ export default function FriendRequest({ inviter, accountStatus }: FriendRequestP
 
   const handlePhoneNumberChange = (value: string) => {
     const filteredValue = value.replace(/[^0-9+]/g, '');
-
-    setShowPhoneError(value !== filteredValue);
     
     setFormData(prev => ({
       ...prev,

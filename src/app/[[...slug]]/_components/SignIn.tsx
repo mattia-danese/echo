@@ -19,7 +19,6 @@ export default function SignIn({ accountStatus }: SignInProps) {
       phoneNumber: "",
       spotifyCode: "",
     });
-    const [showPhoneError, setShowPhoneError] = useState(false);
     const [showRegistration, setShowRegistration] = useState(false);
     const [isCheckingPhoneNumber, setIsCheckingPhoneNumber] = useState(false);
     const [phoneNumberChecked, setPhoneNumberChecked] = useState(false);
@@ -31,8 +30,6 @@ export default function SignIn({ accountStatus }: SignInProps) {
 
     const handlePhoneNumberChange = (value: string) => {
         const filteredValue = value.replace(/[^0-9+]/g, '');
-    
-        setShowPhoneError(value !== filteredValue);
         
         setFormData(prev => ({
           ...prev,
