@@ -15,7 +15,7 @@ export async function createUser(payload: {
   last_name: string; 
   phone_number: string;
   spotify_code: string;
-  referral_friend_link_token: string;
+  referral_friend_link_token: string | null;
 }) {
   try {    
     // First, check if user already exists
@@ -97,6 +97,7 @@ export async function createUser(payload: {
 
       if (!ok) {
         console.error('Error creating friendship:', message);
+
       }
     }
 

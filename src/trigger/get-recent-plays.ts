@@ -107,7 +107,6 @@ export const getRecentPlaysTask = task({
   },
 });
 
-
 const getRecentPlays = async (spotify_access_token: string) => {
     const response = await fetch('https://api.spotify.com/v1/me/player/recently-played?limit=50', {
         method: 'GET',
