@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import FriendRequest from "./_components/FriendRequest";
-import SignIn from "./_components/SignIn";
+import { redirect } from "next/navigation";
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,38 +9,38 @@ const supabase = createClient(
 
 interface PageProps {
     params: Promise<{
-        slug?: string[];
+        slug?: string;
     }>;
     searchParams: Promise<{
         accountStatus?: string;
     }>;
 }
 
-export default async function HomePage({ params, searchParams }: PageProps) {
+export default async function FriendRequestPage({ params, searchParams }: PageProps) {
     const resolvedParams = await params;
     const resolvedSearchParams = await searchParams;
    
-    const token = resolvedParams.slug?.[0];
+    const token = resolvedParams.slug;
     const accountStatus = resolvedSearchParams.accountStatus;
 
-    const inviter = {
-        'firstName': null as string | null,
-        'link': null as string | null,
-    }
+    console.log("token", token)
 
-  if (token) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("users")
       .select("first_name")
       .eq("friend_link_token", token)
       .single();
 
-    inviter.firstName = data?.first_name ?? null;
-    inviter.link = token ?? null;
+    if (!data || error) {
+        console.log("data", data)
+        console.log("error", error)
+        redirect("/");
+    }
 
-    return <FriendRequest inviter={inviter} accountStatus={accountStatus} />;
-  }
+    const inviter = {
+        'firstName': data!.first_name,
+        'link': token!,
+    }
 
-  return <SignIn accountStatus={accountStatus} />;
-
+  return <FriendRequest inviter={inviter} accountStatus={accountStatus} />;
 }

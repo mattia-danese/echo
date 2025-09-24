@@ -180,3 +180,88 @@ export async function sendOnboardingMessage(payload: {
       message: `onboarding message sent to ${payload.phone_number}`,
     };
   }
+
+export async function searchSpotifyTracks(query: string) {
+  "use server";
+  
+  try {
+    // Validate input
+    if (!query || query.trim().length < 2) {
+      return {
+        ok: false,
+        tracks: [],
+        message: 'Query must be at least 2 characters long'
+      };
+    }
+
+    // Get app-level access token using client credentials
+
+    // TODO: store access token somewhere and auto refresh it
+    const authResponse = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${Buffer.from(
+          `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
+        ).toString('base64')}`
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials'
+      })
+    });
+
+    if (!authResponse.ok) {
+      console.error('Spotify auth error:', authResponse.status);
+      return {
+        ok: false,
+        tracks: [],
+        message: 'Failed to authenticate with Spotify'
+      };
+    }
+
+    const authData = await authResponse.json();
+    
+    // Search using app token
+    const searchResponse = await fetch(
+      `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=10`,
+      {
+        headers: {
+          'Authorization': `Bearer ${authData.access_token}`
+        }
+      }
+    );
+
+    if (!searchResponse.ok) {
+      console.error('Spotify search error:', searchResponse.status);
+      return {
+        ok: false,
+        tracks: [],
+        message: 'Failed to search Spotify'
+      };
+    }
+
+    const searchData = await searchResponse.json();
+    
+    // Format tracks for frontend
+    const tracks = searchData.tracks?.items?.map((track: SpotifyApi.TrackObjectFull) => ({
+      trackId: track.id,
+      title: track.name,
+      artists: track.artists.map((artist: SpotifyApi.ArtistObjectSimplified) => artist.name).join(', '),
+      albumImageUrl: track.album?.images?.[0]?.url || '',
+    })) || [];
+
+    return {
+      ok: true,
+      tracks,
+      message: 'Search completed successfully'
+    };
+
+  } catch (error: unknown) {
+    console.error('Error in searchSpotifyTracks:', error);
+    return {
+      ok: false,
+      tracks: [],
+      message: 'An error occurred while searching'
+    };
+  }
+}

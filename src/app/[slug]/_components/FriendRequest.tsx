@@ -6,15 +6,15 @@ import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-import Hero from "./Hero";
+import Hero from "../../../components/Hero";
 import { createFriendships } from "@/app/actions";
 
 type FriendshipStatus = "created" | "error" | "error-same-user" | null;
 
 interface FriendRequestProps {
     inviter: {
-      firstName: string | null;
-      link: string | null;
+      firstName: string;
+      link: string;
     };
     accountStatus?: string;
   }

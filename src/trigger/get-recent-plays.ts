@@ -17,7 +17,7 @@ export const getRecentPlaysTask = schedules.task({
     environments: ["DEVELOPMENT"],
   },
 
-  run: async (payload) => {
+  run: async () => {
     logger.log("get recent plays task starting ...");
 
     const { data, error } = await supabase

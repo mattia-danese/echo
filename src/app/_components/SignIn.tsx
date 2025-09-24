@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-import Hero from "./Hero";
+import Hero from "../../components/Hero";
 
 interface SignInProps {
     accountStatus?: string;
