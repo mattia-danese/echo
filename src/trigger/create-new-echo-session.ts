@@ -3,12 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from "crypto";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const twilio = require("twilio");
+// const twilio = require("twilio");
 
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const fromNumber = process.env.TWILIO_PHONE_NUMBER;
-const client = twilio(accountSid, authToken);
+// const accountSid = process.env.TWILIO_ACCOUNT_SID;
+// const authToken = process.env.TWILIO_AUTH_TOKEN;
+// const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+// const client = twilio(accountSid, authToken);
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,    

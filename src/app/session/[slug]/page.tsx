@@ -26,7 +26,7 @@ export default async function SessionPage({ params }: PageProps) {
     const resolvedParams = await params;
     const token = resolvedParams.slug;
 
-    let props: SessionPageClientProps = {
+    const props: SessionPageClientProps = {
         error: false,
         topSongs: [],
         sessionEndsAt: '',
@@ -39,7 +39,7 @@ export default async function SessionPage({ params }: PageProps) {
     //    - get session end
     //    - check if they already submitted a song
 
-    const { data, error }: { data: UserEchoSession | null; error: any } = await supabase
+    const { data, error }: { data: UserEchoSession | null; error: unknown } = await supabase
       .from("user_echo_sessions")
       .select(`
         user_id, 

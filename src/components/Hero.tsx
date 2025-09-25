@@ -5,10 +5,16 @@ export default function Hero({ showText = true }: HeroProps) {
     return (
         <div className="flex flex-col items-center justify-center">
             {/* Logo */}
-          <h1 className="text-9xl font-bold text-blue-400">echo</h1>
-
-          {/* Tagline */}
-          {showText && <div className="text-white text-3xl">Discover music through friends.</div>}
+          <img 
+            src="/name.svg" 
+            alt="Echo" 
+            className="h-32 w-auto"
+            width={128}
+            height={128}
+            />
+ 
+            {/* Tagline */}
+            {showText && <div className="text-white text-3xl">Discover music through friends.</div>}
         </div>
     )
 }

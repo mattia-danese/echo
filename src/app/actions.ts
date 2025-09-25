@@ -291,7 +291,7 @@ export async function submitSong(payload: {
     token: string;
     spotify_track_id: string;
 }){
-    const { data: userEchoSession, error: userEchoSessionError } = await supabase
+    const { error: userEchoSessionError } = await supabase
     .from('user_echo_sessions')
     .update({
         spotify_track_id: payload.spotify_track_id,
