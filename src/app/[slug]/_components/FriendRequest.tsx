@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 
 import Hero from "../../../components/Hero";
 import { createFriendships } from "@/app/actions";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type FriendshipStatus = "created" | "error" | "error-same-user" | null;
 
@@ -31,6 +33,7 @@ export default function FriendRequest({ inviter, accountStatus }: FriendRequestP
   const [isCheckingPhoneNumber, setIsCheckingPhoneNumber] = useState(false);
   const [phoneNumberChecked, setPhoneNumberChecked] = useState(false);
   const [friendshipStatus, setFriendshipStatus] = useState<FriendshipStatus>(null);
+  const [consentChecked, setConsentChecked] = useState(false);
 
   useEffect(() => {
     const newUrl = window.location.origin + window.location.pathname;
@@ -189,25 +192,41 @@ export default function FriendRequest({ inviter, accountStatus }: FriendRequestP
 
                     {/* Last name input */}
                     <div className="flex flex-col space-y-2">
-                    <label className="text-white text-sm">first initial</label>
-                    <div className="flex items-center space-x-3">
-                        <Input 
-                        id='lastName'
-                        type='text'
-                        placeholder=''
-                        value={formData.lastName}
-                        onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
-                        className="border-0 border-b border-white bg-transparent text-white placeholder-gray-500 focus:border-white focus:ring-0 rounded-none"
+                        <label className="text-white text-sm">first initial</label>
+                        <div className="flex items-center space-x-3">
+                            <Input 
+                            id='lastName'
+                            type='text'
+                            placeholder=''
+                            value={formData.lastName}
+                            onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
+                            className="border-0 border-b border-white bg-transparent text-white placeholder-gray-500 focus:border-white focus:ring-0 rounded-none"
+                            />
+                            <CircleCheck className={`h-5 w-5 ${formData.lastName.trim() ? 'text-green-600' : 'text-gray-500'}`} />
+                        </div>
+                    </div>
+
+                    {/* consent checkbox */}    
+                    <div className="flex items-center space-x-2">
+                        <Checkbox 
+                            id="terms2" 
+                            className="border-white data-[state=checked]:bg-white data-[state=checked]:text-black data-[state=checked]:border-white"
+                            checked={consentChecked}
+                            onCheckedChange={() => setConsentChecked(consentChecked === true ? false : true)}
                         />
-                        <CircleCheck className={`h-5 w-5 ${formData.lastName.trim() ? 'text-green-600' : 'text-gray-500'}`} />
-                    </div>
-                    </div>
+                        <Label 
+                            htmlFor="terms2" 
+                            className="text-white text-sm font-normal"
+                        >
+                            I agree to receive text messages from echo for song suggestions
+                        </Label>
+                    </div>  
 
                     {/* Submit button */}
                     <Button 
                     className="w-full bg-white text-black hover:bg-gray-100 rounded-lg py-3 font-medium" 
                     type="submit" 
-                    disabled={!formData.firstName.trim() || !formData.lastName.trim() || !formData.phoneNumber.trim()} 
+                    disabled={!formData.firstName.trim() || !formData.lastName.trim() || !formData.phoneNumber.trim() || !consentChecked} 
                     >
                     register & accept
                     </Button>
