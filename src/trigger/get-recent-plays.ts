@@ -92,6 +92,7 @@ export const getRecentPlaysTask = schedules.task({
                 track_name: play.track.name,
                 artist_name: play.track.artists.map((artist: SpotifyApi.ArtistObjectSimplified) => artist.name).join(', '),
                 played_at: play.played_at,
+                album_image_url: play.track.album.images[0].url,
             });
         }
 

@@ -1,49 +1,80 @@
-import SessionPageClient from "./_components/SessionPageClient";
+import { createClient } from "@supabase/supabase-js";
+import SessionPageClient, { type SessionPageClientProps } from "./_components/SessionPageClient";
+import { getUserTopSongs } from "@/app/actions";
+
+interface UserEchoSession {
+    user_id: string;
+    spotify_track_id: string | null;
+    echo_sessions: {
+        end: string;
+    };
+}
 
 interface PageProps {
     params: Promise<{
-        slug: string[];
+        slug: string;
     }>;
 }
+
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export default async function SessionPage({ params }: PageProps) {
 
     const resolvedParams = await params;
-    // const token = resolvedParams.slug?.[0]; // TODO: implement token usage
+    const token = resolvedParams.slug;
 
-    // TODO:from token (also check if they already submitted a song - cannot resubmit)
-    // - get user
-    // - check if they already submitted a song
-    // - check if session is still active
+    let props: SessionPageClientProps = {
+        error: false,
+        topSongs: [],
+        sessionEndsAt: '',
+        alreadySubmitted: false,
+        token: token,
+    }
 
-    // TODO: get top songs of user (update db to store album image url from recently played songs endpoint)
+    // from token:
+    //    - get user
+    //    - get session end
+    //    - check if they already submitted a song
 
-    const topSongs = [
-        {
-            title: 'Song 1',
-            trackId: '12345678901',
-            artists: 'Artist 1',
-            albumImageUrl: 'https://i.scdn.co/image/ab67616d00001e02ff9ca10b55ce82ae553c8228',
-        },
-        {
-            title: 'Song 2',
-            trackId: '12345678902',
-            artists: 'Artist 2',
-            albumImageUrl: 'https://i.scdn.co/image/ab67616d00001e02ff9ca10b55ce82ae553c8228',
-        },
-        {
-            title: 'Song 3',
-            trackId: '12345678903',
-            artists: 'Artist 3',
-            albumImageUrl: 'https://i.scdn.co/image/ab67616d00001e02ff9ca10b55ce82ae553c8228',
-        },
-        {
-            title: 'Song 4',
-            trackId: '12345678904',
-            artists: 'Artist 4',
-            albumImageUrl: 'https://i.scdn.co/image/ab67616d00001e02ff9ca10b55ce82ae553c8228',
-        },
-    ]
+    const { data, error }: { data: UserEchoSession | null; error: any } = await supabase
+      .from("user_echo_sessions")
+      .select(`
+        user_id, 
+        spotify_track_id, 
+        echo_sessions!inner(end)
+      `)
+      .eq("token", token)
+      .single();
 
-    return <SessionPageClient topSongs={topSongs} sessionActive={true} sessionEndsAt={new Date()} alreadySubmitted={false} />
+      if (!data || error) {
+        console.log("data", data)
+        console.log("error", error)
+        props.error = true;
+        return <SessionPageClient {...props} />;
+    }
+
+    props.alreadySubmitted = data.spotify_track_id !== null;
+    props.sessionEndsAt = data.echo_sessions.end;
+
+    // get top songs of user
+
+    const result = await getUserTopSongs({ user_id: data.user_id });
+
+    if (!result.ok) {
+        console.log("topSongsError:", result.message, data.user_id)
+        props.error = true;
+        return <SessionPageClient {...props} />;
+    }
+
+    props.topSongs = result.songs.map((song) => ({
+        title: song.track_name,
+        trackId: song.spotify_track_id,
+        artists: song.artist_name,
+        albumImageUrl: song.album_image_url,
+    }));
+
+    return <SessionPageClient error={props.error} topSongs={props.topSongs} sessionEndsAt={props.sessionEndsAt} alreadySubmitted={props.alreadySubmitted} token={props.token} />
 }

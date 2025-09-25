@@ -6,27 +6,30 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Hero from "../../../../components/Hero";
 import { useDebounce } from "@/components/Debounce";
 import { useState, useEffect } from "react";
-import { searchSpotifyTracks } from "../../../actions";
+import { searchSpotifyTracks, submitSong } from "../../../actions";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import Image from "next/image";
 
-interface SessionPageClientProps {
+export interface SessionPageClientProps {
+    error: boolean;
     topSongs: {
         title: string;
         trackId: string;
         albumImageUrl: string;
         artists: string;
     }[];
-    sessionActive: boolean;
-    sessionEndsAt: Date;
+    sessionEndsAt: string;
     alreadySubmitted: boolean;
+    token: string;
 }
 
 export default function SessionPageClient({ 
+    error, 
     topSongs, 
-    alreadySubmitted, 
-    sessionActive, 
-    sessionEndsAt }: SessionPageClientProps) 
+    sessionEndsAt, 
+    alreadySubmitted,
+    token
+}: SessionPageClientProps) 
 {
     const [spotifySearch, setSpotifySearch] = useState('');
     const [selectedSong, setSelectedSong] = useState<{
@@ -45,14 +48,27 @@ export default function SessionPageClient({
     const [isSearching, setIsSearching] = useState(false);
     const [searchError, setSearchError] = useState(false);
     const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+    const [submitError, setSubmitError] = useState(false);
     
     // Debounce the search input
     const debouncedSearch = useDebounce(spotifySearch, 500);
 
-    
+    const sessionActive = new Date() < new Date(sessionEndsAt);
+
     const handleSubmitSongSelection = async () => {
         if (selectedSong) {
-            setIsSubmitted(true);
+            
+            const result = await submitSong({
+                token: token,
+                spotify_track_id: selectedSong.trackId
+            });
+            
+            if (result.ok) {
+                setIsSubmitted(true);
+            } else {
+                console.error('Error submitting song:', result.message);
+                setSubmitError(true);
+            }
         }
     }
 
@@ -70,7 +86,6 @@ export default function SessionPageClient({
                 
                 try {
                     const result = await searchSpotifyTracks(debouncedSearch);
-                    console.log('Search results:', result);
                     
                     if (result.ok) {
                         setSearchResults(result.tracks);
@@ -92,6 +107,33 @@ export default function SessionPageClient({
 
         performSearch();
     }, [debouncedSearch]);
+
+
+    if (error) {
+        return (
+            <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8">
+                <main className="flex flex-col items-center gap-8 max-w-md w-full">
+                    <Hero />
+                    <div className="text-white text-center">
+                        there was an error loading this page :( please try again later or contact support
+                    </div>
+                </main>
+            </div>
+        );
+    }
+
+    if (submitError) {
+        return (
+            <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8">
+                <main className="flex flex-col items-center gap-8 max-w-md w-full">
+                    <Hero />
+                    <div className="text-white text-center">
+                        there was an error submitting your song :( please try again later or contact support
+                    </div>
+                </main>
+            </div>
+        );
+    }
 
     if (!sessionActive) {
         return (

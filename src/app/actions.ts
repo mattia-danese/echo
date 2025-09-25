@@ -265,3 +265,44 @@ export async function searchSpotifyTracks(query: string) {
     };
   }
 }
+
+export async function getUserTopSongs(payload: {
+    user_id: string;
+}){
+    const FOUR_DAYS_IN_MS = 4 * 24 * 60 * 60 * 1000;
+    
+    const { data: topSongs, error: topSongsError } = await supabase
+    .from('user_track_plays')
+    .select('spotify_track_id.count(), spotify_track_id,track_name, artist_name, album_image_url')
+    .eq('user_id', payload.user_id)
+    .gte('played_at', new Date(Date.now() - FOUR_DAYS_IN_MS).toISOString())
+    .order('count', { ascending: false })
+    .limit(4);
+
+  if (topSongsError) {
+    console.error('Error getting user top songs:', topSongsError, payload);
+    return { ok: false, songs: [], message: 'Error getting user top songs' };
+  }
+
+  return { ok: true, songs: topSongs, message: 'User top songs fetched successfully' };
+}
+
+export async function submitSong(payload: {
+    token: string;
+    spotify_track_id: string;
+}){
+    const { data: userEchoSession, error: userEchoSessionError } = await supabase
+    .from('user_echo_sessions')
+    .update({
+        spotify_track_id: payload.spotify_track_id,
+        updated_at: new Date().toISOString()
+    })
+    .eq('token', payload.token)
+
+  if (userEchoSessionError) {
+    console.error('Error submitting song:', userEchoSessionError, payload);
+    return { ok: false, message: 'Error submitting song' };
+  }
+
+  return { ok: true, message: 'Song submitted successfully' };
+}
