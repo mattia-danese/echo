@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import Hero from "../../components/Hero";
+import Hero from "@/components/Hero";
+import { checkRegistrationData } from "@/app/actions";
 
 interface SignInProps {
     accountStatus?: string;
@@ -24,6 +25,7 @@ export default function SignIn({ accountStatus }: SignInProps) {
     const [isCheckingPhoneNumber, setIsCheckingPhoneNumber] = useState(false);
     const [phoneNumberChecked, setPhoneNumberChecked] = useState(false);
     const [consentChecked, setConsentChecked] = useState(false);
+    const [formDataError, setFormDataError] = useState("");
 
     useEffect(() => {
         const newUrl = window.location.origin + window.location.pathname;
@@ -37,6 +39,10 @@ export default function SignIn({ accountStatus }: SignInProps) {
           ...prev,
           phoneNumber: filteredValue,
         }));
+
+        // either set to false on change to recheck number after change OR disbale Input after first check
+        setPhoneNumberChecked(false);
+        setFormDataError(formDataError === "phone number" ? "" : formDataError);
     };
 
     const handlePhoneNumberSubmit = async () => {
@@ -69,22 +75,33 @@ export default function SignIn({ accountStatus }: SignInProps) {
         } finally {
           setIsCheckingPhoneNumber(false);
         }
-      };  
+    };  
   
-      const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (formData.phoneNumber.trim()) {
-          const params = new URLSearchParams({
+
+        const { ok, message } = await checkRegistrationData({
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            phone_number: formData.phoneNumber,
+        });
+        
+        if (!ok) {
+            setFormDataError(message);
+            return
+        }
+
+        const params = new URLSearchParams({
             firstName: formData.firstName,
             lastName: formData.lastName,
             phoneNumber: encodeURIComponent(formData.phoneNumber),
-          });
+        });
           
         //   Redirect to Spotify authorization with form data
-          const spotifyUrl = `https://accounts.spotify.com/authorize?client_id=${process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI}&scope=user-top-read%20user-read-recently-played%20user-read-private&show_dialog=true&state=${encodeURIComponent(params.toString())}`;
-          window.location.href = spotifyUrl;
-        }
-      };
+        const spotifyUrl = `https://accounts.spotify.com/authorize?client_id=${process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI}&scope=user-top-read%20user-read-recently-played%20user-read-private&show_dialog=true&state=${encodeURIComponent(params.toString())}`;
+        
+        window.location.href = spotifyUrl;
+    };
 
     return (
         <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8">
@@ -147,7 +164,10 @@ export default function SignIn({ accountStatus }: SignInProps) {
                         type='text'
                         placeholder=''
                         value={formData.firstName}
-                        onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
+                        onChange={(e) => {
+                            setFormData(prev => ({ ...prev, firstName: e.target.value }));
+                            setFormDataError(formDataError === "first name" ? "" : formDataError);
+                        }}
                         className="border-0 border-b border-white bg-transparent text-white placeholder-gray-500 focus:border-white focus:ring-0 rounded-none"
                         />
                         <CircleCheck className={`h-5 w-5 ${formData.firstName.trim() ? 'text-green-600' : 'text-gray-500'}`} />
@@ -163,7 +183,10 @@ export default function SignIn({ accountStatus }: SignInProps) {
                             type='text'
                             placeholder=''
                             value={formData.lastName}
-                            onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
+                            onChange={(e) => {
+                                setFormData(prev => ({ ...prev, lastName: e.target.value }));
+                                setFormDataError(formDataError === "last name" ? "" : formDataError);
+                            }}
                             className="border-0 border-b border-white bg-transparent text-white placeholder-gray-500 focus:border-white focus:ring-0 rounded-none"
                             />
                             <CircleCheck className={`h-5 w-5 ${formData.lastName.trim() ? 'text-green-600' : 'text-gray-500'}`} />
@@ -185,6 +208,13 @@ export default function SignIn({ accountStatus }: SignInProps) {
                             I agree to receive text messages from echo for song suggestions
                         </Label>
                     </div>
+
+                    {/* form data error */}
+                    {formDataError && (
+                        <div className="text-red-500 text-sm text-center">
+                            {formDataError} is invalid
+                        </div>
+                    )}
 
                     {/* Submit button */}
                     <Button 

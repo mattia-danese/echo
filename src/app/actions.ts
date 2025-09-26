@@ -3,12 +3,33 @@
 import { onboardingTask } from '@/trigger';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { isNameValid, isPhoneNumberValid } from "@/lib/validation";
 
 // Initialize the Supabase client with the service role key
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+export async function checkRegistrationData(payload: {
+    first_name: string, 
+    last_name: string, 
+    phone_number: string
+}) {
+    if (!isPhoneNumberValid(payload.phone_number) || !payload.phone_number.trim()) {
+        return { ok: false, message: "phone number" };
+    }
+
+    if (!isNameValid(payload.first_name) || !payload.first_name.trim()) {
+        return { ok: false, message: "first name" };
+    }
+
+    if (!isNameValid(payload.last_name) || !payload.last_name.trim()) {
+        return { ok: false, message: "last name" };
+    }
+
+    return { ok: true, message: "User is valid" };
+} 
 
 export async function createUser(payload: { 
   first_name: string; 
