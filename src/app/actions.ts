@@ -62,7 +62,7 @@ export async function createUser(payload: {
     }
 
     // User doesn't exist, make Spotify API call to get tokens
-    const spotifyResponse = await fetch('https://accounts.spotify.com/api/token', {
+    const spotifyTokenResponse = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -77,19 +77,34 @@ export async function createUser(payload: {
       })
     });
 
-    if (!spotifyResponse.ok) {
-      const errorData = await spotifyResponse.text();
+    if (!spotifyTokenResponse.ok) {
+      const errorData = await spotifyTokenResponse.text();
       console.error('Spotify API error:', errorData);
-      throw new Error(`Spotify API error: ${spotifyResponse.status}`);
+      throw new Error(`Spotify API error: ${spotifyTokenResponse.status}`);
     }
 
-    const spotifyData = await spotifyResponse.json();
+    const spotifyData = await spotifyTokenResponse.json();
     
     // Calculate expiration timestamp
     const expiresAt = new Date(Date.now() + spotifyData.expires_in * 1000).toISOString();
 
     // Generate friend link
     const friend_link_token = crypto.randomBytes(16).toString("base64url");
+
+    // Get Spotify user ID from /me endpoint
+    const spotifyUserProfileResponse = await fetch('https://api.spotify.com/v1/me', {
+        headers: {
+          'Authorization': `Bearer ${spotifyData.access_token}`
+        }
+      });
+  
+      if (!spotifyUserProfileResponse.ok) {
+        const errorData = await spotifyUserProfileResponse.text();
+        console.error('Spotify user profile error:', errorData);
+        throw new Error(`Spotify user profile error: ${spotifyUserProfileResponse.status}`);
+      }
+  
+      const spotifyUserProfile = await spotifyUserProfileResponse.json()
 
     // Create new user with Spotify tokens
     const { data: newUser, error: insertError } = await supabase
@@ -99,9 +114,10 @@ export async function createUser(payload: {
         last_name: payload.last_name,
         phone_number: payload.phone_number,
         friend_link_token: friend_link_token,
+        spotify_user_id: spotifyUserProfile.id,
         spotify_access_token: spotifyData.access_token,
         spotify_refresh_token: spotifyData.refresh_token,
-        spotify_token_expires_at: expiresAt
+        spotify_token_expires_at: expiresAt,
       })
       .select('id')
       .single();
