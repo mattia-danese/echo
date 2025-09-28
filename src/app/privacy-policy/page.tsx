@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unescaped-entities */
 export default function PrivacyPolicy() {
   return (
     <div className="min-h-screen bg-black">
