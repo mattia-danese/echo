@@ -1,7 +1,11 @@
 /* eslint-disable react/no-unescaped-entities */
+import Hero from "@/components/Hero";
+
 export default function PrivacyPolicy() {
   return (
     <div className="min-h-screen bg-black">
+      <Hero />
+      
       <div className="max-w-4xl mx-auto px-6 py-12 text-white">
         {/* Header */}
         <div className="text-center mb-12">
