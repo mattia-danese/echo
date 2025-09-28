@@ -111,7 +111,7 @@ export default function SessionPageClient({
 
     if (error) {
         return (
-            <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8">
+            <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
                 <main className="flex flex-col items-center gap-8 max-w-md w-full">
                     <Hero />
                     <div className="text-white text-center">
@@ -124,7 +124,7 @@ export default function SessionPageClient({
 
     if (submitError) {
         return (
-            <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8">
+            <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
                 <main className="flex flex-col items-center gap-8 max-w-md w-full">
                     <Hero />
                     <div className="text-white text-center">
@@ -137,11 +137,22 @@ export default function SessionPageClient({
 
     if (!sessionActive) {
         return (
-            <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8">
+            <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
                 <main className="flex flex-col items-center gap-8 max-w-md w-full">
                     <Hero />
                     <div className="text-white text-center">
-                        this echo session ended at {sessionEndsAt.toLocaleString()} :(
+                        this echo session ended at {(() => {
+                            const date = new Date(sessionEndsAt);
+                            return `${date.toLocaleDateString('en-US', { 
+                                month: '2-digit', 
+                                day: '2-digit', 
+                                year: 'numeric' 
+                            })} at ${date.toLocaleTimeString('en-US', { 
+                                hour: '2-digit', 
+                                minute: '2-digit',
+                                hour12: false 
+                            })}`;
+                        })()} :(
                     </div>
                 </main>
             </div>
@@ -150,7 +161,7 @@ export default function SessionPageClient({
 
     if (alreadySubmitted) {
         return (
-            <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8">
+            <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
                 <main className="flex flex-col items-center gap-8 max-w-md w-full">
                     <Hero />
                     <div className="text-white text-center">
@@ -163,7 +174,7 @@ export default function SessionPageClient({
 
     if (isSubmitted) {
         return (
-            <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8">
+            <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
                 <main className="flex flex-col items-center gap-8 max-w-md w-full">
                     <Hero />
                     <div className="text-white text-2xl text-center">
@@ -175,7 +186,7 @@ export default function SessionPageClient({
     }
 
     return (
-        <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8">
+        <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
             <main className="flex flex-col items-center gap-8 max-w-md w-full">
                 <Hero showText={false} />
 
@@ -290,7 +301,7 @@ export default function SessionPageClient({
                 <Button
                     onClick={handleSubmitSongSelection}
                     disabled={!selectedSong}
-                    className="w-full bg-white text-black hover:bg-gray-100 font-medium"
+                    className="w-full bg-white text-black hover:bg-gray-100 font-medium mb-8"
                 >
                     send
                 </Button>

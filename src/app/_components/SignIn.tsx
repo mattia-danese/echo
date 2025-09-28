@@ -104,7 +104,7 @@ export default function SignIn({ accountStatus }: SignInProps) {
     };
 
     return (
-        <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8">
+        <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
             <main className="flex flex-col items-center gap-8 max-w-md w-full">
             <Hero />
 
