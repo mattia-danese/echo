@@ -56,6 +56,7 @@ export async function createUser(payload: {
       return {
         ok: true,
         user_id: existingUser.id,
+        onboarding_token: null,
         created: false,
         message: 'User with this phone number already exists.'
       };
@@ -91,6 +92,9 @@ export async function createUser(payload: {
     // Generate friend link
     const friend_link_token = crypto.randomBytes(16).toString("base64url");
 
+    // Generate onboarding token
+    const onboarding_token = crypto.randomBytes(16).toString("base64url");
+
     // Get Spotify user ID from /me endpoint
     const spotifyUserProfileResponse = await fetch('https://api.spotify.com/v1/me', {
         headers: {
@@ -114,12 +118,14 @@ export async function createUser(payload: {
         last_name: payload.last_name,
         phone_number: payload.phone_number,
         friend_link_token: friend_link_token,
+        onboarding_token: onboarding_token,
+        is_onboarding_complete: false,
         spotify_user_id: spotifyUserProfile.id,
         spotify_access_token: spotifyData.access_token,
         spotify_refresh_token: spotifyData.refresh_token,
         spotify_token_expires_at: expiresAt,
       })
-      .select('id')
+      .select('id,onboarding_token')
       .single();
 
     if (insertError) {
@@ -134,13 +140,13 @@ export async function createUser(payload: {
 
       if (!ok) {
         console.error('Error creating friendship:', message);
-
       }
     }
 
     return {
       ok: true,
       user_id: newUser.id,
+      onboarding_token: newUser.onboarding_token,
       created: true,
       message: 'User created successfully with Spotify tokens.'
     };
@@ -150,6 +156,7 @@ export async function createUser(payload: {
     return {
       ok: false,
       user_id: null,
+      onboarding_token: null,
       created: false,
       message: 'An error occurred while creating the user.'
     };
@@ -209,9 +216,10 @@ export async function createFriendships(payload: {
 
 export async function sendOnboardingMessage(payload: { 
     phone_number: string;
+    onboarding_token: string;
   }) {
     console.log('Triggering onboarding task... ', payload.phone_number);
-    await onboardingTask.trigger({ phone_number: payload.phone_number });
+    await onboardingTask.trigger({ phone_number: payload.phone_number, onboarding_token: payload.onboarding_token });
     return {
       ok: true,
       message: `onboarding message sent to ${payload.phone_number}`,
@@ -342,4 +350,22 @@ export async function submitSong(payload: {
   }
 
   return { ok: true, message: 'Song submitted successfully' };
+}
+
+export async function completeOnboarding(payload: {
+    onboarding_token: string;
+}) {
+    const { error } = await supabase
+    .from('users')
+    .update({
+        is_onboarding_complete: true
+    })
+    .eq('onboarding_token', payload.onboarding_token)
+
+  if (error) {
+    console.error('Error completing onboarding:', error, payload);
+    return { ok: false, message: 'Error completing onboarding' };
+  }
+
+  return { ok: true, message: 'Onboarding completed successfully' };
 }

@@ -1,5 +1,5 @@
 // app/auth/callback/route.ts  (App Router API route)
-import { createUser } from "@/app/actions";
+import { createUser, sendOnboardingMessage } from "@/app/actions";
 import { NextResponse } from "next/server";
 
 type AccountStatus =  "created" | "error";
@@ -18,21 +18,39 @@ export async function GET(req: Request) {
     const formParams = new URLSearchParams(decodeURIComponent(state));
     
     try {
+        const firstName = decodeURIComponent(formParams.get('firstName') || '');
+        const lastName = decodeURIComponent(formParams.get('lastName') || '');
+        const phoneNumber = decodeURIComponent(formParams.get('phoneNumber') || '');
+
+        if (!phoneNumber) {
+            throw new Error('Phone number is required');
+        }
+
+        if (!firstName) {
+            throw new Error('First name is required');
+        }
+        
+        if (!lastName) {
+            throw new Error('Last name is required');
+        }
+        
         const result = await createUser({
-          first_name: formParams.get('firstName') || '',
-          last_name: formParams.get('lastName') || '',
-          phone_number: decodeURIComponent(formParams.get('phoneNumber') || ''),
+          first_name: firstName,
+          last_name: lastName,
+          phone_number: phoneNumber,
           spotify_code: code,
           referral_friend_link_token: formParams.get('friendLinkToken') || '',
         });
 
-        if (result.ok) {            
-            // TODO: TEST THIS
-        //   if (result.created) {
-        //     sendOnboardingMessage({ phone_number: userData.phoneNumber });
-        //   }
+        if (result.ok) {
+          if (result.created) {
+            // sendOnboardingMessage({ phone_number: phoneNumber, onboarding_token: result.onboarding_token });
 
-          accountStatus = 'created'
+            accountStatus = 'created'
+          }
+          else {
+            accountStatus = 'error'
+          }
         } else {
           accountStatus = 'error'
         }

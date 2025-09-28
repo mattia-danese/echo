@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Hero from "../../../../components/Hero";
 import { useDebounce } from "@/components/Debounce";
 import { useState, useEffect } from "react";
-import { searchSpotifyTracks, submitSong } from "../../../actions";
+import { searchSpotifyTracks, submitSong, completeOnboarding } from "../../../actions";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import Image from "next/image";
 
@@ -21,6 +21,7 @@ export interface SessionPageClientProps {
     sessionEndsAt: string;
     alreadySubmitted: boolean;
     token: string;
+    isOnboarding: boolean;
 }
 
 export default function SessionPageClient({ 
@@ -28,7 +29,8 @@ export default function SessionPageClient({
     topSongs, 
     sessionEndsAt, 
     alreadySubmitted,
-    token
+    token,
+    isOnboarding
 }: SessionPageClientProps) 
 {
     const [spotifySearch, setSpotifySearch] = useState('');
@@ -56,19 +58,37 @@ export default function SessionPageClient({
     const sessionActive = new Date() < new Date(sessionEndsAt);
 
     const handleSubmitSongSelection = async () => {
-        if (selectedSong) {
-            
-            const result = await submitSong({
-                token: token,
-                spotify_track_id: selectedSong.trackId
+        if (!selectedSong) {
+            console.error('Error submitting song: no song selected');
+            setSubmitError(true);
+            return;
+        }
+
+        if (isOnboarding) {
+            const result = await completeOnboarding({
+                onboarding_token: token
             });
-            
+
             if (result.ok) {
                 setIsSubmitted(true);
             } else {
-                console.error('Error submitting song:', result.message);
+                console.error('Error completing onboarding:', result.message);
                 setSubmitError(true);
             }
+
+            return;
+        }
+        
+        const result = await submitSong({
+            token: token,
+            spotify_track_id: selectedSong.trackId
+        });
+        
+        if (result.ok) {
+            setIsSubmitted(true);
+        } else {
+            console.error('Error submitting song:', result.message);
+            setSubmitError(true);
         }
     }
 
@@ -135,7 +155,7 @@ export default function SessionPageClient({
         );
     }
 
-    if (!sessionActive) {
+    if (!sessionActive && !isOnboarding) {
         return (
             <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
                 <main className="flex flex-col items-center gap-8 max-w-md w-full">
@@ -165,7 +185,7 @@ export default function SessionPageClient({
                 <main className="flex flex-col items-center gap-8 max-w-md w-full">
                     <Hero />
                     <div className="text-white text-center">
-                        you already submitted a song for this echo session :)
+                        {isOnboarding ? "you already completed the onboarding :)" : "you already submitted a song for this echo session :)"}
                     </div>
                 </main>
             </div>
@@ -178,7 +198,7 @@ export default function SessionPageClient({
                 <main className="flex flex-col items-center gap-8 max-w-md w-full">
                     <Hero />
                     <div className="text-white text-2xl text-center">
-                        thank you for sharing a song :)
+                        {isOnboarding ? "thank you for completing your onboarding :)" : "thank you for sharing a song :)"}
                     </div>
                 </main>
             </div>
@@ -191,7 +211,7 @@ export default function SessionPageClient({
                 <Hero showText={false} />
 
                 <div className="text-white text-2xl text-center">
-                    share your song of the moment
+                    {isOnboarding ? "share your first song to complete your onboarding :)" : "share your song of the moment"}
                 </div>
 
                 {/* Selected song display or skeleton */}

@@ -32,6 +32,7 @@ export default async function SessionPage({ params }: PageProps) {
         sessionEndsAt: '',
         alreadySubmitted: false,
         token: token,
+        isOnboarding: false,
     }
 
     // from token:
@@ -76,5 +77,5 @@ export default async function SessionPage({ params }: PageProps) {
         albumImageUrl: song.album_image_url,
     }));
 
-    return <SessionPageClient error={props.error} topSongs={props.topSongs} sessionEndsAt={props.sessionEndsAt} alreadySubmitted={props.alreadySubmitted} token={props.token} />
+    return <SessionPageClient error={props.error} topSongs={props.topSongs} sessionEndsAt={props.sessionEndsAt} alreadySubmitted={props.alreadySubmitted} token={props.token} isOnboarding={props.isOnboarding} />
 }
