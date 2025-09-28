@@ -198,7 +198,13 @@ export default function SessionPageClient({
                 <main className="flex flex-col items-center gap-8 max-w-md w-full">
                     <Hero />
                     <div className="text-white text-2xl text-center">
-                        {isOnboarding ? "thank you for completing your onboarding :)" : "thank you for sharing a song :)"}
+                        {isOnboarding ? 
+                        <>
+                            thank you for sharing a song.
+                            <br />
+                            go back to your text messages to see the songs your friends shared :)
+                        </> : 
+                        "thank you for sharing a song :)"}
                     </div>
                 </main>
             </div>

@@ -21,7 +21,7 @@ export const createNewEchoSessionTask = schedules.task({
   maxDuration: 300, // Stop executing after 300 secs (5 mins) of compute
 
   cron : {
-    pattern: "0 18 * * 2,5", // run every Tues and Fri at 6:00 PM
+    pattern: "0 11 * * 3,7", // run every Wed and Sun at 11:00 AM EST
     timezone: "America/New_York",
     environments: ["DEVELOPMENT"],
   },
@@ -33,8 +33,8 @@ export const createNewEchoSessionTask = schedules.task({
       const { data: echoSessionData, error: echoSessionError } = await supabase
         .from('echo_sessions')
         .insert({
-          start: new Date(new Date().setHours(18, 0, 0, 0)).toISOString(),
-          end: new Date(new Date().setHours(21, 0, 0, 0)).toISOString(),
+          start: new Date(new Date().setHours(11, 0, 0, 0)).toISOString(),
+          end: new Date(new Date().setHours(18, 0, 0, 0)).toISOString(),
         })
       .select('id')
       .single();
@@ -47,11 +47,11 @@ export const createNewEchoSessionTask = schedules.task({
     const echoSessionId = echoSessionData.id;
     logger.log("new echo session created", { echoSessionId });
 
-    // get all the users in the database
+    // get all the users in the database that have completed onboarding
     const { data: usersData, error: usersError } = await supabase
       .from('users')
       .select('id, phone_number')
-
+      .eq('onboarding_completed', true);
     if (usersError) {
       logger.error("error getting users", { usersError });
       throw usersError;

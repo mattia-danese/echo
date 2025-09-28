@@ -51,7 +51,7 @@ export const generatePlaylistsTask = schedules.task({
 
   cron : {
     // echo sessions are every Tues and Fri at 6:00 PM
-    pattern: "0 12 * * 3,6", // run every Wed and Sat at 12:00 PM
+    pattern: "30 18 * * 3,7", // run every Wed and Sun at 6:30 PM EST
     timezone: "America/New_York",
     environments: ["DEVELOPMENT"],
   },
@@ -125,6 +125,7 @@ export const generatePlaylistsTask = schedules.task({
 
       playlists[user.user_id] = [];
 
+      // FIXME: this caps the number of friends, not the number of songs - some fetched friends may not have shared a song
       const { data: userFriendData, error: userFriendError } = await supabase
         .from('friends')
         .select('friend_id')
@@ -150,8 +151,6 @@ export const generatePlaylistsTask = schedules.task({
       }
 
       // create a playlist with Spotify API
-      // TODO: add spotify_user_id to users table
-
       if (new Date(user.users.spotify_token_expires_at) < new Date()) {
         logger.log("spotify token expired, refreshing ...", { user });
         

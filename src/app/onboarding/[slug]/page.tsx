@@ -27,7 +27,7 @@ export default async function OnboardingPage({ params }: PageProps) {
             trackId: "5HOpkTTVcmZHnthgyxrIL8",
             albumImageUrl: "https://i.scdn.co/image/ab67616d0000b273078f1176c3c725de8e95f490",
             artists: "Ylvis",
-        }
+        },
     ];
 
     let alreadySubmitted = false;

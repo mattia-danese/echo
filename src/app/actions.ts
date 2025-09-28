@@ -367,5 +367,7 @@ export async function completeOnboarding(payload: {
     return { ok: false, message: 'Error completing onboarding' };
   }
 
+//   call complete onboarding task to send friend playlist link
+
   return { ok: true, message: 'Onboarding completed successfully' };
 }
