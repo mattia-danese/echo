@@ -51,7 +51,7 @@ export const createNewEchoSessionTask = schedules.task({
     const { data: usersData, error: usersError } = await supabase
       .from('users')
       .select('id, phone_number')
-      .eq('onboarding_completed', true);
+      .eq('is_onboarding_complete', true);
     if (usersError) {
       logger.error("error getting users", { usersError });
       throw usersError;

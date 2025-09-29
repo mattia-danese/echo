@@ -1,6 +1,6 @@
 "use server";
 
-import { onboardingTask } from '@/trigger';
+import { onboardingCompletionTask, onboardingTask } from '@/trigger';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { isNameValid, isPhoneNumberValid } from "@/lib/validation";
@@ -355,19 +355,26 @@ export async function submitSong(payload: {
 export async function completeOnboarding(payload: {
     onboarding_token: string;
 }) {
-    const { error } = await supabase
+    const { data: user, error } = await supabase
     .from('users')
     .update({
         is_onboarding_complete: true
     })
     .eq('onboarding_token', payload.onboarding_token)
+    .select('*')
+    .single();
 
   if (error) {
     console.error('Error completing onboarding:', error, payload);
     return { ok: false, message: 'Error completing onboarding' };
   }
 
-//   call complete onboarding task to send friend playlist link
+  if (!user) {
+    console.error('User not found:', payload);
+    return { ok: false, message: 'User not found' };
+  }
+
+  await onboardingCompletionTask.trigger({ user });
 
   return { ok: true, message: 'Onboarding completed successfully' };
 }

@@ -1,6 +1,7 @@
 // Export all trigger tasks for easy importing in server actions
 export { onboardingTask } from "./onboarding";
 export { getRecentPlaysTask } from "./get-recent-plays";
+export { onboardingCompletionTask } from "./onboarding-completion";
 
 export async function refreshAccessToken(spotify_refresh_token: string) {
     const response = await fetch('https://accounts.spotify.com/api/token', {
