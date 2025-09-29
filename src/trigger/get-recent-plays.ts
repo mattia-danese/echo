@@ -1,4 +1,4 @@
-import { logger, schedules } from "@trigger.dev/sdk/v3";
+import { logger, task} from "@trigger.dev/sdk/v3";
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -6,32 +6,39 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export const getRecentPlaysTask = schedules.task({
+type User = {   
+    id: string,
+    spotify_access_token: string, 
+    spotify_refresh_token: string, 
+    spotify_token_expires_at: string
+}
+
+export const getRecentPlaysTask = task({
   id: "get-recent-plays",
   // Set an optional maxDuration to prevent tasks from running indefinitely
   maxDuration: 300, // Stop executing after 300 secs (5 mins) of compute
 
-  cron : {
-    pattern: "0 0 * * *", // run every day at 12:00 AM
-    timezone: "America/New_York",
-    environments: ["DEVELOPMENT"],
-  },
-
-  run: async () => {
+  run: async (payload: {user?: User}, { ctx }) => {
     logger.log("get recent plays task starting ...");
 
-    const { data, error } = await supabase
-      .from('users')
-      .select(`
-        id,
-        spotify_access_token, 
-        spotify_refresh_token, 
-        spotify_token_expires_at
-    `)
+    let data = payload.user ? [payload.user] : [] as User[];
 
-    if (error) {
-      logger.error("error getting recent plays", { error });
-      throw error;
+    if (!payload.user) {
+        const { data: users, error } = await supabase
+        .from('users')
+        .select(`
+            id,
+            spotify_access_token, 
+            spotify_refresh_token, 
+            spotify_token_expires_at
+        `)
+
+        if (error) {
+            logger.error("error getting recent plays", { error });
+            throw error;
+        }
+
+        data = users;
     }
 
     for (const user of data) {

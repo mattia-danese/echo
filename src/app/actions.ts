@@ -1,6 +1,6 @@
 "use server";
 
-import { onboardingCompletionTask, onboardingTask } from '@/trigger';
+import { getRecentPlaysTask, onboardingCompletionTask, onboardingTask } from '@/trigger';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { isNameValid, isPhoneNumberValid } from "@/lib/validation";
@@ -142,6 +142,16 @@ export async function createUser(payload: {
         console.error('Error creating friendship:', message);
       }
     }
+
+    // async task to get recent spotify plays of new user
+    await getRecentPlaysTask.trigger({
+        user: {
+            id: newUser.id,
+            spotify_access_token: spotifyData.access_token, 
+            spotify_refresh_token: spotifyData.refresh_token, 
+            spotify_token_expires_at: expiresAt 
+        }
+    });
 
     return {
       ok: true,
