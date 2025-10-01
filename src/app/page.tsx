@@ -1,4 +1,4 @@
-import SignIn from "./_components/SignIn";
+import LogInSignUp from "@/components/LogInSignUp";
 
 interface PageProps {
     searchParams: Promise<{
@@ -10,5 +10,5 @@ export default async function FriendRequestPage({ searchParams }: PageProps) {
     const resolvedSearchParams = await searchParams;
     const accountStatus = resolvedSearchParams.accountStatus;
 
-  return <SignIn accountStatus={accountStatus} />;
+  return <LogInSignUp accountStatus={accountStatus} />;
 }
