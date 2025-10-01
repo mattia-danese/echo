@@ -24,9 +24,9 @@ export default function Footer() {
 
                     {/* Right section - Company details */}
                     <div className="flex-1 space-y-2">
-                        <div className="text-sm whitespace-nowrap">1259 minnesota street, san francisco, california, 94107, usa</div>
+                        <div className="text-sm whitespace-nowrap">1347 jackson street, san francisco, california, 94109, usa</div>
                         <div className="text-sm">2025 Echo Music Discovery, Inc. all rights reserved.</div>
-                        <div className="text-sm">built with ❤️ In san francisco & new york</div>
+                        <div className="text-sm">built with ❤️ in san francisco & new york</div>
                     </div>
                 </div>
             </div>
