@@ -1,7 +1,6 @@
 import { checkRegistrationData } from "@/app/actions";
 import { useEffect, useState } from "react";
 
-import PhoneNumberChecker from "@/components/PhoneNumberChecker";
 import { Input } from "@/components/ui/input";
 import { CircleCheck } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
