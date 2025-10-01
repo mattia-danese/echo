@@ -9,7 +9,7 @@ const supabase = createClient(
 
 interface PageProps {
     params: Promise<{
-        slug?: string;
+        slug: string;
     }>;
     searchParams: Promise<{
         accountStatus?: string;
@@ -23,8 +23,6 @@ export default async function FriendRequestPage({ params, searchParams }: PagePr
     const token = resolvedParams.slug;
     const accountStatus = resolvedSearchParams.accountStatus;
 
-    console.log("token", token)
-
     const { data, error } = await supabase
       .from("users")
       .select("first_name")
@@ -32,14 +30,12 @@ export default async function FriendRequestPage({ params, searchParams }: PagePr
       .single();
 
     if (!data || error) {
-        console.log("data", data)
-        console.log("error", error)
         redirect("/");
     }
 
     const inviter = {
-        'firstName': data!.first_name,
-        'link': token!,
+        'firstName': data.first_name,
+        'link': token,
     }
 
   return <FriendRequest inviter={inviter} accountStatus={accountStatus} />;
