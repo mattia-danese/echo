@@ -4,7 +4,8 @@ import { getUserTopSongs } from "@/app/actions";
 
 interface UserEchoSession {
     user_id: string;
-    spotify_track_id: string | null;
+    platform: string;
+    track_id: string | null;
     echo_sessions: {
         end: string;
     };
@@ -29,6 +30,7 @@ export default async function SessionPage({ params }: PageProps) {
     const props: SessionPageClientProps = {
         error: false,
         topSongs: [],
+        platform: '',
         sessionEndsAt: '',
         alreadySubmitted: false,
         token: token,
@@ -44,7 +46,8 @@ export default async function SessionPage({ params }: PageProps) {
       .from("user_echo_sessions")
       .select(`
         user_id, 
-        spotify_track_id, 
+        platform,
+        track_id, 
         echo_sessions!inner(end)
       `)
       .eq("token", token)
@@ -57,12 +60,12 @@ export default async function SessionPage({ params }: PageProps) {
         return <SessionPageClient {...props} />;
     }
 
-    props.alreadySubmitted = data.spotify_track_id !== null;
+    props.platform = data.platform;
+    props.alreadySubmitted = data.track_id !== null;
     props.sessionEndsAt = data.echo_sessions.end;
 
     // get top songs of user
-
-    const result = await getUserTopSongs({ user_id: data.user_id });
+    const result = await getUserTopSongs({ user_id: data.user_id, num_songs: 4 });
 
     if (!result.ok) {
         console.log("topSongsError:", result.message, data.user_id)
@@ -72,10 +75,10 @@ export default async function SessionPage({ params }: PageProps) {
 
     props.topSongs = result.songs.map((song) => ({
         title: song.track_name,
-        trackId: song.spotify_track_id,
-        artists: song.artist_name,
+        trackId: song.track_id,
+        artists: song.artists,
         albumImageUrl: song.album_image_url,
     }));
 
-    return <SessionPageClient error={props.error} topSongs={props.topSongs} sessionEndsAt={props.sessionEndsAt} alreadySubmitted={props.alreadySubmitted} token={props.token} isOnboarding={props.isOnboarding} />
+    return <SessionPageClient error={props.error} topSongs={props.topSongs} platform={props.platform} sessionEndsAt={props.sessionEndsAt} alreadySubmitted={props.alreadySubmitted} token={props.token} isOnboarding={props.isOnboarding} />
 }

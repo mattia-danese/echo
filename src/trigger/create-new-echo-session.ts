@@ -50,7 +50,7 @@ export const createNewEchoSessionTask = schedules.task({
     // get all the users in the database that have completed onboarding
     const { data: usersData, error: usersError } = await supabase
       .from('users')
-      .select('id, phone_number')
+      .select('id, phone_number, platform')
       .eq('is_onboarding_complete', true);
     if (usersError) {
       logger.error("error getting users", { usersError });
@@ -69,6 +69,7 @@ export const createNewEchoSessionTask = schedules.task({
         user_id: user.id,
         session_id: echoSessionId,
         token: token,
+        platform: user.platform,
       });
     }
     

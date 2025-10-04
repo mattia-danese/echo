@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Hero from "../../../../components/Hero";
 import { useDebounce } from "@/components/Debounce";
 import { useState, useEffect } from "react";
-import { searchSpotifyTracks, submitSong, completeOnboarding } from "../../../actions";
+import { searchPlatformTracks, submitSong, completeOnboarding } from "../../../actions";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import Image from "next/image";
 
@@ -18,6 +18,7 @@ export interface SessionPageClientProps {
         albumImageUrl: string;
         artists: string;
     }[];
+    platform: string;
     sessionEndsAt: string;
     alreadySubmitted: boolean;
     token: string;
@@ -27,6 +28,7 @@ export interface SessionPageClientProps {
 export default function SessionPageClient({ 
     error, 
     topSongs, 
+    platform,
     sessionEndsAt, 
     alreadySubmitted,
     token,
@@ -81,7 +83,7 @@ export default function SessionPageClient({
         
         const result = await submitSong({
             token: token,
-            spotify_track_id: selectedSong.trackId
+            track_id: selectedSong.trackId
         });
         
         if (result.ok) {
@@ -105,7 +107,7 @@ export default function SessionPageClient({
                 setSearchError(false);
                 
                 try {
-                    const result = await searchSpotifyTracks(debouncedSearch);
+                    const result = await searchPlatformTracks(platform, debouncedSearch);
                     
                     if (result.ok) {
                         setSearchResults(result.tracks);

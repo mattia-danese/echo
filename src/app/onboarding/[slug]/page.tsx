@@ -1,3 +1,4 @@
+import { getUserTopSongs } from "@/app/actions";
 import SessionPageClient from "../../session/[slug]/_components/SessionPageClient";
 import { createClient } from "@supabase/supabase-js";
 
@@ -16,34 +17,41 @@ export default async function OnboardingPage({ params }: PageProps) {
     const resolvedParams = await params;
     const token = resolvedParams.slug;
 
-    const topSongs: {
-        title: string;
-        trackId: string;
-        albumImageUrl: string;
-        artists: string;
-    }[] = [
-        {
-            title: "The Fox (What Does the Fox Say?)",
-            trackId: "5HOpkTTVcmZHnthgyxrIL8",
-            albumImageUrl: "https://i.scdn.co/image/ab67616d0000b273078f1176c3c725de8e95f490",
-            artists: "Ylvis",
-        },
-    ];
-
     let alreadySubmitted = false;
     let err = false;
+    let platform = "";
 
     const { data, error } = await supabase
       .from("users")
-      .select("is_onboarding_complete")
+      .select("id, is_onboarding_complete, platform")
       .eq("onboarding_token", token)
       .single();
 
     if (!data || error) {
         err = true;
+        
+        return <SessionPageClient error={true} topSongs={[]} sessionEndsAt={""} alreadySubmitted={alreadySubmitted} token={token} isOnboarding={true} platform={platform} />
     } else {
         alreadySubmitted = data.is_onboarding_complete;
+        platform = data.platform;
     }
 
-    return <SessionPageClient error={err} topSongs={topSongs} sessionEndsAt={""} alreadySubmitted={alreadySubmitted} token={token} isOnboarding={true} />
+    // get top songs of user
+    const result = await getUserTopSongs({ user_id: data.id, num_songs: 2 });
+
+    if (!result.ok) {
+        err = true;
+        console.log("topSongsError:", result.message, data.id)
+        
+        return <SessionPageClient error={true} topSongs={[]} sessionEndsAt={""} alreadySubmitted={alreadySubmitted} token={token} isOnboarding={true} platform={platform} />
+    }
+
+    const topSongs = result.songs.map((song) => ({
+        title: song.track_name,
+        trackId: song.track_id,
+        artists: song.artists,
+        albumImageUrl: song.album_image_url,
+    }));
+
+    return <SessionPageClient error={err} topSongs={topSongs} sessionEndsAt={""} alreadySubmitted={alreadySubmitted} token={token} isOnboarding={true} platform={platform} />
 }

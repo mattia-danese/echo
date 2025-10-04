@@ -21,6 +21,7 @@ export async function GET(req: Request) {
         const firstName = decodeURIComponent(formParams.get('firstName') || '');
         const lastName = decodeURIComponent(formParams.get('lastName') || '');
         const phoneNumber = decodeURIComponent(formParams.get('phoneNumber') || '');
+        const platform = decodeURIComponent(formParams.get('platform') || '');
 
         if (!phoneNumber) {
             throw new Error('Phone number is required');
@@ -34,11 +35,16 @@ export async function GET(req: Request) {
             throw new Error('Last name is required');
         }
         
+        if (!platform) {
+            throw new Error('Platform is required');
+        }
+        
         const result = await createUser({
           first_name: firstName,
           last_name: lastName,
           phone_number: phoneNumber,
           spotify_code: code,
+          platform: platform,
           referral_friend_link_token: formParams.get('friendLinkToken') || '',
         });
 

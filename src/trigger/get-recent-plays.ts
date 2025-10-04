@@ -8,9 +8,23 @@ const supabase = createClient(
 
 type User = {   
     id: string,
-    spotify_access_token: string, 
-    spotify_refresh_token: string, 
-    spotify_token_expires_at: string
+    platform: string,
+    spotify_access_token: string | null, 
+    spotify_refresh_token: string | null, 
+    spotify_token_expires_at: string | null,
+    apple_music_access_token: string | null,
+    apple_music_refresh_token: string | null,
+    apple_music_token_expires_at: string | null,
+}
+
+type TrackPlay = {
+    user_id: string,
+    platform: string,
+    track_id: string,
+    track_name: string,
+    artists: string,
+    played_at: string,
+    album_image_url: string,
 }
 
 export const getRecentPlaysTask = task({
@@ -28,9 +42,13 @@ export const getRecentPlaysTask = task({
         .from('users')
         .select(`
             id,
+            platform,
             spotify_access_token, 
             spotify_refresh_token, 
-            spotify_token_expires_at
+            spotify_token_expires_at,
+            apple_music_access_token,
+            apple_music_refresh_token,
+            apple_music_token_expires_at,
         `)
 
         if (error) {
@@ -38,85 +56,18 @@ export const getRecentPlaysTask = task({
             throw error;
         }
 
-        data = users;
+        data = (users as unknown as User[]) || [];
     }
 
     for (const user of data) {
-        // check if spotify_token_expires_at is in the past
-        if (new Date(user.spotify_token_expires_at) < new Date()) {
-            logger.log("spotify token expired, refreshing ...", { user });
-
-            const {data: refreshAccessTokenData, error: refreshAccessTokenError} = await refreshAccessToken(user.spotify_refresh_token);
-
-            if (refreshAccessTokenError) {
-                logger.error("error refreshing spotify token", {user, refreshAccessTokenError });
-                continue;
-            }
-
-            if (!refreshAccessTokenData) {
-                logger.error("no data returned from refreshAccessToken", {user, refreshAccessTokenData });
-                continue;
-            }
-            
-            user.spotify_access_token = refreshAccessTokenData.access_token;
-            user.spotify_token_expires_at = new Date(Date.now() + refreshAccessTokenData.expires_in * 1000).toISOString();
-
-            logger.log("spotify token refreshed", { user });
-            
-            logger.log("updating user with refreshed token", { user });
-            await supabase
-                .from('users')
-                .update({ 
-                    spotify_access_token: user.spotify_access_token, 
-                    spotify_refresh_token: refreshAccessTokenData.refresh_token ?? user.spotify_refresh_token,
-                    spotify_token_expires_at: user.spotify_token_expires_at 
-                })
-                .eq('id', user.id);
-
-            logger.log("user update complete", { user });
+        
+        if (user.platform === "spotify") {
+            await handleSpotifyUser(user.id, user.spotify_access_token!, user.spotify_refresh_token!, user.spotify_token_expires_at!);
+        } else if (user.platform === "apple-music") {
+            await handleAppleMusicUser(user.id, user.apple_music_access_token!, user.apple_music_refresh_token!, user.apple_music_token_expires_at!);
+        } else {
+            logger.error("invalid platform", { user });
         }
-
-        logger.log("getting recent plays", { user });
-        const {data: recentPlaysData, error: recentPlaysError} = await getRecentPlays(user.spotify_access_token);
-        logger.log("recent plays fetched", { recentPlaysData });
-
-        if (recentPlaysError) {
-            logger.error("error getting recent plays", {user, recentPlaysError });
-            continue;
-        }
-
-        if (!recentPlaysData) {
-            logger.error("no data returned from getRecentPlays", {user, recentPlaysData });
-            continue;
-        }
-
-        // insert recent plays into supabase
-        const userTrackPlays = [];
-        for (const play of recentPlaysData.items) {
-            userTrackPlays.push({
-                user_id: user.id,
-                spotify_track_id: play.track.id,
-                track_name: play.track.name,
-                artist_name: play.track.artists.map((artist: SpotifyApi.ArtistObjectSimplified) => artist.name).join(', '),
-                played_at: play.played_at,
-                album_image_url: play.track.album.images[0].url,
-            });
-        }
-
-        logger.log("writing recent plays into 'user_track_plays' table ...", { userTrackPlays });
-        const {error: writeRecentPlaysError} = await supabase
-            .from('user_track_plays')
-            .upsert(userTrackPlays, { 
-                onConflict: 'user_id,spotify_track_id,played_at',
-                ignoreDuplicates: true 
-            });
-
-        if (writeRecentPlaysError) {
-            logger.error("error writing recent plays", {user, writeRecentPlaysError });
-            continue;
-        }
-
-        logger.log("writing recent plays done");
     }
 
     return {
@@ -125,7 +76,73 @@ export const getRecentPlaysTask = task({
   },
 });
 
-const getRecentPlays = async (spotify_access_token: string) => {
+const handleSpotifyUser = async (user_id: string, access_token: string, refresh_token: string, token_expires_at: string) => {
+    if (new Date(token_expires_at) < new Date()) {
+        logger.log("spotify token expired, refreshing ...", { user_id, access_token, refresh_token, token_expires_at });
+
+        const {data: refreshAccessTokenData, error: refreshAccessTokenError} = await refreshSpotifyAccessToken(refresh_token);
+
+        if (refreshAccessTokenError) {
+            logger.error("error refreshing spotify token", {user_id, refreshAccessTokenError });
+            return;
+        }
+
+        if (!refreshAccessTokenData) {
+            logger.error("no data returned from refreshAccessToken", {user_id, refreshAccessTokenData });
+            return;
+        }
+        
+        const new_access_token = refreshAccessTokenData.access_token;
+        const new_refresh_token = refreshAccessTokenData.refresh_token;
+        const new_token_expires_at = new Date(Date.now() + refreshAccessTokenData.expires_in * 1000).toISOString();
+
+        logger.log("spotify token refreshed", { user_id, new_access_token, new_token_expires_at });
+        
+        logger.log("updating user with refreshed token", { user_id, new_access_token, new_token_expires_at });  
+        await supabase
+            .from('users')
+            .update({ 
+                spotify_access_token: new_access_token, 
+                spotify_refresh_token: new_refresh_token ?? refresh_token,
+                spotify_token_expires_at: new_token_expires_at
+            })
+            .eq('id', user_id);
+
+        logger.log("user update complete", { user_id, new_access_token, new_token_expires_at });
+    }
+
+    logger.log("getting recent plays", { user_id });
+    const {data: recentPlaysData, error: recentPlaysError} = await getRecentSpotifyPlays(access_token);
+    logger.log("recent plays fetched", { recentPlaysData });
+
+    if (recentPlaysError) {
+        logger.error("error getting recent plays", {user_id, recentPlaysError });
+        return;
+    }
+
+    if (!recentPlaysData) {
+        logger.error("no data returned from getRecentPlays", {user_id, recentPlaysData });
+        return;
+    }
+
+    // insert recent plays into supabase
+    const userTrackPlays: TrackPlay[] = [];
+    for (const play of recentPlaysData.items) {
+        userTrackPlays.push({
+            user_id: user_id,
+            platform: 'spotify',
+            track_id: play.track.id,
+            track_name: play.track.name,
+            artists: play.track.artists.map((artist: SpotifyApi.ArtistObjectSimplified) => artist.name).join(', '),
+            played_at: play.played_at,
+            album_image_url: play.track.album.images[0].url,
+        });
+    }
+
+    await storeTracks(userTrackPlays, user_id);
+}
+
+const getRecentSpotifyPlays = async (spotify_access_token: string) => {
     const response = await fetch('https://api.spotify.com/v1/me/player/recently-played?limit=50', {
         method: 'GET',
         headers: {
@@ -143,7 +160,7 @@ const getRecentPlays = async (spotify_access_token: string) => {
     return { data, error: null };
 }
 
-const refreshAccessToken = async (spotify_refresh_token: string) => {
+const refreshSpotifyAccessToken = async (spotify_refresh_token: string) => {
     const response = await fetch('https://accounts.spotify.com/api/token', {
         method: 'POST',
         headers: {
@@ -166,4 +183,32 @@ const refreshAccessToken = async (spotify_refresh_token: string) => {
     const data = await response.json();
     
     return { data, error: null };
+}
+
+const handleAppleMusicUser = async (user_id: string, user_access_token: string, refresh_token: string, token_expires_at: string) => {
+    throw new Error("apple music auth not implemented yet");
+}
+
+const refreshAppleMusicAccessToken = async (apple_music_refresh_token: string) => {
+    return { data: null, error: null };
+}
+
+const getRecentAppleMusicPlays = async (apple_music_access_token: string) => {
+    return { data: null, error: null };
+}
+
+const storeTracks = async (trackPlays: TrackPlay[], user_id: string) => {
+    const {error: writeRecentPlaysError} = await supabase
+        .from('user_track_plays')
+        .upsert(trackPlays, { 
+            onConflict: 'user_id, track_id, played_at',
+            ignoreDuplicates: true 
+        });
+
+    if (writeRecentPlaysError) {
+        logger.error("error writing recent plays", {user_id, writeRecentPlaysError });
+        throw writeRecentPlaysError;
+    }
+
+    logger.log("writing recent plays done", { user_id });
 }
