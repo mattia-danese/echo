@@ -9,6 +9,7 @@ import { useState, useEffect } from "react";
 import { searchPlatformTracks, submitSong, completeOnboarding } from "../../../actions";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import Image from "next/image";
+import { SearchResultTrack } from "@/types";
 
 export interface SessionPageClientProps {
     error: boolean;
@@ -36,19 +37,9 @@ export default function SessionPageClient({
 }: SessionPageClientProps) 
 {
     const [spotifySearch, setSpotifySearch] = useState('');
-    const [selectedSong, setSelectedSong] = useState<{
-        trackId: string;
-        title: string;
-        artists: string;
-        albumImageUrl: string;
-    } | null>(null);
+    const [selectedSong, setSelectedSong] = useState<SearchResultTrack | null>(null);
     const [isSubmitted, setIsSubmitted] = useState(false);
-    const [searchResults, setSearchResults] = useState<{
-        trackId: string;
-        title: string;
-        artists: string;
-        albumImageUrl: string;
-    }[]>([]);
+    const [searchResults, setSearchResults] = useState<SearchResultTrack[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [searchError, setSearchError] = useState(false);
     const [isPopoverOpen, setIsPopoverOpen] = useState(false);
@@ -83,7 +74,7 @@ export default function SessionPageClient({
         
         const result = await submitSong({
             token: token,
-            track_id: selectedSong.trackId
+            track_id: selectedSong.track_id
         });
         
         if (result.ok) {
@@ -94,8 +85,8 @@ export default function SessionPageClient({
         }
     }
 
-    const handleSongSelect = (trackId: string, title: string, artists: string, albumImageUrl: string) => {
-        setSelectedSong({ trackId, title, artists, albumImageUrl });
+    const handleSongSelect = (track_id: string, track_name: string, artists: string, album_image_url: string) => {
+        setSelectedSong({ track_id, track_name, artists, album_image_url });
         setIsPopoverOpen(false); // Close popover when song is selected
     }
 
@@ -227,14 +218,14 @@ export default function SessionPageClient({
                     {selectedSong ? (
                         <>
                             <Image
-                                src={selectedSong.albumImageUrl}
-                                alt={selectedSong.title}
+                                src={selectedSong.album_image_url}
+                                alt={selectedSong.track_name}
                                 width={64}
                                 height={64}
                                 className="h-16 w-16 rounded-lg object-cover"
                             />
                             <div className="min-w-0 flex-1">
-                                <div className="truncate text-lg font-medium text-white">{selectedSong.title}</div>
+                                <div className="truncate text-lg font-medium text-white">{selectedSong.track_name}</div>
                                 <div className="truncate text-sm text-gray-400">{selectedSong.artists}</div>
                             </div>
                         </>
@@ -269,19 +260,19 @@ export default function SessionPageClient({
                         <div className="max-h-72 overflow-y-auto scrollbar-thin scrollbar-track-black scrollbar-thumb-gray-600">
                             {searchResults.map((result) => (
                                 <div
-                                    key={result.trackId}
+                                    key={result.track_id}
                                     className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 cursor-pointer transition-colors duration-150"
-                                    onClick={() => handleSongSelect(result.trackId, result.title, result.artists, result.albumImageUrl)}
+                                    onClick={() => handleSongSelect(result.track_id, result.track_name, result.artists, result.album_image_url)}
                                 >
                                     <Image
-                                        src={result.albumImageUrl}
-                                        alt={result.title}
+                                        src={result.album_image_url}
+                                        alt={result.track_name}
                                         width={40}
                                         height={40}
                                         className="h-10 w-10 rounded-sm object-cover"
                                     />
                                     <div className="min-w-0 flex-1">
-                                        <div className="truncate text-sm font-medium">{result.title}</div>
+                                        <div className="truncate text-sm font-medium">{result.track_name}</div>
                                         <div className="truncate text-xs text-gray-400">{result.artists}</div>
                                     </div>
                                 </div>
@@ -308,7 +299,7 @@ export default function SessionPageClient({
                             key={song.trackId}
                             onClick={() => handleSongSelect(song.trackId, song.title, song.artists, song.albumImageUrl)}
                             className={`flex flex-col items-center gap-1.5 p-1.5 rounded-lg transition-all ${
-                                selectedSong?.trackId === song.trackId 
+                                selectedSong?.track_id === song.trackId 
                                     ? 'border-2 border-white' 
                                     : 'border-2 border-transparent'
                             }`}

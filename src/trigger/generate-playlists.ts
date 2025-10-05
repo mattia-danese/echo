@@ -1,7 +1,7 @@
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { createClient } from '@supabase/supabase-js';
 
-import { refreshAccessToken } from "./index";
+import { SpotifyPlatform } from "@/platforms";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const twilio = require("twilio");
@@ -129,13 +129,18 @@ export const generatePlaylistsTask = schedules.task({
         continue;
       }
 
+      if (!playlistData) {
+        logger.error("no data returned from createPlaylist", { user, playlistData });
+        usersThatEncounteredErrors.add(user.user_id);
+        continue;
+      }
+
       logger.log("playlist created", { playlistData });
-      logger.log("adding songs to playlist");
 
       const { ok: populatePlaylistOk, error: populatePlaylistError } = await populatePlatformPlaylist(
         user, 
         playlists[user.user_id].map(song => song[1]), 
-        playlistData.id
+        playlistData.playlist_id
       );
 
       if (!populatePlaylistOk) {
@@ -148,14 +153,14 @@ export const generatePlaylistsTask = schedules.task({
         user_id: user.user_id,
         platform: user.users.platform,
         session_id: echoSessionId,
-        platform_playlist_id: playlistData.id,
+        platform_playlist_id: playlistData.playlist_id,
       });
 
       playlistSongRecords.push(...playlists[user.user_id].map(song => ({
         playlist_id: "",
         track_id: song[1],
         submitted_by_user_id: song[0],
-        platform_playlist_id: playlistData.id, // will not be persisted to database, just used to get Playlist.id in persistPlaylistsToDatabase
+        platform_playlist_id: playlistData.playlist_id, // will not be persisted to database, just used to get Playlist.id in persistPlaylistsToDatabase
       })));
     }
 
@@ -281,59 +286,40 @@ const createSpotifyPlaylistForUser = async (user: UserSongData, playlistNameAbbr
     if (new Date(user.users.spotify_token_expires_at) < new Date()) {
         logger.log("spotify token expired, refreshing ...", { user });
         
-        const {data: refreshAccessTokenData, error: refreshAccessTokenError} = await refreshAccessToken(user.users.spotify_refresh_token);
-    
-        if (refreshAccessTokenError) {
-            logger.error("error refreshing spotify token", {user, refreshAccessTokenError });
-            return { ok: false, data: null, error: refreshAccessTokenError };
+        const { ok: refreshTokensOk, data: refreshTokensData, error: refreshTokensError } = await SpotifyPlatform.refreshTokens({ user_id: user.user_id, refresh_token: user.users.spotify_refresh_token });
+
+        if (!refreshTokensOk) {
+            logger.error("error refreshing spotify token", {user, refreshTokensError });
+            return { ok: false, data: null, error: refreshTokensError };
         }
-    
-        if (!refreshAccessTokenData) {
-            logger.error("no data returned from refreshAccessToken", {user, refreshAccessTokenData });
+
+        if (!refreshTokensData) {
+            logger.error("no data returned from refreshAccessToken", {user, refreshTokensData });
             return { ok: false, data: null, error: `no data returned from refreshAccessToken` };
         }
-    
-        user.users.spotify_access_token = refreshAccessTokenData.access_token;
-        user.users.spotify_token_expires_at = new Date(Date.now() + refreshAccessTokenData.expires_in * 1000).toISOString();
-    
-        logger.log("spotify token refreshed", { user });
-        
-        logger.log("updating user with refreshed token", { user });
-        await supabase
-            .from('users')
-            .update({ 
-                spotify_access_token: user.users.spotify_access_token, 
-                spotify_refresh_token: refreshAccessTokenData.refresh_token ?? user.users.spotify_refresh_token,
-                spotify_token_expires_at: user.users.spotify_token_expires_at 
-            })
-            .eq('id', user.user_id);
+
+        user.users.spotify_access_token = refreshTokensData.access_token;
+        user.users.spotify_refresh_token = refreshTokensData.refresh_token;
+        user.users.spotify_token_expires_at = refreshTokensData.expires_in;
     
         logger.log("user update complete", { user });
     }
     
-      logger.log("creating spotify playlist for user", { user });
-    
-      const createPlaylistResponse = await fetch(`https://api.spotify.com/v1/users/${user.users.spotify_user_id}/playlists`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${user.users.spotify_access_token}`,
-          },
-        body: JSON.stringify({
-           name: `${user.users.first_name}${playlistNameAbbreviation} echo ${playlistDate}`,
-           description: `here are the songs your friends shared for the ${playlistDate} echo`,
-           public: false,
-        })
-      });
-    
-      if (!createPlaylistResponse.ok) {
-        logger.error("error creating playlist", { user, createPlaylistResponse });
-        return { ok: false, data: null, error: createPlaylistResponse.text };
-      }
-    
-      const playlistData = await createPlaylistResponse.json();
+    logger.log("creating spotify playlist for user", { user });
 
-      return { ok: true, data: playlistData, error: null };
+    const { ok: createPlaylistOk, data: createPlaylistData, error: createPlaylistError } = await SpotifyPlatform.createPlaylist({
+        user_id: user.users.spotify_user_id, 
+        access_token: user.users.spotify_access_token, 
+        playlist_name: `${user.users.first_name}${playlistNameAbbreviation} echo ${playlistDate}`, playlist_description: `here are the songs your friends shared for the ${playlistDate} echo`,
+        playlist_date: playlistDate 
+    });
+
+    if (!createPlaylistOk) {
+        logger.error("error creating playlist", { user, createPlaylistError });
+        return { ok: false, data: null, error: createPlaylistError };
+    }
+
+    return { ok: true, data: createPlaylistData, error: null };
 }
 
 const createAppleMusicPlaylistForUser = async (user: UserSongData, playlistNameAbbreviation: string) => {
@@ -342,37 +328,19 @@ const createAppleMusicPlaylistForUser = async (user: UserSongData, playlistNameA
 
 const populatePlatformPlaylist = async (user: UserSongData, songs: string[], playlist_id: string) => {
   if (user.users.platform === "spotify") {
-    return await populateSpotifyPlaylist(user.users.spotify_access_token, songs, playlist_id);
+    const songURIs = songs.map(song => `spotify:track:${song}`);
+
+    return await SpotifyPlatform.populatePlaylist({
+      access_token: user.users.spotify_access_token,
+      trackURIs: songURIs,
+      playlist_id: playlist_id
+    });
   }
   else if (user.users.platform === "apple-music") {
-    return await populateAppleMusicPlaylist(user.users.apple_music_access_token, songs);
+    return { ok: false, error: 'not implemented' }
   }
 
-  return { ok: false, data: null, error: `invalid platform ${user.users.platform}` };
-}
-
-const populateSpotifyPlaylist = async (spotify_access_token: string, songs: string[], playlist_id: string) => {
-    const addSongsToPlaylistResponse = await fetch(`https://api.spotify.com/v1/playlists/${playlist_id}/tracks`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${spotify_access_token}`,
-        },
-        body: JSON.stringify({
-            uris: songs.map(song => `spotify:track:${song}`),
-        })
-      });
-
-      if (!addSongsToPlaylistResponse.ok) {
-        logger.error("error adding songs to spotify playlist", { songs, addSongsToPlaylistResponse });
-        return { ok: false, error: addSongsToPlaylistResponse.text };
-      }
-
-      return { ok: true, error: null };
-}
-
-const populateAppleMusicPlaylist = async (apple_music_access_token: string, songs: string[]) => {
-    return { ok: false, error: 'not implemented' };
+  return { ok: false, error: `invalid platform ${user.users.platform}` };
 }
 
 const persistPlaylistsToDatabase = async (playlists: PlaylistRecords, playlistSongs: PlaylistSongRecords) => {

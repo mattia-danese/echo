@@ -4,6 +4,7 @@ import { getRecentPlaysTask, onboardingCompletionTask, onboardingTask } from '@/
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { isNameValid, isPhoneNumberValid } from "@/lib/validation";
+import { SpotifyPlatform } from '@/platforms';
 
 // Initialize the Supabase client with the service role key
 const supabase = createClient(
@@ -64,19 +65,29 @@ export async function createUser(payload: {
     }
 
     // User doesn't exist, make Spotify API call to get tokens
-    const platformAuth = await getPlatformAuth({ platform: payload.platform, code: payload.spotify_code });
+    const { ok: platformAuthOk, data: platformAuthData, error: platformAuthError } = await getPlatformAuth({ platform: payload.platform, code: payload.spotify_code });
 
-    if (!platformAuth.ok) {
+    if (!platformAuthOk) {
       return {
         ok: false,
         user_id: null,
         onboarding_token: null,
         created: false,
-        message: platformAuth.message
+        message: platformAuthError
       };
     }
 
-    const { access_token, refresh_token, expires_at, platform_user_id } = platformAuth;
+    if (!platformAuthData) {
+      return {
+        ok: false,
+        user_id: null,
+        onboarding_token: null,
+        created: false,
+        message: 'No data returned from platform auth'
+      };
+    }
+
+    const { access_token, refresh_token, expires_at, platform_user_id } = platformAuthData;
 
     const userAuth = {
         spotify_user_id: payload.platform === "spotify" ? platform_user_id : null,
@@ -161,61 +172,51 @@ async function getPlatformAuth(payload: {
   platform: string;
   code: string;
 }){
-  try{
+  try {
     if (payload.platform === "spotify") {
-        const spotifyTokenResponse = await fetch('https://accounts.spotify.com/api/token', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'Authorization': `Basic ${Buffer.from(
-                `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
-              ).toString('base64')}`
-            },
-            body: new URLSearchParams({
-              grant_type: 'authorization_code',
-              code: payload.code,
-              redirect_uri: process.env.SPOTIFY_REDIRECT_URI!
-            })
-          });
+      const { ok: getTokensOk, data: getTokensData, error: getTokensError } = await SpotifyPlatform.getTokens({ code: payload.code });
       
-          if (!spotifyTokenResponse.ok) {
-            const errorData = await spotifyTokenResponse.text();
-            console.error('Spotify API error:', errorData);
-            throw new Error(`Spotify API error: ${spotifyTokenResponse.status}`);
-          }
+      if (!getTokensOk) {
+        return { ok: false, data: null, error: getTokensError };
+      }
+
+      if (!getTokensData) {
+        return { ok: false, data: null, error: 'No data returned from Spotify getTokens' };
+      }
       
-          const spotifyData = await spotifyTokenResponse.json();
-          
-          // Calculate expiration timestamp
-          const expiresAt = new Date(Date.now() + spotifyData.expires_in * 1000).toISOString();
-    
-           // Get Spotify user ID from /me endpoint
-            const spotifyUserProfileResponse = await fetch('https://api.spotify.com/v1/me', {
-                headers: {
-                'Authorization': `Bearer ${spotifyData.access_token}`
-                }
-            });
-      
-          if (!spotifyUserProfileResponse.ok) {
-            const errorData = await spotifyUserProfileResponse.text();
-            console.error('Spotify user profile error:', errorData);
-            throw new Error(`Spotify user profile error: ${spotifyUserProfileResponse.status}`);
-          }
-      
-          const spotifyUserProfile = await spotifyUserProfileResponse.json()
-    
-        return { ok: true, message: 'Spotify auth fetched successfully', access_token: spotifyData.access_token, refresh_token: spotifyData.refresh_token, expires_at: expiresAt, platform_user_id: spotifyUserProfile.id };
+      const { access_token, refresh_token, expires_at } = getTokensData;
+
+      const { ok: getUserIdOk, data: getUserIdData, error: getUserIdError } = await SpotifyPlatform.getUserId({ 
+        access_token: access_token 
+      });
+
+      if (!getUserIdOk) {
+        return { ok: false, data: null, error: getUserIdError };
+      }
+
+      if (!getUserIdData) {
+        return { ok: false, data: null, error: 'No data returned from Spotify getUserId' };
+      }
+
+      const data = {
+        access_token: access_token,
+        refresh_token: refresh_token,
+        expires_at: expires_at,
+        platform_user_id: getUserIdData.spotify_user_id
       }
     
-      // TODO: implement apple music auth
-      if (payload.platform === "apple-music") {
-        return { ok: false, message: 'Apple Music auth not implemented yet', access_token: null, refresh_token: null, expires_at: null, platform_user_id: null };
-      }
+        return { ok: true, data: data, error: null };
+    }
     
-      return { ok: false, message: 'Invalid platform', access_token: null, refresh_token: null, expires_at: null, platform_user_id: null };
+    // TODO: implement apple music auth
+    if (payload.platform === "apple-music") {
+      return { ok: false, data: null, error: 'Apple Music auth not implemented yet' };
+    }
+    
+    return { ok: false, data: null, error: 'Invalid platform' };
   } catch(error: unknown){
     console.error('Error in getPlatformAuth:', error);
-    return { ok: false, message: 'An error occurred while getting platform auth', access_token: null, refresh_token: null, expires_at: null, platform_user_id: null };
+    return { ok: false, data: null, error: 'An error occurred while getting platform auth' };
   }
 }
 
@@ -296,10 +297,19 @@ export async function searchPlatformTracks(platform: string, query: string) {
     }
 
     if (platform === "spotify") {
-      return await handleSpotifySearch(query);
+      const { ok, data, error } = await SpotifyPlatform.searchTracks({ query: query });
+      if (!ok) {
+        return { ok: false, tracks: [], message: error };
+      }
+      return { ok: true, tracks: data?.tracks || [], message: error };
     }
     else if (platform === "apple-music") {
-      return await handleAppleMusicSearch(query);
+      const { ok, data, error } = await handleAppleMusicSearch(query);
+      if (!ok) {
+        return { ok: false, tracks: [], message: error };
+      }
+      
+      return { ok: true, tracks: [], message: error };
     }
     
     return {
@@ -319,65 +329,8 @@ export async function searchPlatformTracks(platform: string, query: string) {
   }
 }
 
-async function handleSpotifySearch(query: string) {
-    const authResponse = await fetch('https://accounts.spotify.com/api/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': `Basic ${Buffer.from(
-            `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
-          ).toString('base64')}`
-        },
-        body: new URLSearchParams({
-          grant_type: 'client_credentials'
-        })
-      });
-  
-    if (!authResponse.ok) {
-        console.error('Spotify auth error:', authResponse.status);
-        return {
-            ok: false,
-            tracks: [],
-            message: 'Failed to authenticate with Spotify'
-        };
-    }
-
-    const authData = await authResponse.json();
-    
-    // Search using app token
-    const searchResponse = await fetch(
-    `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=10`,
-    {
-        headers: {
-        'Authorization': `Bearer ${authData.access_token}`
-        }
-    }
-    );
-
-    if (!searchResponse.ok) {
-    console.error('Spotify search error:', searchResponse.status);
-        return {
-            ok: false,
-            tracks: [],
-            message: 'Failed to search Spotify'
-        };
-    }
-
-    const searchData = await searchResponse.json();
-    
-    // Format tracks for frontend
-    const tracks = searchData.tracks?.items?.map((track: SpotifyApi.TrackObjectFull) => ({
-        trackId: track.id,
-        title: track.name,
-        artists: track.artists.map((artist: SpotifyApi.ArtistObjectSimplified) => artist.name).join(', '),
-        albumImageUrl: track.album?.images?.[0]?.url || '',
-    })) || [];
-
-    return { ok: true, tracks: tracks, message: 'Spotify search completed successfully' };
-}
-
 async function handleAppleMusicSearch(query: string) {
-    return { ok: false, tracks: [], message: 'Apple Music search not implemented yet' };
+    return { ok: false, data: null, error: 'Apple Music search not implemented yet' };
 }
 
 export async function getUserTopSongs(payload: {
