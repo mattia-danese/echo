@@ -52,13 +52,12 @@
 
 // export { Tabs, TabsList, TabsTrigger, TabsContent }
 
-"use client"
+"use client";
 
-import * as React from "react"
-import * as TabsPrimitive from "@radix-ui/react-tabs"
-
-import { cn } from "@/lib/utils"
-import { Separator } from "@/components/ui/separator"
+import * as TabsPrimitive from "@radix-ui/react-tabs";
+import * as React from "react";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
 function Tabs({
   className,
@@ -70,7 +69,7 @@ function Tabs({
       className={cn("flex flex-col gap-2", className)}
       {...props}
     />
-  )
+  );
 }
 
 function TabsList({
@@ -78,34 +77,38 @@ function TabsList({
   children,
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.List>) {
-  const childrenArray = React.Children.toArray(children)
+  const childrenArray = React.Children.toArray(children);
+  let separatorCounter = 0;
 
-  const interleavedChildren = childrenArray.flatMap((child, index) => {
-    const items: React.ReactNode[] = [child]
-    if (index < childrenArray.length - 1) {
-      items.push(
-        <Separator
-          key={`separator-${index}`}
-          orientation="vertical"
-          className="data-[orientation=vertical]:h-[calc(100%-8px)] self-center bg-white/60 mx-0.5"
-        />
-      )
-    }
-    return items
-  })
+  const interleavedChildren = childrenArray.reduce<React.ReactNode[]>(
+    (acc, child, index) => {
+      acc.push(child);
+      if (index < childrenArray.length - 1) {
+        acc.push(
+          <Separator
+            key={`separator-${separatorCounter++}`}
+            orientation="vertical"
+            className="data-[orientation=vertical]:h-[calc(100%-8px)] self-center bg-white/60 mx-0.5"
+          />,
+        );
+      }
+      return acc;
+    },
+    [],
+  );
 
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
         "bg-muted text-muted-foreground flex h-9 w-full items-center justify-center rounded-lg p-[3px]",
-        className
+        className,
       )}
       {...props}
     >
       {interleavedChildren}
     </TabsPrimitive.List>
-  )
+  );
 }
 
 function TabsTrigger({
@@ -117,11 +120,11 @@ function TabsTrigger({
       data-slot="tabs-trigger"
       className={cn(
         "data-[state=active]:bg-background focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function TabsContent({
@@ -134,7 +137,7 @@ function TabsContent({
       className={cn("flex-1 outline-none", className)}
       {...props}
     />
-  )
+  );
 }
 
-export { Tabs, TabsList, TabsTrigger, TabsContent }
+export { Tabs, TabsList, TabsTrigger, TabsContent };
