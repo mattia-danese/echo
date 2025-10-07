@@ -5,6 +5,8 @@ dist
 build
 
 # Locks and generated
+package.json
+biome.json
 pnpm-lock.yaml
 tsconfig.tsbuildinfo
 
