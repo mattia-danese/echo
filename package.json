@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "build": "biome check . && next build --turbopack",
     "start": "next start",
     "lint": "biome check --write .",
+    "lint:check": "biome check .",
     "format": "biome format --write ."
   },
   "dependencies": {
