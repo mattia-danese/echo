@@ -1,48 +1,47 @@
-import { createClient } from "@supabase/supabase-js";
-import SessionPageClient, { type SessionPageClientProps } from "./_components/SessionPageClient";
 import { getUserTopSongs } from "@/app/actions";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import SessionPageClient, {
+  type SessionPageClientProps,
+} from "./_components/SessionPageClient";
 
 interface UserEchoSession {
-    user_id: string;
-    platform: string;
-    track_id: string | null;
-    echo_sessions: {
-        end: string;
-    };
+  user_id: string;
+  platform: string;
+  track_id: string | null;
+  echo_sessions: {
+    end: string;
+  };
 }
 
 interface PageProps {
-    params: Promise<{
-        slug: string;
-    }>;
+  params: Promise<{
+    slug: string;
+  }>;
 }
 
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabase = supabaseAdmin;
 
 export default async function SessionPage({ params }: PageProps) {
+  const resolvedParams = await params;
+  const token = resolvedParams.slug;
 
-    const resolvedParams = await params;
-    const token = resolvedParams.slug;
+  const props: SessionPageClientProps = {
+    error: false,
+    topSongs: [],
+    platform: "",
+    sessionEndsAt: "",
+    alreadySubmitted: false,
+    token: token,
+    isOnboarding: false,
+  };
 
-    const props: SessionPageClientProps = {
-        error: false,
-        topSongs: [],
-        platform: '',
-        sessionEndsAt: '',
-        alreadySubmitted: false,
-        token: token,
-        isOnboarding: false,
-    }
+  // from token:
+  //    - get user
+  //    - get session end
+  //    - check if they already submitted a song
 
-    // from token:
-    //    - get user
-    //    - get session end
-    //    - check if they already submitted a song
-
-    const { data, error }: { data: UserEchoSession | null; error: unknown } = await supabase
+  const { data, error }: { data: UserEchoSession | null; error: unknown } =
+    await supabase
       .from("user_echo_sessions")
       .select(`
         user_id, 
@@ -53,32 +52,42 @@ export default async function SessionPage({ params }: PageProps) {
       .eq("token", token)
       .single();
 
-      if (!data || error) {
-        console.log("data", data)
-        console.log("error", error)
-        props.error = true;
-        return <SessionPageClient {...props} />;
-    }
+  if (!data || error) {
+    console.log("data", data);
+    console.log("error", error);
+    props.error = true;
+    return <SessionPageClient {...props} />;
+  }
 
-    props.platform = data.platform;
-    props.alreadySubmitted = data.track_id !== null;
-    props.sessionEndsAt = data.echo_sessions.end;
+  props.platform = data.platform;
+  props.alreadySubmitted = data.track_id !== null;
+  props.sessionEndsAt = data.echo_sessions.end;
 
-    // get top songs of user
-    const result = await getUserTopSongs({ user_id: data.user_id, num_songs: 4 });
+  // get top songs of user
+  const result = await getUserTopSongs({ user_id: data.user_id, num_songs: 4 });
 
-    if (!result.ok) {
-        console.log("topSongsError:", result.message, data.user_id)
-        props.error = true;
-        return <SessionPageClient {...props} />;
-    }
+  if (!result.ok) {
+    console.log("topSongsError:", result.message, data.user_id);
+    props.error = true;
+    return <SessionPageClient {...props} />;
+  }
 
-    props.topSongs = result.songs.map((song) => ({
-        title: song.track_name,
-        trackId: song.track_id,
-        artists: song.artists,
-        albumImageUrl: song.album_image_url,
-    }));
+  props.topSongs = result.songs.map((song) => ({
+    title: song.track_name,
+    trackId: song.track_id,
+    artists: song.artists,
+    albumImageUrl: song.album_image_url,
+  }));
 
-    return <SessionPageClient error={props.error} topSongs={props.topSongs} platform={props.platform} sessionEndsAt={props.sessionEndsAt} alreadySubmitted={props.alreadySubmitted} token={props.token} isOnboarding={props.isOnboarding} />
+  return (
+    <SessionPageClient
+      error={props.error}
+      topSongs={props.topSongs}
+      platform={props.platform}
+      sessionEndsAt={props.sessionEndsAt}
+      alreadySubmitted={props.alreadySubmitted}
+      token={props.token}
+      isOnboarding={props.isOnboarding}
+    />
+  );
 }
