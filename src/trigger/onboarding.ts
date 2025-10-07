@@ -1,17 +1,22 @@
 import { logger, task } from "@trigger.dev/sdk/v3";
+import { twilioAdmin } from "@/lib/twilioAdmin";
+
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const twilio = require("twilio");
 
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+const accountSid = twilioAdmin.accountSid;
+const authToken = twilioAdmin.authToken;
+const fromNumber = twilioAdmin.phoneNumber;
 const client = twilio(accountSid, authToken);
 
 export const onboardingTask = task({
   id: "onboarding",
   // Set an optional maxDuration to prevent tasks from running indefinitely
   maxDuration: 300, // Stop executing after 300 secs (5 mins) of compute
-  run: async (payload: {phone_number: string, onboarding_token: string}, { ctx }) => {
+  run: async (
+    payload: { phone_number: string; onboarding_token: string },
+    { ctx },
+  ) => {
     logger.log("onboarding task starting", { payload, ctx });
 
     // const message = await client.messages.create({
@@ -48,6 +53,6 @@ export const onboardingTask = task({
 
     return {
       message: `onboarding message sent to ${payload.phone_number}`,
-    }
+    };
   },
 });
