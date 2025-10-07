@@ -1,0 +1,15 @@
+# Node / Next
+node_modules
+.next
+dist
+build
+
+# Locks and generated
+pnpm-lock.yaml
+tsconfig.tsbuildinfo
+
+# Public assets
+public/**/*.png
+public/**/*.jpg
+public/**/*.svg
+public/**/*.ico
