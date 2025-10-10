@@ -267,7 +267,7 @@ export default function PrivacyPolicy() {
               <p className="mb-2">Echo Music Discovery, Inc.</p>
               <p className="mb-2">300 Delaware Ave, Ste 210 #721</p>
               <p className="mb-2">Wilmington, DE 19801</p>
-              <p className="mb-2">Email: text.echo.music@gmail.com</p>
+              <p className="mb-2">Email: support@text-echo.com</p>
             </div>
           </section>
         </div>

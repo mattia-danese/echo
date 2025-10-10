@@ -31,14 +31,21 @@ export default function Footer() {
           {/* Middle section - General info links */}
           <div className="flex-1 space-y-2">
             <div className="text-sm hover:text-gray-300 cursor-pointer">
-              about us
+              <Link
+                href="/about-us"
+                className="text-sm hover:text-gray-300 cursor-pointer"
+              >
+                about us
+              </Link>
             </div>
-            <a
-              href="mailto:text.echo.music@gmail.com"
-              className="text-sm hover:text-gray-300 cursor-pointer"
-            >
-              contact us
-            </a>
+            <div className="text-sm hover:text-gray-300 cursor-pointer">
+              <Link
+                href="/contact-us"
+                className="text-sm hover:text-gray-300 cursor-pointer"
+              >
+                contact us
+              </Link>
+            </div>
           </div>
 
           {/* Right section - Company details */}
