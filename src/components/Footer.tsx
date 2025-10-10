@@ -23,8 +23,13 @@ export default function Footer() {
                 terms of service
               </Link>
             </div>
-            <div className="text-sm hover:text-gray-300 cursor-pointer">
-              cookie policy
+            <div>
+              <Link
+                href="/cookie-policy"
+                className="text-sm hover:text-gray-300 cursor-pointer"
+              >
+                cookie policy
+              </Link>
             </div>
           </div>
 
