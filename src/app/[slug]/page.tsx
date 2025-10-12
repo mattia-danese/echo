@@ -21,6 +21,11 @@ export default async function FriendRequestPage({
   const resolvedSearchParams = await searchParams;
 
   const token = resolvedParams.slug;
+
+  // Allow static files to be served by Next.js default handling
+  if (token === "sms-optin.png") {
+    redirect("/sms-optin.png");
+  }
   const accountStatus = resolvedSearchParams.accountStatus;
 
   const { data, error } = await supabase
