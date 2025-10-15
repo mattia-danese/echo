@@ -1,7 +1,7 @@
-import { db } from "@/db";
-import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { db } from "@/db";
+import { users } from "@/db/schema";
 import FriendRequest from "./_components/FriendRequest";
 
 interface PageProps {

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "biome check . && next build --turbopack",
+    "build:error": "biome check . --diagnostic-level=error && next build --turbopack",
     "start": "next start",
     "lint": "biome check --write .",
     "lint:check": "biome check .",

@@ -3,10 +3,10 @@ import { logger, task } from "@trigger.dev/sdk/v3";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const twilio = require("twilio");
 
-import { twilioAdmin } from "@/lib/twilioAdmin";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { twilioAdmin } from "@/lib/twilioAdmin";
 
 const accountSid = twilioAdmin.accountSid;
 const authToken = twilioAdmin.authToken;

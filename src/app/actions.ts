@@ -1,5 +1,7 @@
 "use server";
 
+import crypto from "node:crypto";
+import { and, count, desc, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
 import { friends, userEchoSessions, users, userTrackPlays } from "@/db/schema";
 import type { Platform } from "@/db/types";
@@ -10,8 +12,6 @@ import {
   onboardingCompletionTask,
   onboardingTask,
 } from "@/trigger";
-import { and, count, desc, eq, gte } from "drizzle-orm";
-import crypto from "node:crypto";
 
 export async function checkRegistrationData(payload: {
   first_name: string;
@@ -153,7 +153,7 @@ export async function createUser(payload: {
     // async task to get recent plays of new user
     await getRecentPlaysTask.trigger({
       user: {
-        id: newUser.id.toString(),
+        id: newUser.id,
         platform: payload.platform,
         ...(({ spotify_user_id, apple_music_user_id, ...rest }) => rest)(
           userAuth,
@@ -452,7 +452,7 @@ export async function completeOnboarding(payload: {
     // implement codebase wide user type
     await onboardingCompletionTask.trigger({
       user: {
-        id: user.id.toString(),
+        id: user.id,
         first_name: user.firstName,
         phone_number: user.phoneNumber,
         friend_link_token: user.friendLinkToken,

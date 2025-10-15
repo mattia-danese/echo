@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { spotifyAdmin } from "@/lib/spotifyAdmin";
@@ -19,7 +20,6 @@ import type {
   SearchTracksRequest,
   SearchTracksResponse,
 } from "@/types";
-import { eq } from "drizzle-orm";
 
 type SpotifyRecentTrackPlay = {
   track: {

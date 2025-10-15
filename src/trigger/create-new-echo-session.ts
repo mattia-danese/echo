@@ -1,9 +1,9 @@
-import { logger, schedules } from "@trigger.dev/sdk/v3";
 import crypto from "node:crypto";
+import { logger, schedules } from "@trigger.dev/sdk/v3";
+import { eq } from "drizzle-orm";
 // import { twilioAdmin } from "@/lib/twilioAdmin";
 import { db } from "@/db";
 import { echoSessions, userEchoSessions, users } from "@/db/schema";
-import { eq } from "drizzle-orm";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 // const twilio = require("twilio");

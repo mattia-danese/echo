@@ -1,18 +1,19 @@
 import { logger, schedules } from "@trigger.dev/sdk/v3";
+
 // import { twilioAdmin } from "@/lib/twilioAdmin";
 
-import { SpotifyPlatform } from "@/platforms";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { db } from "@/db";
 import {
   echoSessions,
   friends,
+  playlistSongs,
   playlists,
   userEchoSessions,
   users,
-  playlistSongs,
 } from "@/db/schema";
-import { desc, eq, isNotNull, and } from "drizzle-orm";
-import { db } from "@/db";
 import type { Platform } from "@/db/types";
+import { SpotifyPlatform } from "@/platforms";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 // const twilio = require("twilio");

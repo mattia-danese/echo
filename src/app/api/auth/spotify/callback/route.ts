@@ -53,8 +53,9 @@ export async function GET(req: Request) {
       if (result.created) {
         sendOnboardingMessage({
           phone_number: phoneNumber,
-          onboarding_token: result.onboarding_token,
+          onboarding_token: result.onboarding_token || "",
         });
+        // FIXME: should not need to include || "" as onboarding_token is not nullable
 
         accountStatus = "created";
       } else {

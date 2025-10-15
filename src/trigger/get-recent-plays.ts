@@ -1,8 +1,8 @@
 import { logger, task } from "@trigger.dev/sdk/v3";
-import { SpotifyPlatform } from "@/platforms";
-import type { RecentTrackPlay, User } from "@/types";
 import { db } from "@/db";
 import { users, userTrackPlays } from "@/db/schema";
+import { SpotifyPlatform } from "@/platforms";
+import type { RecentTrackPlay, User } from "@/types";
 
 export const getRecentPlaysTask = task({
   id: "get-recent-plays",
