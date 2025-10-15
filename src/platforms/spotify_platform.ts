@@ -1,5 +1,6 @@
+import { db } from "@/db";
+import { users } from "@/db/schema";
 import { spotifyAdmin } from "@/lib/spotifyAdmin";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { Platform } from "@/platforms/platform";
 import type {
   CreatePlaylistRequest,
@@ -18,8 +19,7 @@ import type {
   SearchTracksRequest,
   SearchTracksResponse,
 } from "@/types";
-
-const supabase = supabaseAdmin;
+import { eq } from "drizzle-orm";
 
 type SpotifyRecentTrackPlay = {
   track: {
@@ -124,15 +124,16 @@ export class SpotifyPlatform extends Platform {
         Date.now() + responseData.expires_in * 1000,
       ).toISOString();
 
-      await supabase
-        .from("users")
-        .update({
-          spotify_access_token: responseData.access_token,
-          spotify_refresh_token:
+      // FIXME: pass user_id as a number
+      await db
+        .update(users)
+        .set({
+          spotifyAccessToken: responseData.access_token,
+          spotifyRefreshToken:
             responseData.refresh_token ?? request.refresh_token,
-          spotify_token_expires_at: spotify_token_expires_at,
+          spotifyTokenExpiresAt: spotify_token_expires_at,
         })
-        .eq("id", request.user_id);
+        .where(eq(users.id, parseInt(request.user_id, 10)));
 
       const data = {
         access_token: responseData.access_token,
@@ -239,13 +240,13 @@ export class SpotifyPlatform extends Platform {
       // Transform data to match GetTracksResponse
       const tracks: RecentTrackPlay[] = (data.items || []).map(
         (play: SpotifyRecentTrackPlay) => ({
-          user_id: request.user_id,
+          userId: request.user_id,
           platform: "spotify",
-          track_id: play.track.id,
-          track_name: play.track.name,
+          trackId: play.track.id,
+          trackName: play.track.name,
           artists: play.track.artists.map((artist) => artist.name).join(", "),
-          played_at: play.played_at,
-          album_image_url: play.track.album.images[0]?.url || "",
+          playedAt: play.played_at,
+          albumImageUrl: play.track.album.images[0]?.url || "",
         }),
       );
 

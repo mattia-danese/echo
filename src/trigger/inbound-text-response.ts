@@ -3,15 +3,15 @@ import { logger, task } from "@trigger.dev/sdk/v3";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const twilio = require("twilio");
 
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { twilioAdmin } from "@/lib/twilioAdmin";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 const accountSid = twilioAdmin.accountSid;
 const authToken = twilioAdmin.authToken;
 const fromNumber = twilioAdmin.phoneNumber;
 const client = twilio(accountSid, authToken);
-
-const supabase = supabaseAdmin;
 
 export const inboundTextResponseTask = task({
   id: "inbound-text-response",
@@ -37,54 +37,48 @@ export const inboundTextResponseTask = task({
       };
     }
 
-    // check if we already sent no text alert to user
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .select("id, received_no_text_alert")
-      .eq("phone_number", payload.phone_number)
-      .single();
+    try {
+      // check if we already sent no text alert to user
+      const [user] = await db
+        .select({
+          id: users.id,
+          receivedNoTextAlert: users.receivedNoTextAlert,
+        })
+        .from(users)
+        .where(eq(users.phoneNumber, payload.phone_number))
+        .limit(1);
 
-    if (userError) {
-      logger.error("error checking if user received the no text alert", {
-        userError,
-      });
-      throw userError;
-    }
+      if (!user) {
+        throw new Error(
+          `user not found for phone number: ${payload.phone_number}`,
+        );
+      }
 
-    if (!user) {
-      logger.error("user not found", { payload });
-      throw new Error("user not found");
-    }
+      if (user.receivedNoTextAlert) {
+        return {
+          message: `already sent no text alert to ${payload.phone_number} - skipping`,
+        };
+      }
 
-    if (user.received_no_text_alert) {
-      return {
-        message: `already sent no text alert to ${payload.phone_number} - skipping`,
-      };
-    }
-
-    const message = await client.messages.create({
-      body: `
+      const message = await client.messages.create({
+        body: `
         thanks for the message - we don’t respond to texts, but text "help" if you need support
         `,
-      from: fromNumber,
-      to: payload.phone_number,
-    });
+        from: fromNumber,
+        to: payload.phone_number,
+      });
 
-    const { error: updateUserError } = await supabase
-      .from("users")
-      .update({ received_no_text_alert: true })
-      .eq("id", user.id);
+      await db
+        .update(users)
+        .set({ receivedNoTextAlert: true })
+        .where(eq(users.id, user.id));
 
-    if (updateUserError) {
-      logger.error(
-        `error updating user ${user.id} 'received_no_text_alert' to true`,
-        { updateUserError },
-      );
-      throw updateUserError;
+      return {
+        message: `no text alert sent to ${payload.phone_number}: ${message}`,
+      };
+    } catch (error) {
+      logger.error("error sending no text alert", { error });
+      throw error;
     }
-
-    return {
-      message: `no text alert sent to ${payload.phone_number}: ${message}`,
-    };
   },
 });

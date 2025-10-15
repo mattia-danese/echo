@@ -1,8 +1,8 @@
+import { eq } from "drizzle-orm";
 import { getUserTopSongs } from "@/app/actions";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { db } from "@/db";
+import { users } from "@/db/schema";
 import SessionPageClient from "../../session/[slug]/_components/SessionPageClient";
-
-const supabase = supabaseAdmin;
 
 interface PageProps {
   params: Promise<{
@@ -11,22 +11,58 @@ interface PageProps {
 }
 
 export default async function OnboardingPage({ params }: PageProps) {
+  // FIXME: can these be moved inside the try block?
   const resolvedParams = await params;
   const token = resolvedParams.slug;
 
   let alreadySubmitted = false;
-  let err = false;
   let platform = "";
 
-  const { data, error } = await supabase
-    .from("users")
-    .select("id, is_onboarding_complete, platform")
-    .eq("onboarding_token", token)
-    .single();
+  try {
+    const [user] = await db
+      .select({
+        id: users.id,
+        isOnboardingComplete: users.isOnboardingComplete,
+        platform: users.platform,
+      })
+      .from(users)
+      .where(eq(users.onboardingToken, token))
+      .limit(1);
 
-  if (!data || error) {
-    err = true;
+    if (!user) {
+      throw new Error(`User with onboarding token ${token} not found`);
+    }
 
+    alreadySubmitted = user.isOnboardingComplete;
+    platform = user.platform;
+
+    // get top songs of user
+    const result = await getUserTopSongs({ user_id: user.id, num_songs: 2 });
+
+    if (!result.ok) {
+      throw new Error(result.message);
+    }
+
+    const topSongs = result.songs.map((song) => ({
+      title: song.trackName,
+      trackId: song.trackId,
+      artists: song.artists,
+      albumImageUrl: song.albumImageUrl,
+    }));
+
+    return (
+      <SessionPageClient
+        error={false}
+        topSongs={topSongs}
+        sessionEndsAt={""}
+        alreadySubmitted={alreadySubmitted}
+        token={token}
+        isOnboarding={true}
+        platform={platform}
+      />
+    );
+  } catch (error: unknown) {
+    console.error("Error in OnboardingPage:", error);
     return (
       <SessionPageClient
         error={true}
@@ -38,47 +74,5 @@ export default async function OnboardingPage({ params }: PageProps) {
         platform={platform}
       />
     );
-  } else {
-    alreadySubmitted = data.is_onboarding_complete;
-    platform = data.platform;
   }
-
-  // get top songs of user
-  const result = await getUserTopSongs({ user_id: data.id, num_songs: 2 });
-
-  if (!result.ok) {
-    err = true;
-    console.log("topSongsError:", result.message, data.id);
-
-    return (
-      <SessionPageClient
-        error={true}
-        topSongs={[]}
-        sessionEndsAt={""}
-        alreadySubmitted={alreadySubmitted}
-        token={token}
-        isOnboarding={true}
-        platform={platform}
-      />
-    );
-  }
-
-  const topSongs = result.songs.map((song) => ({
-    title: song.track_name,
-    trackId: song.track_id,
-    artists: song.artists,
-    albumImageUrl: song.album_image_url,
-  }));
-
-  return (
-    <SessionPageClient
-      error={err}
-      topSongs={topSongs}
-      sessionEndsAt={""}
-      alreadySubmitted={alreadySubmitted}
-      token={token}
-      isOnboarding={true}
-      platform={platform}
-    />
-  );
 }

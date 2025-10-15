@@ -1,5 +1,7 @@
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,20 +15,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user exists with this phone number
-    const { data: existingUser, error } = await supabaseAdmin
-      .from("users")
-      .select("id")
-      .eq("phone_number", phoneNumber)
-      .single();
+    const [existingUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.phoneNumber, phoneNumber))
+      .limit(1);
 
-    if (error && error.code !== "PGRST116") {
-      // Handle unexpected errors (PGRST116 is "no rows returned" which is expected)
-      throw error;
-    }
-
-    const userExists = !!existingUser;
-
-    return NextResponse.json({ exists: userExists, id: existingUser?.id });
+    return NextResponse.json({ exists: !!existingUser, id: existingUser?.id });
   } catch (error) {
     console.error("Error checking user existence:", error);
     return NextResponse.json(

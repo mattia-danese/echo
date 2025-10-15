@@ -1,8 +1,10 @@
 import { logger, task } from "@trigger.dev/sdk/v3";
 import { spotifyAdmin } from "@/lib/spotifyAdmin";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { twilioAdmin } from "@/lib/twilioAdmin";
 import { SpotifyPlatform } from "@/platforms";
+import { friends, userEchoSessions } from "@/db/schema";
+import { db } from "@/db";
+import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const twilio = require("twilio");
@@ -12,19 +14,17 @@ const authToken = twilioAdmin.authToken;
 const fromNumber = twilioAdmin.phoneNumber;
 const client = twilio(accountSid, authToken);
 
-const supabase = supabaseAdmin;
-
 type UserData = {
-  id: string;
+  id: number;
   friend_link_token: string;
   spotify_user_id: string;
   spotify_access_token: string;
   spotify_refresh_token: string;
   spotify_token_expires_at: string;
-  apple_music_user_id: string;
-  apple_music_access_token: string;
-  apple_music_refresh_token: string;
-  apple_music_token_expires_at: string;
+  // apple_music_user_id: string;
+  // apple_music_access_token: string;
+  // apple_music_refresh_token: string;
+  // apple_music_token_expires_at: string;
   first_name: string;
   phone_number: string;
   platform: string;
@@ -37,105 +37,110 @@ export const onboardingCompletionTask = task({
   run: async (payload: { user: UserData }, { ctx }) => {
     logger.log("onboarding task starting", { payload, ctx });
 
-    // get user friends' most recent shared songs (1 song per friend, max 15 friends)
-    // First get the user's friends
-    const { data: userFriends, error: userFriendsError } = await supabase
-      .from("friends")
-      .select("friend_id")
-      .eq("user_id", payload.user.id);
+    // FIXME: send just one db request
+    try {
+      // get user friends' most recent shared songs (1 song per friend, max 15 friends)
+      // First get the user's friends
+      const userFriends = await db
+        .select({ friend_id: friends.friendId })
+        .from(friends)
+        .where(eq(friends.userId, payload.user.id));
 
-    if (userFriendsError) {
-      logger.error("error getting friends", { friendsError: userFriendsError });
-      throw userFriendsError;
-    }
+      if (userFriends.length === 0) {
+        logger.log(
+          `no friends found for user ${payload.user.id}, sending generic playlist instead`,
+        );
 
-    if (!userFriends || userFriends.length === 0) {
-      logger.log(
-        `no friends found for user ${payload.user.id}, sending generic playlist instead`,
+        await sendMessages({
+          phone_number: payload.user.phone_number,
+          playlist_id: spotifyAdmin.genericPlaylistId,
+          numFriends: 0,
+          friend_link_token: payload.user.friend_link_token,
+        });
+
+        return {
+          message: `sent generic playlist to ${payload.user.id} at ${payload.user.phone_number}`,
+        };
+      }
+
+      const numFriends = userFriends.length;
+
+      // Then get echo sessions for those friends
+      const friendsData = await db
+        .select({
+          track_id: userEchoSessions.trackId,
+          created_at: userEchoSessions.createdAt,
+          user_id: userEchoSessions.userId,
+        })
+        .from(userEchoSessions)
+        .where(
+          and(
+            inArray(
+              userEchoSessions.userId,
+              userFriends.map((f) => f.friend_id),
+            ),
+            isNotNull(userEchoSessions.trackId),
+          ),
+        )
+        .orderBy(desc(userEchoSessions.createdAt))
+        .limit(15);
+      if (friendsData.length === 0) {
+        logger.log(
+          `no echo sessions found for friends of user ${payload.user.id}, sending generic playlist instead`,
+        );
+
+        await sendMessages({
+          phone_number: payload.user.phone_number,
+          playlist_id: spotifyAdmin.genericPlaylistId,
+          numFriends: numFriends,
+          friend_link_token: payload.user.friend_link_token,
+        });
+
+        return {
+          message: `sent generic playlist to ${payload.user.id} at ${payload.user.phone_number}`,
+        };
+      }
+
+      // FIXME: dont use type cast on friendsData
+      const { ok, data, error } = await createOnboardingPlaylistForUser(
+        payload.user,
+        friendsData as {
+          track_id: string;
+          created_at: string;
+          user_id: number;
+        }[],
       );
 
+      if (!ok) {
+        throw new Error("error creating onboarding playlist", {
+          cause: { user: payload.user, error },
+        });
+      }
+
+      if (!data) {
+        throw new Error(
+          "no data returned from createOnboardingPlaylistForUser",
+          {
+            cause: { user: payload.user, data },
+          },
+        );
+      }
+
+      // send messages to user
       await sendMessages({
         phone_number: payload.user.phone_number,
-        playlist_id: spotifyAdmin.genericPlaylistId,
-        numFriends: 0,
-        friend_link_token: payload.user.friend_link_token,
-      });
-
-      return {
-        message: `sent generic playlist to ${payload.user.id} at ${payload.user.phone_number}`,
-      };
-    }
-
-    const numFriends = userFriends.length;
-
-    // Then get echo sessions for those friends
-    const { data: friendsData, error: friendsDataError } = await supabase
-      .from("user_echo_sessions")
-      .select(`
-            track_id,
-            created_at,
-            user_id
-        `)
-      .in(
-        "user_id",
-        userFriends.map((f) => f.friend_id),
-      )
-      .not("track_id", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(15);
-
-    if (friendsDataError) {
-      logger.error("error getting echo sessions", {
-        sessionsError: friendsDataError,
-      });
-      throw friendsDataError;
-    }
-
-    if (!friendsData || friendsData.length === 0) {
-      logger.log(
-        `no echo sessions found for friends of user ${payload.user.id}, sending generic playlist instead`,
-      );
-
-      await sendMessages({
-        phone_number: payload.user.phone_number,
-        playlist_id: spotifyAdmin.genericPlaylistId,
+        playlist_id: data.playlist_id,
         numFriends: numFriends,
         friend_link_token: payload.user.friend_link_token,
       });
 
       return {
-        message: `sent generic playlist to ${payload.user.id} at ${payload.user.phone_number}`,
+        message: `sent onboarding completion playlist to ${payload.user.id} at ${payload.user.phone_number}`,
       };
+    } catch (error) {
+      logger.error("error onboarding completion", { error });
+      throw error;
     }
-
-    const { ok, data, error } = await createOnboardingPlaylistForUser(
-      payload.user,
-      friendsData,
-    );
-
-    if (!ok) {
-      throw new Error("error creating onboarding playlist", {
-        cause: { user: payload.user, error },
-      });
-    }
-
-    if (!data) {
-      throw new Error("no data returned from createOnboardingPlaylistForUser", {
-        cause: { user: payload.user, data },
-      });
-    }
-
-    // send messages to user
-    await sendMessages({
-      phone_number: payload.user.phone_number,
-      playlist_id: data.playlist_id,
-      numFriends: numFriends,
-      friend_link_token: payload.user.friend_link_token,
-    });
-
-    return {
-      message: `sent onboarding completion playlist to ${payload.user.id} at ${payload.user.phone_number}`,
-    };
   },
 });
 
@@ -191,12 +196,13 @@ const sendMessages = async (payload: {
 
 const createOnboardingPlaylistForUser = async (
   user: UserData,
-  friendsData: { track_id: string; created_at: string; user_id: string }[],
+  friendsData: { track_id: string; created_at: string; user_id: number }[],
 ) => {
   if (user.platform === "spotify") {
     return await handleSpotifyUser(user, friendsData);
   } else if (user.platform === "apple-music") {
-    return await handleAppleMusicUser(user, friendsData);
+    // return await handleAppleMusicUser(user, friendsData);
+    return { ok: false, data: null, error: `apple music not implemented yet` };
   }
 
   return { ok: false, data: null, error: `invalid platform ${user.platform}` };
@@ -204,7 +210,7 @@ const createOnboardingPlaylistForUser = async (
 
 const handleSpotifyUser = async (
   user: UserData,
-  friendsData: { track_id: string; created_at: string; user_id: string }[],
+  friendsData: { track_id: string; created_at: string; user_id: number }[],
 ) => {
   // refresh spotify access token if it's expired
   if (new Date(user.spotify_token_expires_at) < new Date()) {
@@ -215,7 +221,7 @@ const handleSpotifyUser = async (
       data: refreshTokensData,
       error: refreshTokensError,
     } = await SpotifyPlatform.refreshTokens({
-      user_id: user.id,
+      user_id: user.id.toString(),
       refresh_token: user.spotify_refresh_token,
     });
 

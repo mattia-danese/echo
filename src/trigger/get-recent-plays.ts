@@ -1,10 +1,8 @@
 import { logger, task } from "@trigger.dev/sdk/v3";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
-
 import { SpotifyPlatform } from "@/platforms";
 import type { RecentTrackPlay, User } from "@/types";
-
-const supabase = supabaseAdmin;
+import { db } from "@/db";
+import { users, userTrackPlays } from "@/db/schema";
 
 export const getRecentPlaysTask = task({
   id: "get-recent-plays",
@@ -14,32 +12,42 @@ export const getRecentPlaysTask = task({
   run: async (payload: { user?: User }) => {
     logger.log("get recent plays task starting ...");
 
-    let data = payload.user ? [payload.user] : [];
+    const data = payload.user
+      ? [payload.user]
+      : await db
+          .select({
+            id: users.id,
+            platform: users.platform,
+            spotify_access_token: users.spotifyAccessToken,
+            spotify_refresh_token: users.spotifyRefreshToken,
+            spotify_token_expires_at: users.spotifyTokenExpiresAt,
+          })
+          .from(users);
 
-    if (!payload.user) {
-      const { data: users, error } = await supabase.from("users").select(`
-            id,
-            platform,
-            spotify_access_token, 
-            spotify_refresh_token, 
-            spotify_token_expires_at,
-            apple_music_access_token,
-            apple_music_refresh_token,
-            apple_music_token_expires_at,
-        `);
+    // if (!payload.user) {
+    //   const { data: users, error } = await supabase.from("users").select(`
+    //         id,
+    //         platform,
+    //         spotify_access_token,
+    //         spotify_refresh_token,
+    //         spotify_token_expires_at,
+    //         apple_music_access_token,
+    //         apple_music_refresh_token,
+    //         apple_music_token_expires_at,
+    //     `);
 
-      if (error) {
-        logger.error("error getting recent plays", { error });
-        throw error;
-      }
+    //   if (error) {
+    //     logger.error("error getting recent plays", { error });
+    //     throw error;
+    //   }
 
-      if (!users) {
-        logger.error("no users found");
-        throw new Error("no users found");
-      }
+    //   if (!users) {
+    //     logger.error("no users found");
+    //     throw new Error("no users found");
+    //   }
 
-      data = users as unknown as User[];
-    }
+    //   data = users as unknown as User[];
+    // }
 
     for (const user of data) {
       if (user.platform === "spotify") {
@@ -67,29 +75,30 @@ export const getRecentPlaysTask = task({
           });
         }
       } else if (user.platform === "apple-music") {
-        if (
-          !user.apple_music_access_token ||
-          !user.apple_music_refresh_token ||
-          !user.apple_music_token_expires_at
-        ) {
-          logger.error("missing apple music tokens", { user });
-          continue;
-        }
+        logger.error("apple music auth not implemented yet", { user });
+        // if (
+        //   !user.apple_music_access_token ||
+        //   !user.apple_music_refresh_token ||
+        //   !user.apple_music_token_expires_at
+        // ) {
+        //   logger.error("missing apple music tokens", { user });
+        //   continue;
+        // }
 
-        const { ok: handleAppleMusicUserOk, error: handleAppleMusicUserError } =
-          await handleAppleMusicUser(
-            user.id,
-            user.apple_music_access_token,
-            user.apple_music_refresh_token,
-            user.apple_music_token_expires_at,
-          );
+        // const { ok: handleAppleMusicUserOk, error: handleAppleMusicUserError } =
+        //   await handleAppleMusicUser(
+        //     user.id,
+        //     user.apple_music_access_token,
+        //     user.apple_music_refresh_token,
+        //     user.apple_music_token_expires_at,
+        //   );
 
-        if (!handleAppleMusicUserOk) {
-          logger.error("error handling apple music user", {
-            user,
-            handleAppleMusicUserError,
-          });
-        }
+        // if (!handleAppleMusicUserOk) {
+        //   logger.error("error handling apple music user", {
+        //     user,
+        //     handleAppleMusicUserError,
+        //   });
+        // }
       } else {
         logger.error("invalid platform", { user });
       }
@@ -102,7 +111,7 @@ export const getRecentPlaysTask = task({
 });
 
 const handleSpotifyUser = async (
-  user_id: string,
+  user_id: number,
   access_token: string,
   refresh_token: string,
   token_expires_at: string,
@@ -116,7 +125,7 @@ const handleSpotifyUser = async (
       data: refreshTokensData,
       error: refreshTokensError,
     } = await SpotifyPlatform.refreshTokens({
-      user_id: user_id,
+      user_id: user_id.toString(),
       refresh_token: refresh_token,
     });
 
@@ -150,7 +159,7 @@ const handleSpotifyUser = async (
     data: recentPlaysData,
     error: recentPlaysError,
   } = await SpotifyPlatform.getRecentTracks({
-    user_id: user_id,
+    user_id: user_id.toString(),
     access_token: access_token,
     platform: "spotify",
   });
@@ -204,21 +213,11 @@ const getRecentAppleMusicPlays = async (apple_music_access_token: string) => {
   return { data: null, error: null };
 };
 
-const storeTracks = async (trackPlays: RecentTrackPlay[], user_id: string) => {
-  const { error: writeRecentPlaysError } = await supabase
-    .from("user_track_plays")
-    .upsert(trackPlays, {
-      onConflict: "user_id, track_id, played_at",
-      ignoreDuplicates: true,
-    });
-
-  if (writeRecentPlaysError) {
-    logger.error("error writing recent plays", {
-      user_id,
-      writeRecentPlaysError,
-    });
-    return { ok: false, error: writeRecentPlaysError };
+const storeTracks = async (trackPlays: RecentTrackPlay[], user_id: number) => {
+  try {
+    await db.insert(userTrackPlays).values(trackPlays);
+    return { ok: true, error: null };
+  } catch (error: unknown) {
+    return { ok: false, error: error };
   }
-
-  return { ok: true, error: null };
 };

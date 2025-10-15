@@ -1,3 +1,4 @@
+import type { Platform } from "@/db/types";
 // Get Tokens
 export interface GetTokensRequest {
   code: string;
@@ -55,13 +56,13 @@ export interface GetTracksResponse {
 }
 
 export interface RecentTrackPlay {
-  user_id: string;
-  platform: string;
-  track_id: string;
-  track_name: string;
+  userId: number;
+  platform: Platform;
+  trackId: string;
+  trackName: string;
   artists: string;
-  played_at: string;
-  album_image_url: string;
+  playedAt: string;
+  albumImageUrl: string;
 }
 
 // Search Tracks
@@ -91,7 +92,7 @@ export interface GetUserIdResponse {
 
 // Get Recent Plays
 export interface User {
-  id: string;
+  id: number;
   platform: string;
   spotify_access_token: string | null;
   spotify_refresh_token: string | null;

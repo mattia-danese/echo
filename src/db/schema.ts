@@ -35,6 +35,9 @@ export const users = pgTable(
     isOnboardingComplete: boolean("is_onboarding_complete")
       .default(false)
       .notNull(),
+    receivedNoTextAlert: boolean("received_no_text_alert")
+      .default(false)
+      .notNull(),
     platform: platform("platform").notNull(),
 
     // spotify

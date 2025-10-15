@@ -1,33 +1,43 @@
 import { logger, schedules } from "@trigger.dev/sdk/v3";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { twilioAdmin } from "@/lib/twilioAdmin";
+// import { twilioAdmin } from "@/lib/twilioAdmin";
 
 import { SpotifyPlatform } from "@/platforms";
+import {
+  echoSessions,
+  friends,
+  playlists,
+  userEchoSessions,
+  users,
+  playlistSongs,
+} from "@/db/schema";
+import { desc, eq, isNotNull, and } from "drizzle-orm";
+import { db } from "@/db";
+import type { Platform } from "@/db/types";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const twilio = require("twilio");
+// const twilio = require("twilio");
 
-const accountSid = twilioAdmin.accountSid;
-const authToken = twilioAdmin.authToken;
-const fromNumber = twilioAdmin.phoneNumber;
-const client = twilio(accountSid, authToken);
+// const accountSid = twilioAdmin.accountSid;
+// const authToken = twilioAdmin.authToken;
+// const fromNumber = twilioAdmin.phoneNumber;
+// const client = twilio(accountSid, authToken);
 
 type PlaylistRecords = {
-  user_id: string;
-  platform: string;
-  session_id: string;
-  platform_playlist_id: string;
+  userId: number;
+  platform: Platform;
+  sessionId: number;
+  platformPlaylistId: string;
 }[];
 
 type PlaylistSongRecords = {
-  playlist_id: string;
-  track_id: string;
-  submitted_by_user_id: string;
-  platform_playlist_id: string;
+  playlistId: number;
+  trackId: string;
+  submittedByUserId: number;
+  platformPlaylistId: string;
 }[];
 
 type UserSongData = {
-  user_id: string;
+  user_id: number;
   track_id: string;
   platform: string;
   users: {
@@ -38,14 +48,12 @@ type UserSongData = {
     spotify_access_token: string;
     spotify_refresh_token: string;
     spotify_token_expires_at: string;
-    apple_music_user_id: string;
-    apple_music_access_token: string;
-    apple_music_refresh_token: string;
-    apple_music_token_expires_at: string;
+    // apple_music_user_id: string;
+    // apple_music_access_token: string;
+    // apple_music_refresh_token: string;
+    // apple_music_token_expires_at: string;
   };
 };
-
-const supabase = supabaseAdmin;
 
 const NUM_SONGS_PER_PLAYLIST = 10;
 
@@ -85,7 +93,7 @@ export const generatePlaylistsTask = schedules.task({
     });
 
     // create lookup table mapping user_id to song_id
-    const userSongLookup: Record<string, string> = {};
+    const userSongLookup: Record<number, string> = {};
     for (const user of userSongData) {
       userSongLookup[user.user_id] = user.track_id;
     }
@@ -93,7 +101,7 @@ export const generatePlaylistsTask = schedules.task({
     logger.log("user to song lookup created");
 
     // create lookup table mapping user_id to platform (used to determine which platform to create playlist on)
-    const userToSongSubmittedPlatformLookup: Record<string, string> = {};
+    const userToSongSubmittedPlatformLookup: Record<number, string> = {};
     for (const user of userSongData) {
       userToSongSubmittedPlatformLookup[user.user_id] = user.platform;
     }
@@ -101,12 +109,12 @@ export const generatePlaylistsTask = schedules.task({
     logger.log("user to song platform lookup created");
 
     // user_id -> [friend_id, song_id]
-    const playlists: Record<string, string[][]> = {};
+    const playlists: Record<number, string[][]> = {};
 
     const playlistRecords: PlaylistRecords = [];
     const playlistSongRecords: PlaylistSongRecords = [];
 
-    const usersThatEncounteredErrors: Set<string> = new Set();
+    const usersThatEncounteredErrors: Set<number> = new Set();
 
     for (const user of userSongData) {
       logger.log("processing user", { user });
@@ -116,6 +124,7 @@ export const generatePlaylistsTask = schedules.task({
         data: userFriendData,
         error,
       } = await getUserFriends(user.user_id);
+
       if (!ok) {
         logger.error("error getting user's friends", { user, error });
         usersThatEncounteredErrors.add(user.user_id);
@@ -172,18 +181,18 @@ export const generatePlaylistsTask = schedules.task({
       }
 
       playlistRecords.push({
-        user_id: user.user_id,
-        platform: user.users.platform,
-        session_id: echoSessionId,
-        platform_playlist_id: playlistData.playlist_id,
+        userId: user.user_id,
+        platform: user.users.platform as Platform,
+        sessionId: echoSessionId,
+        platformPlaylistId: playlistData.playlist_id,
       });
 
       playlistSongRecords.push(
         ...playlists[user.user_id].map((song) => ({
-          playlist_id: "",
-          track_id: song[1],
-          submitted_by_user_id: song[0],
-          platform_playlist_id: playlistData.playlist_id, // will not be persisted to database, just used to get Playlist.id in persistPlaylistsToDatabase
+          playlistId: 0,
+          trackId: song[1],
+          submittedByUserId: parseInt(song[0], 10),
+          platformPlaylistId: playlistData.playlist_id, // will not be persisted to database, just used to get Playlist.id in persistPlaylistsToDatabase
         })),
       );
     }
@@ -215,86 +224,93 @@ export const generatePlaylistsTask = schedules.task({
   },
 });
 
+// FIXME: make 2 db calls into 1?
 const getEchoSessionAndUsers = async () => {
-  // get most recent echo session
-  const { data: echoSessionData, error: echoSessionError } = await supabase
-    .from("echo_sessions")
-    .select("id, start")
-    .order("start", { ascending: false })
-    .limit(1)
-    .single();
+  try {
+    // get most recent echo session
+    const [echoSession] = await db
+      .select({ id: echoSessions.id, start: echoSessions.start })
+      .from(echoSessions)
+      .orderBy(desc(echoSessions.start))
+      .limit(1);
 
-  if (echoSessionError) {
-    return { ok: false, data: null, error: echoSessionError };
-  }
+    if (!echoSession) {
+      throw new Error("no echo session found");
+    }
 
-  const echoSessionId = echoSessionData.id;
-  const playlistDate = new Date(echoSessionData.start).toLocaleDateString(
-    "en-US",
-    { month: "2-digit", day: "2-digit" },
-  );
+    const playlistDate = new Date(echoSession.start).toLocaleDateString(
+      "en-US",
+      {
+        month: "2-digit",
+        day: "2-digit",
+      },
+    );
 
-  // get all users that submitted a song in the last session (user_id, phone_number, song_id)
-  const { data: userSongData, error: userSongError } = (await supabase
-    .from("user_echo_sessions")
-    .select(`
-        user_id, 
-        track_id,
-        platform,
-        users!inner(platform, first_name, phone_number, spotify_user_id, spotify_access_token, spotify_refresh_token, spotify_token_expires_at, apple_music_user_id, apple_music_access_token, apple_music_refresh_token, apple_music_token_expires_at)
-      `)
-    .eq("session_id", echoSessionId)
-    .neq("track_id", null)) as { data: UserSongData[] | null; error: unknown };
+    // get all users that submitted a song in the last session (user_id, phone_number, song_id)
+    const userSongData = (await db
+      .select({
+        user_id: userEchoSessions.userId,
+        track_id: userEchoSessions.trackId,
+        platform: userEchoSessions.platform,
+        users: {
+          platform: users.platform,
+          first_name: users.firstName,
+          phone_number: users.phoneNumber,
+          spotify_user_id: users.spotifyUserId || "",
+          spotify_access_token: users.spotifyAccessToken || "",
+          spotify_refresh_token: users.spotifyRefreshToken || "",
+          spotify_token_expires_at: users.spotifyTokenExpiresAt || "",
+        },
+      })
+      .from(userEchoSessions)
+      .innerJoin(users, eq(userEchoSessions.userId, users.id))
+      .where(
+        and(
+          eq(userEchoSessions.sessionId, echoSession.id),
+          isNotNull(userEchoSessions.trackId),
+        ),
+      )) as UserSongData[];
 
-  if (userSongError) {
-    return { ok: false, data: null, error: userSongError };
-  }
+    if (userSongData.length === 0) {
+      throw new Error(`no users found for echo session ${echoSession.id}`);
+    }
 
-  if (!userSongData || userSongData.length === 0) {
     return {
-      ok: false,
-      data: null,
-      error: `no users that submitted a song in the last session found`,
+      ok: true,
+      data: { userSongData, echoSessionId: echoSession.id, playlistDate },
+      error: null,
     };
+  } catch (error) {
+    return { ok: false, data: null, error: error };
   }
-
-  return {
-    ok: true,
-    data: { userSongData, echoSessionId, playlistDate },
-    error: null,
-  };
 };
 
-const getUserFriends = async (userId: string) => {
-  const { data: userFriendData, error: userFriendError } = await supabase
-    .from("friends")
-    .select("friend_id")
-    .eq("user_id", userId);
+const getUserFriends = async (userId: number) => {
+  try {
+    const userFriendData = await db
+      .select({ friend_id: friends.friendId })
+      .from(friends)
+      .where(eq(friends.userId, userId));
 
-  if (userFriendError) {
-    return { ok: false, data: [], error: userFriendError };
-  }
+    if (userFriendData.length === 0) {
+      throw new Error(`no friends found for user ${userId}`);
+    }
 
-  if (userFriendData.length === 0) {
     return {
-      ok: false,
-      data: [],
-      error: `no friends found for user ${userId}`,
+      ok: true,
+      data: userFriendData.map((friend) => friend.friend_id),
+      error: null,
     };
+  } catch (error) {
+    return { ok: false, data: [], error: error };
   }
-
-  return {
-    ok: true,
-    data: userFriendData.map((friend) => friend.friend_id),
-    error: null,
-  };
 };
 
 const compilePlaylistSongs = async (
   user_platform: string,
-  userFriendData: string[],
-  userSongLookup: Record<string, string>,
-  userToSongSubmittedPlatformLookup: Record<string, string>,
+  userFriendData: number[],
+  userSongLookup: Record<number, string>,
+  userToSongSubmittedPlatformLookup: Record<number, string>,
   numSongsPerPlaylist: number,
 ) => {
   const playlist: string[][] = []; // [friend_id, song_id]
@@ -306,12 +322,13 @@ const compilePlaylistSongs = async (
 
     if (!friendSong) continue;
 
+    // FIXME: use set instead of array
     if (playlist.map((p) => p[1]).includes(friendSong)) continue;
 
     if (playlist.length === numSongsPerPlaylist) break;
 
     playlist.push([
-      friend_id,
+      friend_id.toString(),
       await matchFriendSongToUserPlatform(
         user_platform,
         friendSongSubmittedPlatform,
@@ -364,7 +381,7 @@ const createSpotifyPlaylistForUser = async (
       data: refreshTokensData,
       error: refreshTokensError,
     } = await SpotifyPlatform.refreshTokens({
-      user_id: user.user_id,
+      user_id: user.user_id.toString(),
       refresh_token: user.users.spotify_refresh_token,
     });
 
@@ -445,72 +462,67 @@ const populatePlatformPlaylist = async (
 };
 
 const persistPlaylistsToDatabase = async (
-  playlists: PlaylistRecords,
-  playlistSongs: PlaylistSongRecords,
+  newPlaylists: PlaylistRecords,
+  newPlaylistSongs: PlaylistSongRecords,
 ) => {
-  if (playlists.length === 0 || playlistSongs.length === 0) {
-    logger.log("no playlists or playlist songs to save to database, skipping");
-    return { ok: true, error: null };
-  }
+  try {
+    if (newPlaylists.length === 0 || newPlaylistSongs.length === 0) {
+      logger.log(
+        "no playlists or playlist songs to save to database, skipping",
+      );
+      return { ok: true, error: null };
+    }
 
-  logger.log("saving playlists to database");
-  const { data: playlistInsertData, error: playlistInsertError } =
-    await supabase
-      .from("playlists")
+    logger.log("saving playlists to database");
+    const playlistsInserted = await db
       .insert(playlists)
-      .select("id, platform_playlist_id");
+      .values(newPlaylists)
+      .returning({
+        id: playlists.id,
+        platformPlaylistId: playlists.platformPlaylistId,
+      });
+    logger.log("saving playlists to database done", {});
 
-  if (playlistInsertError) {
-    return { ok: false, error: playlistInsertError };
-  }
-
-  const playlistIdByPlatfomPlaylistId = new Map(
-    playlistInsertData.map((r) => [r.platform_playlist_id, r.id]),
-  );
-
-  logger.log("saving playlists to database done", {
-    numPlaylists: playlistIdByPlatfomPlaylistId.size,
-  });
-
-  // save each playlist_song to database
-  for (const playlistSong of playlistSongs) {
-    playlistSong.playlist_id = playlistIdByPlatfomPlaylistId.get(
-      playlistSong.platform_playlist_id,
-    );
-  }
-
-  logger.log("saving playlist songs to database");
-  const { error: playlistSongInsertError } = await supabase
-    .from("playlist_songs")
-    .insert(
-      playlistSongs.map((r) => ({
-        playlist_id: r.playlist_id,
-        track_id: r.track_id,
-        submitted_by_user_id: r.submitted_by_user_id,
-      })),
+    const playlistIdByPlatfomPlaylistId = new Map(
+      playlistsInserted.map((r) => [r.platformPlaylistId, r.id]),
     );
 
-  if (playlistSongInsertError) {
-    return { ok: false, error: playlistSongInsertError };
-  }
-  logger.log("saving playlist songs to database done");
+    logger.log("saving playlists to database done", {
+      numPlaylists: playlistIdByPlatfomPlaylistId.size,
+    });
 
-  return { ok: true, error: null };
+    // save each playlist_song to database
+    for (const playlistSong of newPlaylistSongs) {
+      playlistSong.playlistId = playlistIdByPlatfomPlaylistId.get(
+        playlistSong.platformPlaylistId,
+      ) as number;
+    }
+
+    logger.log("saving playlist songs to database");
+    await db.insert(playlistSongs).values(newPlaylistSongs);
+    logger.log("saving playlist songs to database done", {
+      numPlaylistSongs: newPlaylistSongs.length,
+    });
+
+    return { ok: true, error: null };
+  } catch (error) {
+    return { ok: false, error: error };
+  }
 };
 
 const textUsersPlaylists = async (
   playlists: PlaylistRecords,
   userSongData: UserSongData[],
-  usersThatEncounteredErrors: Set<string>,
+  usersThatEncounteredErrors: Set<number>,
 ) => {
   for (const playlist of playlists) {
-    if (usersThatEncounteredErrors.has(playlist.user_id)) {
+    if (usersThatEncounteredErrors.has(playlist.userId)) {
       logger.error("user encountered errors, skipping text", { playlist });
       continue;
     }
 
     const userPhoneNumber = userSongData.find(
-      (user) => user.user_id === playlist.user_id,
+      (user) => user.user_id === playlist.userId,
     )?.users.phone_number;
 
     if (!userPhoneNumber) {
@@ -525,10 +537,10 @@ const textUsersPlaylists = async (
 
     switch (playlist.platform) {
       case "spotify":
-        playlistLink = `https://open.spotify.com/playlist/${playlist.platform_playlist_id}`;
+        playlistLink = `https://open.spotify.com/playlist/${playlist.platformPlaylistId}`;
         break;
       case "apple-music":
-        playlistLink = `https://music.apple.com/playlist/${playlist.platform_playlist_id}`;
+        playlistLink = `https://music.apple.com/playlist/${playlist.platformPlaylistId}`;
         break;
     }
 

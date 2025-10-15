@@ -1,17 +1,17 @@
-import crypto from "node:crypto";
 import { logger, schedules } from "@trigger.dev/sdk/v3";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { twilioAdmin } from "@/lib/twilioAdmin";
+import crypto from "node:crypto";
+// import { twilioAdmin } from "@/lib/twilioAdmin";
+import { db } from "@/db";
+import { echoSessions, userEchoSessions, users } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const twilio = require("twilio");
+// const twilio = require("twilio");
 
-const accountSid = twilioAdmin.accountSid;
-const authToken = twilioAdmin.authToken;
-const fromNumber = twilioAdmin.phoneNumber;
-const client = twilio(accountSid, authToken);
-
-const supabase = supabaseAdmin;
+// const accountSid = twilioAdmin.accountSid;
+// const authToken = twilioAdmin.authToken;
+// const fromNumber = twilioAdmin.phoneNumber;
+// const client = twilio(accountSid, authToken);
 
 export const createNewEchoSessionTask = schedules.task({
   id: "create-new-echo-session",
@@ -27,89 +27,84 @@ export const createNewEchoSessionTask = schedules.task({
   run: async () => {
     logger.log("create new echo session task starting ...");
 
-    // create new echo session in the database
-    const { data: echoSessionData, error: echoSessionError } = await supabase
-      .from("echo_sessions")
-      .insert({
-        start: new Date(new Date().setHours(11, 0, 0, 0)).toISOString(),
-        end: new Date(new Date().setHours(18, 0, 0, 0)).toISOString(),
-      })
-      .select("id")
-      .single();
+    try {
+      // create new echo session in the database
+      const [echoSession] = await db
+        .insert(echoSessions)
+        .values({
+          start: new Date(new Date().setHours(11, 0, 0, 0)).toISOString(),
+          end: new Date(new Date().setHours(18, 0, 0, 0)).toISOString(),
+        })
+        .returning({ id: echoSessions.id });
 
-    if (echoSessionError) {
-      logger.error("error creating new echo session", { echoSessionError });
-      throw echoSessionError;
-    }
+      logger.log("new echo session created", { echoSession });
 
-    const echoSessionId = echoSessionData.id;
-    logger.log("new echo session created", { echoSessionId });
+      // get all the users in the database that have completed onboarding
+      const fetchedUsers = await db
+        .select({
+          id: users.id,
+          phoneNumber: users.phoneNumber,
+          platform: users.platform,
+        })
+        .from(users)
+        .where(eq(users.isOnboardingComplete, true));
 
-    // get all the users in the database that have completed onboarding
-    const { data: usersData, error: usersError } = await supabase
-      .from("users")
-      .select("id, phone_number, platform")
-      .eq("is_onboarding_complete", true);
-    if (usersError) {
-      logger.error("error getting users", { usersError });
-      throw usersError;
-    }
+      if (fetchedUsers.length === 0) {
+        throw new Error("no users found");
+      }
 
-    logger.log("users fetched", { numUsers: usersData.length });
+      logger.log("users fetched", { numUsers: fetchedUsers.length });
 
-    // for each user, create echo session token
-    const userEchoSessionData = [];
+      // for each user, create echo session token
+      const userEchoSessionData = [];
 
-    for (const user of usersData) {
-      const token = crypto.randomBytes(16).toString("base64url");
+      for (const user of fetchedUsers) {
+        const token = crypto.randomBytes(16).toString("base64url");
 
-      userEchoSessionData.push({
-        user_id: user.id,
-        session_id: echoSessionId,
-        token: token,
-        platform: user.platform,
+        userEchoSessionData.push({
+          userId: user.id,
+          sessionId: echoSession.id,
+          token: token,
+          platform: user.platform,
+        });
+      }
+
+      logger.log("compiling user echo session data done", {
+        numUserEchoSessions: userEchoSessionData.length,
       });
+
+      // create new record in user_session table for each user (with token) -- batch write
+      await db.insert(userEchoSessions).values(userEchoSessionData);
+
+      logger.log("user echo sessions written to database");
+
+      // send text to each user with their echo session link
+      // for (const userEchoSession of userEchoSessionData) {
+      //   const startEchoMessage = await client.messages.create({
+      //     body: `
+      //     start the echo :)
+
+      //     click here to share what you've been listening to by 9pm tonight`,
+      //     from: fromNumber,
+      //     to: userEchoSession.phone_number,
+      //   });
+
+      //   const userEchoSessionLinkMessage = await client.messages.create({
+      //     body: `
+      //     https://text-echo.com/session/${userEchoSession.token}`,
+      //     from: fromNumber,
+      //     to: userEchoSession.phone_number,
+      //   });
+
+      //   logger.log("started echo to", { userEchoSession, startEchoMessage, userEchoSessionLinkMessage });
+      // }
+
+      return {
+        message: `create new echo session task completed`,
+      };
+    } catch (error: unknown) {
+      logger.error("error creating new echo session", { error });
+      throw error;
     }
-
-    logger.log("compiling user echo session data done", {
-      numUserEchoSessions: userEchoSessionData.length,
-    });
-
-    // create new record in user_session table for each user (with token) -- batch write
-    const { error: userSessionError } = await supabase
-      .from("user_echo_sessions")
-      .insert(userEchoSessionData);
-
-    if (userSessionError) {
-      logger.error("error writing to user_echo_sessions", { userSessionError });
-      throw userSessionError;
-    }
-
-    logger.log("user echo sessions written to database");
-
-    // send text to each user with their echo session link
-    // for (const userEchoSession of userEchoSessionData) {
-    //   const startEchoMessage = await client.messages.create({
-    //     body: `
-    //     start the echo :)
-
-    //     click here to share what you've been listening to by 9pm tonight`,
-    //     from: fromNumber,
-    //     to: userEchoSession.phone_number,
-    //   });
-
-    //   const userEchoSessionLinkMessage = await client.messages.create({
-    //     body: `
-    //     https://text-echo.com/session/${userEchoSession.token}`,
-    //     from: fromNumber,
-    //     to: userEchoSession.phone_number,
-    //   });
-
-    //   logger.log("started echo to", { userEchoSession, startEchoMessage, userEchoSessionLinkMessage });
-    // }
-
-    return {
-      message: `create new echo session task completed`,
-    };
   },
 });

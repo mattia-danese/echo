@@ -1,7 +1,8 @@
 "use server";
 
-import crypto from "node:crypto";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { db } from "@/db";
+import { friends, userEchoSessions, users, userTrackPlays } from "@/db/schema";
+import type { Platform } from "@/db/types";
 import { isNameValid, isPhoneNumberValid } from "@/lib/validation";
 import { SpotifyPlatform } from "@/platforms";
 import {
@@ -9,8 +10,8 @@ import {
   onboardingCompletionTask,
   onboardingTask,
 } from "@/trigger";
-
-const supabase = supabaseAdmin;
+import { and, count, desc, eq, gte } from "drizzle-orm";
+import crypto from "node:crypto";
 
 export async function checkRegistrationData(payload: {
   first_name: string;
@@ -45,29 +46,24 @@ export async function createUser(payload: {
 }) {
   try {
     // First, check if user already exists
-    const { data: existingUser, error: fetchError } = await supabase
-      .from("users")
-      .select("id")
-      .eq("phone_number", payload.phone_number)
-      .single();
-
-    if (fetchError && fetchError.code !== "PGRST116") {
-      // Handle unexpected errors (PGRST116 is "no rows returned" which is expected for new users)
-      throw fetchError;
-    }
+    const [existingUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.phoneNumber, payload.phone_number))
+      .limit(1);
 
     if (existingUser) {
       // User already exists, return early
       return {
         ok: true,
-        user_id: existingUser.id,
+        user_id: existingUser.id.toString(),
         onboarding_token: null,
         created: false,
         message: "User with this phone number already exists.",
       };
     }
 
-    // User doesn't exist, make Spotify API call to get tokens
+    // User doesn't exist, make API call to get tokens from platform
     const {
       ok: platformAuthOk,
       data: platformAuthData,
@@ -126,29 +122,26 @@ export async function createUser(payload: {
     const onboarding_token = crypto.randomBytes(16).toString("base64url");
 
     // Create new user with Spotify tokens
-    const { data: newUser, error: insertError } = await supabase
-      .from("users")
-      .insert({
-        first_name: payload.first_name,
-        last_name: payload.last_name,
-        phone_number: payload.phone_number,
-        friend_link_token: friend_link_token,
-        onboarding_token: onboarding_token,
-        is_onboarding_complete: false,
-        platform: payload.platform,
-
-        ...userAuth,
+    const [newUser] = await db
+      .insert(users)
+      .values({
+        firstName: payload.first_name,
+        lastName: payload.last_name,
+        phoneNumber: payload.phone_number,
+        friendLinkToken: friend_link_token,
+        onboardingToken: onboarding_token,
+        isOnboardingComplete: false,
+        platform: payload.platform as Platform,
+        spotifyUserId: userAuth.spotify_user_id,
+        spotifyAccessToken: userAuth.spotify_access_token,
+        spotifyRefreshToken: userAuth.spotify_refresh_token,
+        spotifyTokenExpiresAt: userAuth.spotify_token_expires_at,
       })
-      .select("id,onboarding_token")
-      .single();
-
-    if (insertError) {
-      throw insertError;
-    }
+      .returning({ id: users.id, onboardingToken: users.onboardingToken });
 
     if (payload.referral_friend_link_token) {
       const { ok, message } = await createFriendships({
-        user_id: newUser.id,
+        user_id: newUser.id.toString(),
         referral_friend_link_token: payload.referral_friend_link_token,
       });
 
@@ -160,7 +153,7 @@ export async function createUser(payload: {
     // async task to get recent plays of new user
     await getRecentPlaysTask.trigger({
       user: {
-        id: newUser.id,
+        id: newUser.id.toString(),
         platform: payload.platform,
         ...(({ spotify_user_id, apple_music_user_id, ...rest }) => rest)(
           userAuth,
@@ -170,8 +163,8 @@ export async function createUser(payload: {
 
     return {
       ok: true,
-      user_id: newUser.id,
-      onboarding_token: newUser.onboarding_token,
+      user_id: newUser.id.toString(),
+      onboarding_token: newUser.onboardingToken,
       created: true,
       message: "User created successfully with Spotify tokens.",
     };
@@ -264,52 +257,45 @@ export async function createFriendships(payload: {
   user_id: string;
   referral_friend_link_token: string;
 }) {
-  const { data: friend, error: friendError } = await supabase
-    .from("users")
-    .select("id")
-    .eq("friend_link_token", payload.referral_friend_link_token)
-    .single();
+  try {
+    const [friend] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.friendLinkToken, payload.referral_friend_link_token))
+      .limit(1);
 
-  if (friendError) {
-    console.error("Error finding friend based on referral token:", friendError);
+    if (!friend) {
+      throw new Error("Friend not found based on referral token");
+    }
+
+    if (friend.id.toString() === payload.user_id) {
+      throw new Error("Friend is the same as the user");
+    }
+
+    const now = new Date().toISOString();
+
+    // Create friendship relationship (bidirectional)
+    await db.insert(friends).values([
+      {
+        userId: parseInt(payload.user_id, 10),
+        friendId: friend.id,
+        updatedAt: now,
+      },
+      {
+        userId: friend.id,
+        friendId: parseInt(payload.user_id, 10),
+        updatedAt: now,
+      },
+    ]);
+
+    return { ok: true, message: "Friendship created successfully" };
+  } catch (error: unknown) {
+    console.error("Error in createFriendships:", error);
     return {
       ok: false,
-      message: "Error finding friend based on referral token",
+      message: "An error occurred while creating friendships",
     };
   }
-
-  if (!friend) {
-    console.error("Friend not found based on referral token:", payload);
-    return { ok: false, message: "Friend not found based on referral token" };
-  }
-
-  if (friend.id === payload.user_id) {
-    console.error("Friend is the same as the user:", payload);
-    return { ok: false, message: "Friend is the same as the user" };
-  }
-
-  // Create friendship relationship (bidirectional)
-  const now = new Date().toISOString();
-
-  const { error: friendshipError } = await supabase.from("friends").upsert([
-    {
-      user_id: payload.user_id,
-      friend_id: friend.id,
-      updated_at: now,
-    },
-    {
-      user_id: friend.id,
-      friend_id: payload.user_id,
-      updated_at: now,
-    },
-  ]);
-
-  if (friendshipError) {
-    console.error("Error creating friendship:", friendshipError);
-    return { ok: false, message: "Error creating friendship" };
-  }
-
-  return { ok: true, message: "Friendship created successfully" };
 }
 
 export async function sendOnboardingMessage(payload: {
@@ -381,71 +367,109 @@ async function handleAppleMusicSearch(query: string) {
 }
 
 export async function getUserTopSongs(payload: {
-  user_id: string;
+  user_id: number;
   num_songs: number;
 }) {
-  const FOUR_DAYS_IN_MS = 4 * 24 * 60 * 60 * 1000;
+  try {
+    const FOUR_DAYS_IN_MS = 4 * 24 * 60 * 60 * 1000;
 
-  const { data: topSongs, error: topSongsError } = await supabase
-    .from("user_track_plays")
-    .select("track_id.count(), track_id,track_name, artists, album_image_url")
-    .eq("user_id", payload.user_id)
-    .gte("played_at", new Date(Date.now() - FOUR_DAYS_IN_MS).toISOString())
-    .order("count", { ascending: false })
-    .limit(payload.num_songs);
+    const topSongs = await db
+      .select({
+        trackId: userTrackPlays.trackId,
+        trackName: userTrackPlays.trackName,
+        artists: userTrackPlays.artists,
+        albumImageUrl: userTrackPlays.albumImageUrl,
+        playCount: count(),
+      })
+      .from(userTrackPlays)
+      .where(
+        and(
+          eq(userTrackPlays.userId, payload.user_id),
+          gte(
+            userTrackPlays.playedAt,
+            new Date(Date.now() - FOUR_DAYS_IN_MS).toISOString(),
+          ),
+        ),
+      )
+      .groupBy(
+        userTrackPlays.trackId,
+        userTrackPlays.trackName,
+        userTrackPlays.artists,
+        userTrackPlays.albumImageUrl,
+      )
+      .orderBy(desc(count()))
+      .limit(payload.num_songs);
 
-  if (topSongsError) {
-    console.error("Error getting user top songs:", topSongsError, payload);
-    return { ok: false, songs: [], message: "Error getting user top songs" };
+    return {
+      ok: true,
+      songs: topSongs,
+      message: "User top songs fetched successfully",
+    };
+  } catch (error: unknown) {
+    console.error("Error in getUserTopSongs:", error);
+    return {
+      ok: false,
+      songs: [],
+      message: `An error occurred while getting user top songs for user ${payload.user_id}: ${error}`,
+    };
   }
-
-  return {
-    ok: true,
-    songs: topSongs,
-    message: "User top songs fetched successfully",
-  };
 }
 
 export async function submitSong(payload: { token: string; track_id: string }) {
-  const { error: userEchoSessionError } = await supabase
-    .from("user_echo_sessions")
-    .update({
-      track_id: payload.track_id,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("token", payload.token);
+  try {
+    await db
+      .update(userEchoSessions)
+      .set({
+        trackId: payload.track_id,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(userEchoSessions.token, payload.token));
 
-  if (userEchoSessionError) {
-    console.error("Error submitting song:", userEchoSessionError, payload);
-    return { ok: false, message: "Error submitting song" };
+    return { ok: true, message: "Song submitted successfully" };
+  } catch (error: unknown) {
+    console.error("Error in submitSong:", error);
+    return { ok: false, message: "An error occurred while submitting song" };
   }
-
-  return { ok: true, message: "Song submitted successfully" };
 }
 
 export async function completeOnboarding(payload: {
   onboarding_token: string;
 }) {
-  const { data: user, error } = await supabase
-    .from("users")
-    .update({
-      is_onboarding_complete: true,
-    })
-    .eq("onboarding_token", payload.onboarding_token)
-    .select("*")
-    .single();
+  try {
+    const [user] = await db
+      .update(users)
+      .set({
+        isOnboardingComplete: true,
+      })
+      .where(eq(users.onboardingToken, payload.onboarding_token))
+      .returning();
 
-  if (error) {
-    console.error("Error completing onboarding:", error, payload);
-    return { ok: false, message: "Error completing onboarding" };
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // FIXME: this is a hack to get the user data to the onboarding completion task
+    // implement codebase wide user type
+    await onboardingCompletionTask.trigger({
+      user: {
+        id: user.id.toString(),
+        first_name: user.firstName,
+        phone_number: user.phoneNumber,
+        friend_link_token: user.friendLinkToken,
+        platform: user.platform as Platform,
+        spotify_user_id: user.spotifyUserId || "",
+        spotify_access_token: user.spotifyAccessToken || "",
+        spotify_refresh_token: user.spotifyRefreshToken || "",
+        spotify_token_expires_at: user.spotifyTokenExpiresAt || "",
+      },
+    });
+
+    return { ok: true, message: "Onboarding completed successfully" };
+  } catch (error: unknown) {
+    console.error("Error in completeOnboarding:", error);
+    return {
+      ok: false,
+      message: "An error occurred while completing onboarding",
+    };
   }
-
-  if (!user) {
-    console.error("User not found:", payload);
-    return { ok: false, message: "User not found" };
-  }
-
-  await onboardingCompletionTask.trigger({ user });
-
-  return { ok: true, message: "Onboarding completed successfully" };
 }

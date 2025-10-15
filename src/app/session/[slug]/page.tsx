@@ -1,25 +1,16 @@
 import { getUserTopSongs } from "@/app/actions";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { db } from "@/db";
+import { echoSessions, userEchoSessions } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import SessionPageClient, {
   type SessionPageClientProps,
 } from "./_components/SessionPageClient";
-
-interface UserEchoSession {
-  user_id: string;
-  platform: string;
-  track_id: string | null;
-  echo_sessions: {
-    end: string;
-  };
-}
 
 interface PageProps {
   params: Promise<{
     slug: string;
   }>;
 }
-
-const supabase = supabaseAdmin;
 
 export default async function SessionPage({ params }: PageProps) {
   const resolvedParams = await params;
@@ -35,59 +26,49 @@ export default async function SessionPage({ params }: PageProps) {
     isOnboarding: false,
   };
 
-  // from token:
-  //    - get user
-  //    - get session end
-  //    - check if they already submitted a song
+  try {
+    const [userEchoSession] = await db
+      .select({
+        userId: userEchoSessions.userId,
+        platform: userEchoSessions.platform,
+        trackId: userEchoSessions.trackId,
+        echoSessionsEnd: echoSessions.end,
+      })
+      .from(userEchoSessions)
+      .innerJoin(echoSessions, eq(userEchoSessions.sessionId, echoSessions.id))
+      .where(eq(userEchoSessions.token, token))
+      .limit(1);
 
-  const { data, error }: { data: UserEchoSession | null; error: unknown } =
-    await supabase
-      .from("user_echo_sessions")
-      .select(`
-        user_id, 
-        platform,
-        track_id, 
-        echo_sessions!inner(end)
-      `)
-      .eq("token", token)
-      .single();
+    if (!userEchoSession) {
+      throw new Error(`User echo session not found for token ${token}`);
+    }
 
-  if (!data || error) {
-    console.log("data", data);
-    console.log("error", error);
+    props.platform = userEchoSession.platform;
+    props.alreadySubmitted = !!userEchoSession.trackId;
+    props.sessionEndsAt = userEchoSession.echoSessionsEnd;
+
+    // get top songs of user
+    const result = await getUserTopSongs({
+      user_id: userEchoSession.userId,
+      num_songs: 4,
+    });
+
+    if (!result.ok) {
+      throw new Error(result.message);
+    }
+
+    props.topSongs = result.songs.map((song) => ({
+      title: song.trackName,
+      trackId: song.trackId,
+      artists: song.artists,
+      albumImageUrl: song.albumImageUrl,
+    }));
+
+    return <SessionPageClient {...props} />;
+  } catch (error: unknown) {
+    console.error(error);
+
     props.error = true;
     return <SessionPageClient {...props} />;
   }
-
-  props.platform = data.platform;
-  props.alreadySubmitted = data.track_id !== null;
-  props.sessionEndsAt = data.echo_sessions.end;
-
-  // get top songs of user
-  const result = await getUserTopSongs({ user_id: data.user_id, num_songs: 4 });
-
-  if (!result.ok) {
-    console.log("topSongsError:", result.message, data.user_id);
-    props.error = true;
-    return <SessionPageClient {...props} />;
-  }
-
-  props.topSongs = result.songs.map((song) => ({
-    title: song.track_name,
-    trackId: song.track_id,
-    artists: song.artists,
-    albumImageUrl: song.album_image_url,
-  }));
-
-  return (
-    <SessionPageClient
-      error={props.error}
-      topSongs={props.topSongs}
-      platform={props.platform}
-      sessionEndsAt={props.sessionEndsAt}
-      alreadySubmitted={props.alreadySubmitted}
-      token={props.token}
-      isOnboarding={props.isOnboarding}
-    />
-  );
 }
