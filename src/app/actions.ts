@@ -3,8 +3,14 @@
 import crypto from "node:crypto";
 import { and, count, desc, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
-import { friends, userEchoSessions, users, userTrackPlays } from "@/db/schema";
-import type { Platform } from "@/db/types";
+import {
+  friends,
+  userAuth,
+  userEchoSessions,
+  users,
+  userTrackPlays,
+} from "@/db/schema";
+import { Platform } from "@/db/types";
 import { isNameValid, isPhoneNumberValid } from "@/lib/validation";
 import { SpotifyPlatform } from "@/platforms";
 import {
@@ -38,7 +44,7 @@ export async function createUser(payload: {
   lastName: string;
   phoneNumber: string;
   spotifyCode: string;
-  platform: string;
+  platform: Platform;
   referralFriendLinkToken: string | null;
 }) {
   try {
@@ -90,24 +96,8 @@ export async function createUser(payload: {
       };
     }
 
-    const { accessToken, refreshToken, expiresAt, spotifyUserId } =
+    const { accessToken, refreshToken, expiresAt, platformUserId } =
       platformAuthData;
-
-    const userAuth = {
-      spotifyUserId: payload.platform === "spotify" ? spotifyUserId : null,
-      spotifyAccessToken: payload.platform === "spotify" ? accessToken : null,
-      spotifyRefreshToken: payload.platform === "spotify" ? refreshToken : null,
-      spotifyTokenExpiresAt: payload.platform === "spotify" ? expiresAt : null,
-
-      appleMusicUserId:
-        payload.platform === "apple-music" ? "apple-music" : null,
-      appleMusicAccessToken:
-        payload.platform === "apple-music" ? accessToken : null,
-      appleMusicRefreshToken:
-        payload.platform === "apple-music" ? refreshToken : null,
-      appleMusicTokenExpiresAt:
-        payload.platform === "apple-music" ? expiresAt : null,
-    };
 
     // Generate friend link
     const friendLinkToken = crypto.randomBytes(16).toString("base64url");
@@ -115,7 +105,7 @@ export async function createUser(payload: {
     // Generate onboarding token
     const onboardingToken = crypto.randomBytes(16).toString("base64url");
 
-    // Create new user with Spotify tokens
+    // Create new user
     const [newUser] = await db
       .insert(users)
       .values({
@@ -125,13 +115,20 @@ export async function createUser(payload: {
         friendLinkToken: friendLinkToken,
         onboardingToken: onboardingToken,
         isOnboardingComplete: false,
-        platform: payload.platform as Platform,
-        spotifyUserId: userAuth.spotifyUserId,
-        spotifyAccessToken: userAuth.spotifyAccessToken,
-        spotifyRefreshToken: userAuth.spotifyRefreshToken,
-        spotifyTokenExpiresAt: userAuth.spotifyTokenExpiresAt,
+        platform: payload.platform,
       })
       .returning({ id: users.id, onboardingToken: users.onboardingToken });
+
+    // Create new user auth record
+    await db.insert(userAuth).values({
+      userId: newUser.id,
+      platform: payload.platform,
+      platformUserId: platformUserId,
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+      tokenExpiresAt: expiresAt,
+      extra: {},
+    });
 
     if (payload.referralFriendLinkToken) {
       const { ok, message } = await createFriendships({
@@ -147,9 +144,12 @@ export async function createUser(payload: {
     // async task to get recent plays of new user
     await getRecentPlaysTask.trigger({
       user: {
-        id: newUser.id,
-        platform: payload.platform as Platform,
-        ...(({ spotifyUserId, appleMusicUserId, ...rest }) => rest)(userAuth),
+        userId: newUser.id,
+        platform: payload.platform,
+        platformUserId: platformUserId,
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        tokenExpiresAt: expiresAt,
       },
     });
 
@@ -172,9 +172,9 @@ export async function createUser(payload: {
   }
 }
 
-async function getPlatformAuth(payload: { platform: string; code: string }) {
+async function getPlatformAuth(payload: { platform: Platform; code: string }) {
   try {
-    if (payload.platform === "spotify") {
+    if (payload.platform === Platform.SPOTIFY) {
       const {
         ok: getTokensOk,
         data: getTokensData,
@@ -219,14 +219,14 @@ async function getPlatformAuth(payload: { platform: string; code: string }) {
         accessToken: accessToken,
         refreshToken: refreshToken,
         expiresAt: expiresAt,
-        spotifyUserId: getUserIdData.spotifyUserId,
+        platformUserId: getUserIdData.spotifyUserId,
       };
 
       return { ok: true, data: data, error: null };
     }
 
     // TODO: implement apple music auth
-    if (payload.platform === "apple-music") {
+    if (payload.platform === Platform.APPLE_MUSIC) {
       return {
         ok: false,
         data: null,
@@ -444,19 +444,34 @@ export async function completeOnboarding(payload: { onboardingToken: string }) {
       throw new Error("User not found");
     }
 
+    const [auth] = await db
+      .select({
+        platformUserId: userAuth.platformUserId,
+        accessToken: userAuth.accessToken,
+        refreshToken: userAuth.refreshToken,
+        tokenExpiresAt: userAuth.tokenExpiresAt,
+      })
+      .from(userAuth)
+      .where(eq(userAuth.userId, user.id))
+      .limit(1);
+
+    if (!auth) {
+      throw new Error("User auth not found");
+    }
+
     // FIXME: this is a hack to get the user data to the onboarding completion task
     // implement codebase wide user type
     await onboardingCompletionTask.trigger({
       user: {
-        id: user.id,
+        userId: user.id,
+        platform: user.platform,
+        platformUserId: auth.platformUserId,
+        accessToken: auth.accessToken,
+        refreshToken: auth.refreshToken,
+        tokenExpiresAt: auth.tokenExpiresAt,
+        friendLinkToken: user.friendLinkToken,
         firstName: user.firstName,
         phoneNumber: user.phoneNumber,
-        friendLinkToken: user.friendLinkToken,
-        platform: user.platform as Platform,
-        spotifyUserId: user.spotifyUserId || "",
-        spotifyAccessToken: user.spotifyAccessToken || "",
-        spotifyRefreshToken: user.spotifyRefreshToken || "",
-        spotifyTokenExpiresAt: user.spotifyTokenExpiresAt || "",
       },
     });
 

@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { createUser, sendOnboardingMessage } from "@/app/actions";
+import type { Platform } from "@/db/types";
 
 type AccountStatus = "created" | "error";
 
@@ -22,7 +23,9 @@ export async function GET(req: Request) {
     const firstName = decodeURIComponent(formParams.get("firstName") || "");
     const lastName = decodeURIComponent(formParams.get("lastName") || "");
     const phoneNumber = decodeURIComponent(formParams.get("phoneNumber") || "");
-    const platform = decodeURIComponent(formParams.get("platform") || "");
+    const platform = decodeURIComponent(
+      formParams.get("platform") || "",
+    ) as Platform;
 
     if (!phoneNumber) {
       throw new Error("Phone number is required");
@@ -62,6 +65,7 @@ export async function GET(req: Request) {
         accountStatus = "error";
       }
     } else {
+      console.error("Error creating user:", result.message);
       accountStatus = "error";
     }
   } catch (error) {

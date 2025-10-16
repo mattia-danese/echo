@@ -2,7 +2,7 @@ import { logger, task } from "@trigger.dev/sdk/v3";
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { friends, userEchoSessions } from "@/db/schema";
-import type { Platform } from "@/db/types";
+import { Platform } from "@/db/types";
 import { spotifyAdmin } from "@/lib/spotifyAdmin";
 import { twilioAdmin } from "@/lib/twilioAdmin";
 import { SpotifyPlatform } from "@/platforms";
@@ -16,16 +16,12 @@ const fromNumber = twilioAdmin.phoneNumber;
 const client = twilio(accountSid, authToken);
 
 type UserData = {
-  id: number;
+  userId: number;
   friendLinkToken: string;
-  spotifyUserId: string;
-  spotifyAccessToken: string;
-  spotifyRefreshToken: string;
-  spotifyTokenExpiresAt: string;
-  // appleMusicUserId: string;
-  // appleMusicAccessToken: string;
-  // appleMusicRefreshToken: string;
-  // appleMusicTokenExpiresAt: string;
+  platformUserId: string;
+  accessToken: string;
+  refreshToken: string;
+  tokenExpiresAt: string;
   firstName: string;
   phoneNumber: string;
   platform: Platform;
@@ -45,11 +41,11 @@ export const onboardingCompletionTask = task({
       const userFriends = await db
         .select({ friendId: friends.friendId })
         .from(friends)
-        .where(eq(friends.userId, payload.user.id));
+        .where(eq(friends.userId, payload.user.userId));
 
       if (userFriends.length === 0) {
         logger.log(
-          `no friends found for user ${payload.user.id}, sending generic playlist instead`,
+          `no friends found for user ${payload.user.userId}, sending generic playlist instead`,
         );
 
         await sendMessages({
@@ -60,7 +56,7 @@ export const onboardingCompletionTask = task({
         });
 
         return {
-          message: `sent generic playlist to ${payload.user.id} at ${payload.user.phoneNumber}`,
+          message: `sent generic playlist to ${payload.user.userId} at ${payload.user.phoneNumber}`,
         };
       }
 
@@ -87,7 +83,7 @@ export const onboardingCompletionTask = task({
         .limit(15);
       if (friendsData.length === 0) {
         logger.log(
-          `no echo sessions found for friends of user ${payload.user.id}, sending generic playlist instead`,
+          `no echo sessions found for friends of user ${payload.user.userId}, sending generic playlist instead`,
         );
 
         await sendMessages({
@@ -98,7 +94,7 @@ export const onboardingCompletionTask = task({
         });
 
         return {
-          message: `sent generic playlist to ${payload.user.id} at ${payload.user.phoneNumber}`,
+          message: `sent generic playlist to ${payload.user.userId} at ${payload.user.phoneNumber}`,
         };
       }
 
@@ -136,7 +132,7 @@ export const onboardingCompletionTask = task({
       });
 
       return {
-        message: `sent onboarding completion playlist to ${payload.user.id} at ${payload.user.phoneNumber}`,
+        message: `sent onboarding completion playlist to ${payload.user.userId} at ${payload.user.phoneNumber}`,
       };
     } catch (error) {
       logger.error("error onboarding completion", { error });
@@ -199,9 +195,9 @@ const createOnboardingPlaylistForUser = async (
   user: UserData,
   friendsData: { trackId: string; createdAt: string; userId: number }[],
 ) => {
-  if (user.platform === "spotify") {
+  if (user.platform === Platform.SPOTIFY) {
     return await handleSpotifyUser(user, friendsData);
-  } else if (user.platform === "apple-music") {
+  } else if (user.platform === Platform.APPLE_MUSIC) {
     // return await handleAppleMusicUser(user, friendsData);
     return { ok: false, data: null, error: `apple music not implemented yet` };
   }
@@ -214,7 +210,7 @@ const handleSpotifyUser = async (
   friendsData: { trackId: string; createdAt: string; userId: number }[],
 ) => {
   // refresh spotify access token if it's expired
-  if (new Date(user.spotifyTokenExpiresAt) < new Date()) {
+  if (new Date(user.tokenExpiresAt) < new Date()) {
     logger.log("spotify token expired, refreshing ...", { user: user });
 
     const {
@@ -222,8 +218,8 @@ const handleSpotifyUser = async (
       data: refreshTokensData,
       error: refreshTokensError,
     } = await SpotifyPlatform.refreshTokens({
-      userId: user.id.toString(),
-      refreshToken: user.spotifyRefreshToken,
+      userId: user.userId,
+      refreshToken: user.refreshToken,
     });
 
     if (!refreshTokensOk) {
@@ -246,9 +242,9 @@ const handleSpotifyUser = async (
       };
     }
 
-    user.spotifyAccessToken = refreshTokensData.accessToken;
-    user.spotifyRefreshToken = refreshTokensData.refreshToken;
-    user.spotifyTokenExpiresAt = refreshTokensData.expiresIn;
+    user.accessToken = refreshTokensData.accessToken;
+    user.refreshToken = refreshTokensData.refreshToken;
+    user.tokenExpiresAt = refreshTokensData.expiresIn;
 
     logger.log("user update complete", { user: user });
   }
@@ -270,8 +266,8 @@ const handleSpotifyUser = async (
     data: createPlaylistData,
     error: createPlaylistError,
   } = await SpotifyPlatform.createPlaylist({
-    userId: user.spotifyUserId,
-    accessToken: user.spotifyAccessToken,
+    userId: user.platformUserId,
+    accessToken: user.accessToken,
     playlistName: `${user.firstName}${playlistNameAbbreviation} echo ${playlistDate}`,
     playlistDescription: `here are the songs your friends shared for the ${playlistDate} echo`,
     playlistDate: playlistDate,
@@ -301,7 +297,7 @@ const handleSpotifyUser = async (
   );
   const { ok: addSongsToPlaylistOk, error: addSongsToPlaylistError } =
     await SpotifyPlatform.populatePlaylist({
-      accessToken: user.spotifyAccessToken,
+      accessToken: user.accessToken,
       trackURIs: songURIs,
       playlistId: createPlaylistData.playlistId,
     });

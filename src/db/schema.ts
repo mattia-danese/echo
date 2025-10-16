@@ -2,6 +2,7 @@ import {
   boolean,
   foreignKey,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -40,27 +41,42 @@ export const users = pgTable(
       .notNull(),
     platform: platform("platform").notNull(),
 
-    // spotify
-    spotifyUserId: varchar("spotify_user_id"),
-    spotifyAccessToken: varchar("spotify_access_token"),
-    spotifyRefreshToken: varchar("spotify_refresh_token"),
-    spotifyTokenExpiresAt: timestamp("spotify_token_expires_at", {
-      withTimezone: true,
-      mode: "string",
-    }),
-
-    // appleMusic
-    // appleMusicAccessToken: varchar("apple_music_access_token"),
-    // appleMusicRefreshToken: varchar("apple_music_refresh_token"),
-    // appleMusicTokenExpiresAt: timestamp("apple_music_token_expires_at", { withTimezone: true, mode: 'string' }),
-    // appleMusicUserId: varchar("apple_music_user_id"),
-
     ...timestamps,
   },
   (table) => [
     unique("users_phone_number_key").on(table.phoneNumber),
     unique("users_friend_link_token_key").on(table.friendLinkToken),
     unique("users_onboarding_token_key").on(table.onboardingToken),
+  ],
+);
+
+export const userAuth = pgTable(
+  "user_auth",
+  {
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    userId: integer("user_id").notNull(),
+
+    platform: platform("platform").notNull(),
+    platformUserId: varchar("platform_user_id").notNull(),
+    accessToken: varchar("access_token").notNull(),
+    refreshToken: varchar("refresh_token").notNull(),
+    tokenExpiresAt: timestamp("token_expires_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+    extra: jsonb("extra").default({}).notNull(),
+
+    ...timestamps,
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "user_auth_user_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    unique("user_auth_user_id_key").on(table.userId),
   ],
 );
 

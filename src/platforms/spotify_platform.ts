@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { userAuth } from "@/db/schema";
 import { spotifyAdmin } from "@/lib/spotifyAdmin";
 import { Platform } from "@/platforms/platform";
 import type {
@@ -32,7 +32,7 @@ type SpotifyRecentTrackPlay = {
       images: { url: string }[];
     };
   };
-  playedAt: string;
+  played_at: string;
 };
 
 type SpotifySearchResultTrack = {
@@ -75,12 +75,12 @@ export class SpotifyPlatform extends Platform {
 
       // Calculate expiration timestamp
       const expiresAt = new Date(
-        Date.now() + spotifyData.expiresIn * 1000,
+        Date.now() + spotifyData.expires_in * 1000,
       ).toISOString();
 
       const data = {
-        accessToken: spotifyData.accessToken,
-        refreshToken: spotifyData.refreshToken,
+        accessToken: spotifyData.access_token,
+        refreshToken: spotifyData.refresh_token,
         expiresAt: expiresAt,
       } as GetTokensResponse;
 
@@ -124,16 +124,15 @@ export class SpotifyPlatform extends Platform {
         Date.now() + responseData.expiresIn * 1000,
       ).toISOString();
 
-      // FIXME: pass userId as a number
       await db
-        .update(users)
+        .update(userAuth)
         .set({
-          spotifyAccessToken: responseData.accessToken,
-          spotifyRefreshToken:
-            responseData.refreshToken ?? request.refreshToken,
-          spotifyTokenExpiresAt: spotifyTokenExpiresAt,
+          accessToken: responseData.accessToken,
+          refreshToken: responseData.refreshToken ?? request.refreshToken,
+          tokenExpiresAt: spotifyTokenExpiresAt,
+          updatedAt: new Date().toISOString(),
         })
-        .where(eq(users.id, parseInt(request.userId, 10)));
+        .where(eq(userAuth.userId, request.userId));
 
       const data = {
         accessToken: responseData.accessToken,
@@ -245,7 +244,7 @@ export class SpotifyPlatform extends Platform {
           trackId: play.track.id,
           trackName: play.track.name,
           artists: play.track.artists.map((artist) => artist.name).join(", "),
-          playedAt: play.playedAt,
+          playedAt: play.played_at,
           albumImageUrl: play.track.album.images[0]?.url || "",
         }),
       );

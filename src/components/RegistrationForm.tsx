@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Platform } from "@/db/types";
 
 interface RegistrationFormProps {
   phoneNumber: string;
@@ -66,10 +67,10 @@ export default function RegistrationForm({
     let authUrl = "";
 
     switch (formData.platform) {
-      case "spotify":
+      case Platform.SPOTIFY:
         authUrl = `https://accounts.spotify.com/authorize?client_id=${process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI}&scope=user-top-read%20user-read-recently-played%20user-read-private%20playlist-modify-public%20playlist-modify-private&show_dialog=true&state=${encodeURIComponent(params.toString())}`;
         break;
-      case "apple-music":
+      case Platform.APPLE_MUSIC:
         break;
       default:
         break;

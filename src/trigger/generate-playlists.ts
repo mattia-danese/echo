@@ -9,6 +9,7 @@ import {
   friends,
   playlistSongs,
   playlists,
+  userAuth,
   userEchoSessions,
   users,
 } from "@/db/schema";
@@ -45,14 +46,10 @@ type UserSongData = {
     firstName: string;
     platform: string;
     phoneNumber: string;
-    spotifyUserId: string;
-    spotifyAccessToken: string;
-    spotifyRefreshToken: string;
-    spotifyTokenExpiresAt: string;
-    // appleMusicUserId: string;
-    // appleMusicAccessToken: string;
-    // appleMusicRefreshToken: string;
-    // appleMusicTokenExpiresAt: string;
+    platformUserId: string;
+    accessToken: string;
+    refreshToken: string;
+    tokenExpiresAt: string;
   };
 };
 
@@ -248,6 +245,7 @@ const getEchoSessionAndUsers = async () => {
     );
 
     // get all users that submitted a song in the last session (userId, phoneNumber, trackId)
+    // FIXME: fix shape of selected data
     const userSongData = (await db
       .select({
         userId: userEchoSessions.userId,
@@ -257,14 +255,15 @@ const getEchoSessionAndUsers = async () => {
           platform: users.platform,
           firstName: users.firstName,
           phoneNumber: users.phoneNumber,
-          spotifyUserId: users.spotifyUserId || "",
-          spotifyAccessToken: users.spotifyAccessToken || "",
-          spotifyRefreshToken: users.spotifyRefreshToken || "",
-          spotifyTokenExpiresAt: users.spotifyTokenExpiresAt || "",
+          platformUserId: userAuth.platformUserId,
+          accessToken: userAuth.accessToken,
+          refreshToken: userAuth.refreshToken,
+          tokenExpiresAt: userAuth.tokenExpiresAt,
         },
       })
       .from(userEchoSessions)
       .innerJoin(users, eq(userEchoSessions.userId, users.id))
+      .innerJoin(userAuth, eq(userAuth.userId, users.id))
       .where(
         and(
           eq(userEchoSessions.sessionId, echoSession.id),
@@ -374,7 +373,7 @@ const createSpotifyPlaylistForUser = async (
   playlistNameAbbreviation: string,
   playlistDate: string,
 ) => {
-  if (new Date(user.users.spotifyTokenExpiresAt) < new Date()) {
+  if (new Date(user.users.tokenExpiresAt) < new Date()) {
     logger.log("spotify token expired, refreshing ...", { user });
 
     const {
@@ -382,8 +381,8 @@ const createSpotifyPlaylistForUser = async (
       data: refreshTokensData,
       error: refreshTokensError,
     } = await SpotifyPlatform.refreshTokens({
-      userId: user.userId.toString(),
-      refreshToken: user.users.spotifyRefreshToken,
+      userId: user.userId,
+      refreshToken: user.users.refreshToken,
     });
 
     if (!refreshTokensOk) {
@@ -406,9 +405,9 @@ const createSpotifyPlaylistForUser = async (
       };
     }
 
-    user.users.spotifyAccessToken = refreshTokensData.accessToken;
-    user.users.spotifyRefreshToken = refreshTokensData.refreshToken;
-    user.users.spotifyTokenExpiresAt = refreshTokensData.expiresIn;
+    user.users.accessToken = refreshTokensData.accessToken;
+    user.users.refreshToken = refreshTokensData.refreshToken;
+    user.users.tokenExpiresAt = refreshTokensData.expiresIn;
 
     logger.log("user update complete", { user });
   }
@@ -420,8 +419,8 @@ const createSpotifyPlaylistForUser = async (
     data: createPlaylistData,
     error: createPlaylistError,
   } = await SpotifyPlatform.createPlaylist({
-    userId: user.users.spotifyUserId,
-    accessToken: user.users.spotifyAccessToken,
+    userId: user.users.platformUserId,
+    accessToken: user.users.accessToken,
     playlistName: `${user.users.firstName}${playlistNameAbbreviation} echo ${playlistDate}`,
     playlistDescription: `here are the songs your friends shared for the ${playlistDate} echo`,
     playlistDate: playlistDate,
@@ -451,7 +450,7 @@ const populatePlatformPlaylist = async (
     const songURIs = songs.map((song) => `spotify:track:${song}`);
 
     return await SpotifyPlatform.populatePlaylist({
-      accessToken: user.users.spotifyAccessToken,
+      accessToken: user.users.accessToken,
       trackURIs: songURIs,
       playlistId: playlistId,
     });

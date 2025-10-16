@@ -15,6 +15,13 @@
       "when": 1760506358248,
       "tag": "0001_known_phil_sheldon",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1760592698212,
+      "tag": "0002_outstanding_newton_destine",
+      "breakpoints": true
     }
   ]
 }

@@ -12,7 +12,7 @@ export interface GetTokensResponse {
 
 // Refresh Tokens
 export interface RefreshTokensRequest {
-  userId: string;
+  userId: number;
   refreshToken: string;
 }
 
@@ -46,7 +46,7 @@ export interface PopulatePlaylistRequest {
 
 // Get Tracks
 export interface GetTracksRequest {
-  userId: string;
+  userId: number;
   accessToken: string;
   platform: Platform;
 }
@@ -92,12 +92,10 @@ export interface GetUserIdResponse {
 
 // Get Recent Plays
 export interface User {
-  id: number;
+  userId: number;
   platform: Platform;
-  spotifyAccessToken: string | null;
-  spotifyRefreshToken: string | null;
-  spotifyTokenExpiresAt: string | null;
-  appleMusicAccessToken: string | null;
-  appleMusicRefreshToken: string | null;
-  appleMusicTokenExpiresAt: string | null;
+  platformUserId: string;
+  accessToken: string;
+  refreshToken: string;
+  tokenExpiresAt: string;
 }

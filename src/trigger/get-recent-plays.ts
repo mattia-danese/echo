@@ -1,6 +1,6 @@
 import { logger, task } from "@trigger.dev/sdk/v3";
 import { db } from "@/db";
-import { users, userTrackPlays } from "@/db/schema";
+import { userAuth, users, userTrackPlays } from "@/db/schema";
 import { Platform } from "@/db/types";
 import { SpotifyPlatform } from "@/platforms";
 import type { RecentTrackPlay, User } from "@/types";
@@ -17,33 +17,30 @@ export const getRecentPlaysTask = task({
       ? [payload.user]
       : await db
           .select({
-            id: users.id,
-            platform: users.platform,
-            spotifyAccessToken: users.spotifyAccessToken,
-            spotifyRefreshToken: users.spotifyRefreshToken,
-            spotifyTokenExpiresAt: users.spotifyTokenExpiresAt,
+            userId: userAuth.userId,
+            platform: userAuth.platform,
+            platformUserId: userAuth.platformUserId,
+            accessToken: userAuth.accessToken,
+            refreshToken: userAuth.refreshToken,
+            tokenExpiresAt: userAuth.tokenExpiresAt,
           })
-          .from(users);
+          .from(userAuth);
 
     logger.log("processing users", { numUsers: data.length });
 
     for (const user of data) {
-      if (user.platform === "spotify") {
-        if (
-          !user.spotifyAccessToken ||
-          !user.spotifyRefreshToken ||
-          !user.spotifyTokenExpiresAt
-        ) {
+      if (user.platform === Platform.SPOTIFY) {
+        if (!user.accessToken || !user.refreshToken || !user.tokenExpiresAt) {
           logger.error("missing spotify tokens", { user });
           continue;
         }
 
         const { ok: handleSpotifyUserOk, error: handleSpotifyUserError } =
           await handleSpotifyUser(
-            user.id,
-            user.spotifyAccessToken,
-            user.spotifyRefreshToken,
-            user.spotifyTokenExpiresAt,
+            user.userId,
+            user.accessToken,
+            user.refreshToken,
+            user.tokenExpiresAt,
           );
 
         if (!handleSpotifyUserOk) {
@@ -103,7 +100,7 @@ const handleSpotifyUser = async (
       data: refreshTokensData,
       error: refreshTokensError,
     } = await SpotifyPlatform.refreshTokens({
-      userId: userId.toString(),
+      userId: userId,
       refreshToken: refreshToken,
     });
 
@@ -137,7 +134,7 @@ const handleSpotifyUser = async (
     data: recentPlaysData,
     error: recentPlaysError,
   } = await SpotifyPlatform.getRecentTracks({
-    userId: userId.toString(),
+    userId: userId,
     accessToken: accessToken,
     platform: Platform.SPOTIFY,
   });
@@ -191,9 +188,54 @@ const getRecentAppleMusicPlays = async (appleMusicAccessToken: string) => {
 
 const storeTracks = async (trackPlays: RecentTrackPlay[], userId: number) => {
   try {
-    await db.insert(userTrackPlays).values(trackPlays);
+    logger.log("Attempting to store tracks", {
+      userId,
+      trackCount: trackPlays.length,
+      sampleTrack: trackPlays[0], // Log first track for debugging
+    });
+
+    // Try to insert tracks one by one to identify which one fails
+    for (let i = 0; i < trackPlays.length; i++) {
+      try {
+        await db.insert(userTrackPlays).values([trackPlays[i]]);
+        logger.log(
+          `Successfully inserted track ${i + 1}/${trackPlays.length}`,
+          {
+            trackId: trackPlays[i].trackId,
+            trackName: trackPlays[i].trackName,
+          },
+        );
+      } catch (singleTrackError: unknown) {
+        logger.error(`Failed to insert track ${i + 1}/${trackPlays.length}`, {
+          trackIndex: i,
+          track: trackPlays[i],
+          error: singleTrackError,
+          errorMessage:
+            singleTrackError instanceof Error
+              ? singleTrackError.message
+              : String(singleTrackError),
+          errorStack:
+            singleTrackError instanceof Error
+              ? singleTrackError.stack
+              : undefined,
+        });
+        throw singleTrackError; // Re-throw to maintain original behavior
+      }
+    }
+
     return { ok: true, error: null };
   } catch (error: unknown) {
+    // Log detailed error information
+    logger.error("Database insertion failed", {
+      userId,
+      trackCount: trackPlays.length,
+      error: error,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+      sampleTrack: trackPlays[0], // Log first track for debugging
+      allTracks: trackPlays, // Log all tracks for debugging
+    });
+
     return { ok: false, error: error };
   }
 };
