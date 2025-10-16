@@ -11,7 +11,7 @@ interface PhoneNumberCheckerProps {
   setPhoneNumberChecked: (checked: boolean) => void;
   setShowRegistration: (show: boolean) => void;
 
-  handleCreateFriendship?: (data: { id: string }) => void;
+  handleCreateFriendship?: (data: { id: number }) => void;
 }
 
 export default function PhoneNumberChecker({

@@ -31,7 +31,7 @@ export default function FriendRequest({
     window.history.replaceState({}, document.title, newUrl);
   }, []);
 
-  const handleCreateFriendship = async (data: { id: string }) => {
+  const handleCreateFriendship = async (data: { id: number }) => {
     const { ok, message } = await createFriendships({
       user_id: data.id,
       referral_friend_link_token: inviter.link,
@@ -45,7 +45,6 @@ export default function FriendRequest({
       } else {
         setFriendshipStatus("error");
       }
-      console.log("Error creating friendship:", message);
     }
   };
 

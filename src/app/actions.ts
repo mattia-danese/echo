@@ -141,7 +141,7 @@ export async function createUser(payload: {
 
     if (payload.referral_friend_link_token) {
       const { ok, message } = await createFriendships({
-        user_id: newUser.id.toString(),
+        user_id: newUser.id,
         referral_friend_link_token: payload.referral_friend_link_token,
       });
 
@@ -254,7 +254,7 @@ async function getPlatformAuth(payload: { platform: string; code: string }) {
 }
 
 export async function createFriendships(payload: {
-  user_id: string;
+  user_id: number;
   referral_friend_link_token: string;
 }) {
   try {
@@ -268,7 +268,7 @@ export async function createFriendships(payload: {
       throw new Error("Friend not found based on referral token");
     }
 
-    if (friend.id.toString() === payload.user_id) {
+    if (friend.id === payload.user_id) {
       throw new Error("Friend is the same as the user");
     }
 
@@ -277,23 +277,29 @@ export async function createFriendships(payload: {
     // Create friendship relationship (bidirectional)
     await db.insert(friends).values([
       {
-        userId: parseInt(payload.user_id, 10),
+        userId: payload.user_id,
         friendId: friend.id,
         updatedAt: now,
       },
       {
         userId: friend.id,
-        friendId: parseInt(payload.user_id, 10),
+        friendId: payload.user_id,
         updatedAt: now,
       },
     ]);
 
     return { ok: true, message: "Friendship created successfully" };
   } catch (error: unknown) {
-    console.error("Error in createFriendships:", error);
+    console.error(
+      `Error in createFriendships (${payload.user_id}, ${payload.referral_friend_link_token}):`,
+      error,
+    );
     return {
       ok: false,
-      message: "An error occurred while creating friendships",
+      message:
+        error instanceof Error
+          ? error.message
+          : "An error occurred while creating friendships",
     };
   }
 }

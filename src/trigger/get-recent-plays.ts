@@ -24,30 +24,7 @@ export const getRecentPlaysTask = task({
           })
           .from(users);
 
-    // if (!payload.user) {
-    //   const { data: users, error } = await supabase.from("users").select(`
-    //         id,
-    //         platform,
-    //         spotify_access_token,
-    //         spotify_refresh_token,
-    //         spotify_token_expires_at,
-    //         apple_music_access_token,
-    //         apple_music_refresh_token,
-    //         apple_music_token_expires_at,
-    //     `);
-
-    //   if (error) {
-    //     logger.error("error getting recent plays", { error });
-    //     throw error;
-    //   }
-
-    //   if (!users) {
-    //     logger.error("no users found");
-    //     throw new Error("no users found");
-    //   }
-
-    //   data = users as unknown as User[];
-    // }
+    logger.log("processing users", { numUsers: data.length });
 
     for (const user of data) {
       if (user.platform === "spotify") {
