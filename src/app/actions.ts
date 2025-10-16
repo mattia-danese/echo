@@ -14,22 +14,19 @@ import {
 } from "@/trigger";
 
 export async function checkRegistrationData(payload: {
-  first_name: string;
-  last_name: string;
-  phone_number: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber: string;
 }) {
-  if (
-    !isPhoneNumberValid(payload.phone_number) ||
-    !payload.phone_number.trim()
-  ) {
+  if (!isPhoneNumberValid(payload.phoneNumber) || !payload.phoneNumber.trim()) {
     return { ok: false, message: "phone number" };
   }
 
-  if (!isNameValid(payload.first_name) || !payload.first_name.trim()) {
+  if (!isNameValid(payload.firstName) || !payload.firstName.trim()) {
     return { ok: false, message: "first name" };
   }
 
-  if (!isNameValid(payload.last_name) || !payload.last_name.trim()) {
+  if (!isNameValid(payload.lastName) || !payload.lastName.trim()) {
     return { ok: false, message: "last name" };
   }
 
@@ -37,27 +34,27 @@ export async function checkRegistrationData(payload: {
 }
 
 export async function createUser(payload: {
-  first_name: string;
-  last_name: string;
-  phone_number: string;
-  spotify_code: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber: string;
+  spotifyCode: string;
   platform: string;
-  referral_friend_link_token: string | null;
+  referralFriendLinkToken: string | null;
 }) {
   try {
     // First, check if user already exists
     const [existingUser] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.phoneNumber, payload.phone_number))
+      .where(eq(users.phoneNumber, payload.phoneNumber))
       .limit(1);
 
     if (existingUser) {
       // User already exists, return early
       return {
         ok: true,
-        user_id: existingUser.id.toString(),
-        onboarding_token: null,
+        userId: existingUser.id.toString(),
+        onboardingToken: null,
         created: false,
         message: "User with this phone number already exists.",
       };
@@ -70,14 +67,14 @@ export async function createUser(payload: {
       error: platformAuthError,
     } = await getPlatformAuth({
       platform: payload.platform,
-      code: payload.spotify_code,
+      code: payload.spotifyCode,
     });
 
     if (!platformAuthOk) {
       return {
         ok: false,
-        user_id: null,
-        onboarding_token: null,
+        userId: null,
+        onboardingToken: null,
         created: false,
         message: platformAuthError,
       };
@@ -86,63 +83,60 @@ export async function createUser(payload: {
     if (!platformAuthData) {
       return {
         ok: false,
-        user_id: null,
-        onboarding_token: null,
+        userId: null,
+        onboardingToken: null,
         created: false,
         message: "No data returned from platform auth",
       };
     }
 
-    const { access_token, refresh_token, expires_at, platform_user_id } =
+    const { accessToken, refreshToken, expiresAt, spotifyUserId } =
       platformAuthData;
 
     const userAuth = {
-      spotify_user_id: payload.platform === "spotify" ? platform_user_id : null,
-      spotify_access_token:
-        payload.platform === "spotify" ? access_token : null,
-      spotify_refresh_token:
-        payload.platform === "spotify" ? refresh_token : null,
-      spotify_token_expires_at:
-        payload.platform === "spotify" ? expires_at : null,
+      spotifyUserId: payload.platform === "spotify" ? spotifyUserId : null,
+      spotifyAccessToken: payload.platform === "spotify" ? accessToken : null,
+      spotifyRefreshToken: payload.platform === "spotify" ? refreshToken : null,
+      spotifyTokenExpiresAt: payload.platform === "spotify" ? expiresAt : null,
 
-      apple_music_user_id:
-        payload.platform === "apple-music" ? platform_user_id : null,
-      apple_music_access_token:
-        payload.platform === "apple-music" ? access_token : null,
-      apple_music_refresh_token:
-        payload.platform === "apple-music" ? refresh_token : null,
-      apple_music_token_expires_at:
-        payload.platform === "apple-music" ? expires_at : null,
+      appleMusicUserId:
+        payload.platform === "apple-music" ? "apple-music" : null,
+      appleMusicAccessToken:
+        payload.platform === "apple-music" ? accessToken : null,
+      appleMusicRefreshToken:
+        payload.platform === "apple-music" ? refreshToken : null,
+      appleMusicTokenExpiresAt:
+        payload.platform === "apple-music" ? expiresAt : null,
     };
 
     // Generate friend link
-    const friend_link_token = crypto.randomBytes(16).toString("base64url");
+    const friendLinkToken = crypto.randomBytes(16).toString("base64url");
 
     // Generate onboarding token
-    const onboarding_token = crypto.randomBytes(16).toString("base64url");
+    const onboardingToken = crypto.randomBytes(16).toString("base64url");
 
     // Create new user with Spotify tokens
     const [newUser] = await db
       .insert(users)
       .values({
-        firstName: payload.first_name,
-        lastName: payload.last_name,
-        phoneNumber: payload.phone_number,
-        friendLinkToken: friend_link_token,
-        onboardingToken: onboarding_token,
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        phoneNumber: payload.phoneNumber,
+        friendLinkToken: friendLinkToken,
+        onboardingToken: onboardingToken,
         isOnboardingComplete: false,
         platform: payload.platform as Platform,
-        spotifyUserId: userAuth.spotify_user_id,
-        spotifyAccessToken: userAuth.spotify_access_token,
-        spotifyRefreshToken: userAuth.spotify_refresh_token,
-        spotifyTokenExpiresAt: userAuth.spotify_token_expires_at,
+        spotifyUserId: userAuth.spotifyUserId,
+        spotifyAccessToken: userAuth.spotifyAccessToken,
+        spotifyRefreshToken: userAuth.spotifyRefreshToken,
+        spotifyTokenExpiresAt: userAuth.spotifyTokenExpiresAt,
       })
       .returning({ id: users.id, onboardingToken: users.onboardingToken });
 
-    if (payload.referral_friend_link_token) {
+    if (payload.referralFriendLinkToken) {
       const { ok, message } = await createFriendships({
-        user_id: newUser.id,
-        referral_friend_link_token: payload.referral_friend_link_token,
+        userId: newUser.id,
+        referralFriendLinkToken: payload.referralFriendLinkToken,
       });
 
       if (!ok) {
@@ -154,17 +148,15 @@ export async function createUser(payload: {
     await getRecentPlaysTask.trigger({
       user: {
         id: newUser.id,
-        platform: payload.platform,
-        ...(({ spotify_user_id, apple_music_user_id, ...rest }) => rest)(
-          userAuth,
-        ),
+        platform: payload.platform as Platform,
+        ...(({ spotifyUserId, appleMusicUserId, ...rest }) => rest)(userAuth),
       },
     });
 
     return {
       ok: true,
-      user_id: newUser.id.toString(),
-      onboarding_token: newUser.onboardingToken,
+      userId: newUser.id.toString(),
+      onboardingToken: newUser.onboardingToken,
       created: true,
       message: "User created successfully with Spotify tokens.",
     };
@@ -172,8 +164,8 @@ export async function createUser(payload: {
     console.error("Error in createUser:", error);
     return {
       ok: false,
-      user_id: null,
-      onboarding_token: null,
+      userId: null,
+      onboardingToken: null,
       created: false,
       message: "An error occurred while creating the user.",
     };
@@ -201,14 +193,14 @@ async function getPlatformAuth(payload: { platform: string; code: string }) {
         };
       }
 
-      const { access_token, refresh_token, expires_at } = getTokensData;
+      const { accessToken, refreshToken, expiresAt } = getTokensData;
 
       const {
         ok: getUserIdOk,
         data: getUserIdData,
         error: getUserIdError,
       } = await SpotifyPlatform.getUserId({
-        access_token: access_token,
+        accessToken: accessToken,
       });
 
       if (!getUserIdOk) {
@@ -224,10 +216,10 @@ async function getPlatformAuth(payload: { platform: string; code: string }) {
       }
 
       const data = {
-        access_token: access_token,
-        refresh_token: refresh_token,
-        expires_at: expires_at,
-        platform_user_id: getUserIdData.spotify_user_id,
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        expiresAt: expiresAt,
+        spotifyUserId: getUserIdData.spotifyUserId,
       };
 
       return { ok: true, data: data, error: null };
@@ -254,21 +246,21 @@ async function getPlatformAuth(payload: { platform: string; code: string }) {
 }
 
 export async function createFriendships(payload: {
-  user_id: number;
-  referral_friend_link_token: string;
+  userId: number;
+  referralFriendLinkToken: string;
 }) {
   try {
     const [friend] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.friendLinkToken, payload.referral_friend_link_token))
+      .where(eq(users.friendLinkToken, payload.referralFriendLinkToken))
       .limit(1);
 
     if (!friend) {
       throw new Error("Friend not found based on referral token");
     }
 
-    if (friend.id === payload.user_id) {
+    if (friend.id === payload.userId) {
       throw new Error("Friend is the same as the user");
     }
 
@@ -277,13 +269,13 @@ export async function createFriendships(payload: {
     // Create friendship relationship (bidirectional)
     await db.insert(friends).values([
       {
-        userId: payload.user_id,
+        userId: payload.userId,
         friendId: friend.id,
         updatedAt: now,
       },
       {
         userId: friend.id,
-        friendId: payload.user_id,
+        friendId: payload.userId,
         updatedAt: now,
       },
     ]);
@@ -291,7 +283,7 @@ export async function createFriendships(payload: {
     return { ok: true, message: "Friendship created successfully" };
   } catch (error: unknown) {
     console.error(
-      `Error in createFriendships (${payload.user_id}, ${payload.referral_friend_link_token}):`,
+      `Error in createFriendships (${payload.userId}, ${payload.referralFriendLinkToken}):`,
       error,
     );
     return {
@@ -305,17 +297,17 @@ export async function createFriendships(payload: {
 }
 
 export async function sendOnboardingMessage(payload: {
-  phone_number: string;
-  onboarding_token: string;
+  phoneNumber: string;
+  onboardingToken: string;
 }) {
-  console.log("Triggering onboarding task... ", payload.phone_number);
+  console.log("Triggering onboarding task... ", payload.phoneNumber);
   await onboardingTask.trigger({
-    phone_number: payload.phone_number,
-    onboarding_token: payload.onboarding_token,
+    phoneNumber: payload.phoneNumber,
+    onboardingToken: payload.onboardingToken,
   });
   return {
     ok: true,
-    message: `onboarding message sent to ${payload.phone_number}`,
+    message: `onboarding message sent to ${payload.phoneNumber}`,
   };
 }
 
@@ -373,8 +365,8 @@ async function handleAppleMusicSearch(query: string) {
 }
 
 export async function getUserTopSongs(payload: {
-  user_id: number;
-  num_songs: number;
+  userId: number;
+  numSongs: number;
 }) {
   try {
     const FOUR_DAYS_IN_MS = 4 * 24 * 60 * 60 * 1000;
@@ -390,7 +382,7 @@ export async function getUserTopSongs(payload: {
       .from(userTrackPlays)
       .where(
         and(
-          eq(userTrackPlays.userId, payload.user_id),
+          eq(userTrackPlays.userId, payload.userId),
           gte(
             userTrackPlays.playedAt,
             new Date(Date.now() - FOUR_DAYS_IN_MS).toISOString(),
@@ -404,7 +396,7 @@ export async function getUserTopSongs(payload: {
         userTrackPlays.albumImageUrl,
       )
       .orderBy(desc(count()))
-      .limit(payload.num_songs);
+      .limit(payload.numSongs);
 
     return {
       ok: true,
@@ -416,17 +408,17 @@ export async function getUserTopSongs(payload: {
     return {
       ok: false,
       songs: [],
-      message: `An error occurred while getting user top songs for user ${payload.user_id}: ${error}`,
+      message: `An error occurred while getting user top songs for user ${payload.userId}: ${error}`,
     };
   }
 }
 
-export async function submitSong(payload: { token: string; track_id: string }) {
+export async function submitSong(payload: { token: string; trackId: string }) {
   try {
     await db
       .update(userEchoSessions)
       .set({
-        trackId: payload.track_id,
+        trackId: payload.trackId,
         updatedAt: new Date().toISOString(),
       })
       .where(eq(userEchoSessions.token, payload.token));
@@ -438,16 +430,14 @@ export async function submitSong(payload: { token: string; track_id: string }) {
   }
 }
 
-export async function completeOnboarding(payload: {
-  onboarding_token: string;
-}) {
+export async function completeOnboarding(payload: { onboardingToken: string }) {
   try {
     const [user] = await db
       .update(users)
       .set({
         isOnboardingComplete: true,
       })
-      .where(eq(users.onboardingToken, payload.onboarding_token))
+      .where(eq(users.onboardingToken, payload.onboardingToken))
       .returning();
 
     if (!user) {
@@ -459,14 +449,14 @@ export async function completeOnboarding(payload: {
     await onboardingCompletionTask.trigger({
       user: {
         id: user.id,
-        first_name: user.firstName,
-        phone_number: user.phoneNumber,
-        friend_link_token: user.friendLinkToken,
+        firstName: user.firstName,
+        phoneNumber: user.phoneNumber,
+        friendLinkToken: user.friendLinkToken,
         platform: user.platform as Platform,
-        spotify_user_id: user.spotifyUserId || "",
-        spotify_access_token: user.spotifyAccessToken || "",
-        spotify_refresh_token: user.spotifyRefreshToken || "",
-        spotify_token_expires_at: user.spotifyTokenExpiresAt || "",
+        spotifyUserId: user.spotifyUserId || "",
+        spotifyAccessToken: user.spotifyAccessToken || "",
+        spotifyRefreshToken: user.spotifyRefreshToken || "",
+        spotifyTokenExpiresAt: user.spotifyTokenExpiresAt || "",
       },
     });
 

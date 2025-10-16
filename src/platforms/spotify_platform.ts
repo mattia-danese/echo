@@ -32,7 +32,7 @@ type SpotifyRecentTrackPlay = {
       images: { url: string }[];
     };
   };
-  played_at: string;
+  playedAt: string;
 };
 
 type SpotifySearchResultTrack = {
@@ -75,13 +75,13 @@ export class SpotifyPlatform extends Platform {
 
       // Calculate expiration timestamp
       const expiresAt = new Date(
-        Date.now() + spotifyData.expires_in * 1000,
+        Date.now() + spotifyData.expiresIn * 1000,
       ).toISOString();
 
       const data = {
-        access_token: spotifyData.access_token,
-        refresh_token: spotifyData.refresh_token,
-        expires_at: expiresAt,
+        accessToken: spotifyData.accessToken,
+        refreshToken: spotifyData.refreshToken,
+        expiresAt: expiresAt,
       } as GetTokensResponse;
 
       return { ok: true, data: data, error: null };
@@ -106,7 +106,7 @@ export class SpotifyPlatform extends Platform {
         },
         body: new URLSearchParams({
           grant_type: "refresh_token",
-          refresh_token: request.refresh_token,
+          refresh_token: request.refreshToken,
         }),
       });
 
@@ -120,25 +120,25 @@ export class SpotifyPlatform extends Platform {
       }
 
       const responseData = await response.json();
-      const spotify_token_expires_at = new Date(
-        Date.now() + responseData.expires_in * 1000,
+      const spotifyTokenExpiresAt = new Date(
+        Date.now() + responseData.expiresIn * 1000,
       ).toISOString();
 
-      // FIXME: pass user_id as a number
+      // FIXME: pass userId as a number
       await db
         .update(users)
         .set({
-          spotifyAccessToken: responseData.access_token,
+          spotifyAccessToken: responseData.accessToken,
           spotifyRefreshToken:
-            responseData.refresh_token ?? request.refresh_token,
-          spotifyTokenExpiresAt: spotify_token_expires_at,
+            responseData.refreshToken ?? request.refreshToken,
+          spotifyTokenExpiresAt: spotifyTokenExpiresAt,
         })
-        .where(eq(users.id, parseInt(request.user_id, 10)));
+        .where(eq(users.id, parseInt(request.userId, 10)));
 
       const data = {
-        access_token: responseData.access_token,
-        refresh_token: responseData.refresh_token ?? request.refresh_token,
-        expires_in: spotify_token_expires_at,
+        accessToken: responseData.accessToken,
+        refreshToken: responseData.refreshToken ?? request.refreshToken,
+        expiresIn: spotifyTokenExpiresAt,
       } as RefreshTokensResponse;
 
       return { ok: true, data: data, error: null };
@@ -154,16 +154,16 @@ export class SpotifyPlatform extends Platform {
   }> {
     try {
       const response = await fetch(
-        `https://api.spotify.com/v1/users/${request.user_id}/playlists`,
+        `https://api.spotify.com/v1/users/${request.userId}/playlists`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${request.access_token}`,
+            Authorization: `Bearer ${request.accessToken}`,
           },
           body: JSON.stringify({
-            name: request.playlist_name,
-            description: request.playlist_description,
+            name: request.playlistName,
+            description: request.playlistDescription,
             public: false,
           }),
         },
@@ -175,7 +175,7 @@ export class SpotifyPlatform extends Platform {
       }
 
       const playlistData = await response.json();
-      return { ok: true, data: { playlist_id: playlistData.id }, error: null };
+      return { ok: true, data: { playlistId: playlistData.id }, error: null };
     } catch (err) {
       return { ok: false, data: null, error: err };
     }
@@ -186,12 +186,12 @@ export class SpotifyPlatform extends Platform {
   ): Promise<{ ok: boolean; error: unknown }> {
     try {
       const response = await fetch(
-        `https://api.spotify.com/v1/playlists/${request.playlist_id}/tracks`,
+        `https://api.spotify.com/v1/playlists/${request.playlistId}/tracks`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${request.access_token}`,
+            Authorization: `Bearer ${request.accessToken}`,
           },
           body: JSON.stringify({
             uris: request.trackURIs,
@@ -220,7 +220,7 @@ export class SpotifyPlatform extends Platform {
         {
           method: "GET",
           headers: {
-            Authorization: `Bearer ${request.access_token}`,
+            Authorization: `Bearer ${request.accessToken}`,
             "Content-Type": "application/json",
           },
         },
@@ -240,12 +240,12 @@ export class SpotifyPlatform extends Platform {
       // Transform data to match GetTracksResponse
       const tracks: RecentTrackPlay[] = (data.items || []).map(
         (play: SpotifyRecentTrackPlay) => ({
-          userId: request.user_id,
+          userId: request.userId,
           platform: "spotify",
           trackId: play.track.id,
           trackName: play.track.name,
           artists: play.track.artists.map((artist) => artist.name).join(", "),
-          playedAt: play.played_at,
+          playedAt: play.playedAt,
           albumImageUrl: play.track.album.images[0]?.url || "",
         }),
       );
@@ -295,7 +295,7 @@ export class SpotifyPlatform extends Platform {
         `https://api.spotify.com/v1/search?q=${encodeURIComponent(request.query)}&type=track&limit=10`,
         {
           headers: {
-            Authorization: `Bearer ${authData.access_token}`,
+            Authorization: `Bearer ${authData.accessToken}`,
           },
         },
       );
@@ -314,10 +314,10 @@ export class SpotifyPlatform extends Platform {
       // Format tracks to match SearchResultTrack interface
       const tracks: SearchResultTrack[] =
         searchData.tracks?.items?.map((track: SpotifySearchResultTrack) => ({
-          track_id: track.id,
-          track_name: track.name,
+          trackId: track.id,
+          trackName: track.name,
           artists: track.artists.map((artist) => artist.name).join(", "),
-          album_image_url: track.album?.images?.[0]?.url || "",
+          albumImageUrl: track.album?.images?.[0]?.url || "",
         })) || [];
 
       return { ok: true, data: { tracks }, error: null };
@@ -333,7 +333,7 @@ export class SpotifyPlatform extends Platform {
       // Get Spotify user ID from /me endpoint
       const response = await fetch("https://api.spotify.com/v1/me", {
         headers: {
-          Authorization: `Bearer ${request.access_token}`,
+          Authorization: `Bearer ${request.accessToken}`,
         },
       });
 
@@ -345,7 +345,7 @@ export class SpotifyPlatform extends Platform {
 
       const spotifyUserProfile = await response.json();
       const data = {
-        spotify_user_id: spotifyUserProfile.id,
+        spotifyUserId: spotifyUserProfile.id,
       } as GetUserIdResponse;
 
       return { ok: true, data: data, error: null };

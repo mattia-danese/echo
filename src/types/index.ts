@@ -5,40 +5,40 @@ export interface GetTokensRequest {
 }
 
 export interface GetTokensResponse {
-  access_token: string;
-  refresh_token: string;
-  expires_at: string;
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: string;
 }
 
 // Refresh Tokens
 export interface RefreshTokensRequest {
-  user_id: string;
-  refresh_token: string;
+  userId: string;
+  refreshToken: string;
 }
 
 export interface RefreshTokensResponse {
-  access_token: string;
-  refresh_token: string;
-  expires_in: string;
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: string;
 }
 
 // Create Playlist
 export interface CreatePlaylistRequest {
-  user_id: string;
-  access_token: string;
-  playlist_name: string;
-  playlist_description: string;
-  playlist_date: string;
+  userId: string;
+  accessToken: string;
+  playlistName: string;
+  playlistDescription: string;
+  playlistDate: string;
 }
 
 export interface CreatePlaylistResponse {
-  playlist_id: string;
+  playlistId: string;
 }
 
 // Populate Playlist
 export interface PopulatePlaylistRequest {
-  access_token: string;
-  playlist_id: string;
+  accessToken: string;
+  playlistId: string;
   trackURIs: string[];
 }
 
@@ -46,9 +46,9 @@ export interface PopulatePlaylistRequest {
 
 // Get Tracks
 export interface GetTracksRequest {
-  user_id: string;
-  access_token: string;
-  platform: string;
+  userId: string;
+  accessToken: string;
+  platform: Platform;
 }
 
 export interface GetTracksResponse {
@@ -75,29 +75,29 @@ export interface SearchTracksResponse {
 }
 
 export interface SearchResultTrack {
-  track_id: string;
-  track_name: string;
+  trackId: string;
+  trackName: string;
   artists: string;
-  album_image_url: string;
+  albumImageUrl: string;
 }
 
 // Get User ID
 export interface GetUserIdRequest {
-  access_token: string;
+  accessToken: string;
 }
 
 export interface GetUserIdResponse {
-  spotify_user_id: string;
+  spotifyUserId: string;
 }
 
 // Get Recent Plays
 export interface User {
   id: number;
-  platform: string;
-  spotify_access_token: string | null;
-  spotify_refresh_token: string | null;
-  spotify_token_expires_at: string | null;
-  apple_music_access_token: string | null;
-  apple_music_refresh_token: string | null;
-  apple_music_token_expires_at: string | null;
+  platform: Platform;
+  spotifyAccessToken: string | null;
+  spotifyRefreshToken: string | null;
+  spotifyTokenExpiresAt: string | null;
+  appleMusicAccessToken: string | null;
+  appleMusicRefreshToken: string | null;
+  appleMusicTokenExpiresAt: string | null;
 }

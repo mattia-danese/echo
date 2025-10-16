@@ -14,7 +14,7 @@ export const onboardingTask = task({
   // Set an optional maxDuration to prevent tasks from running indefinitely
   maxDuration: 300, // Stop executing after 300 secs (5 mins) of compute
   run: async (
-    payload: { phone_number: string; onboarding_token: string },
+    payload: { phoneNumber: string; onboardingToken: string },
     { ctx },
   ) => {
     logger.log("onboarding task starting", { payload, ctx });
@@ -28,7 +28,7 @@ export const onboardingTask = task({
     //     2. submit your song
     //     3. at the end of the day, we'll text you the songs your friends shared`,
     //     from: fromNumber,
-    //     to: payload.phone_number,
+    //     to: payload.phoneNumber,
     //   });
 
     // logger.log("onboarding message #1 sent", { message });
@@ -37,22 +37,22 @@ export const onboardingTask = task({
     //   body: `
     //   let's walk through a live example. click on the link below to share your first song`,
     //   from: fromNumber,
-    //   to: payload.phone_number,
+    //   to: payload.phoneNumber,
     // });
 
     // logger.log("onboarding message #2 sent", { message2 });
 
     // const message3 = await client.messages.create({
     //   body: `
-    //   https://text-echo.com/onboarding/${payload.onboarding_token}`,
+    //   https://text-echo.com/onboarding/${payload.onboardingToken}`,
     //   from: fromNumber,
-    //   to: payload.phone_number,
+    //   to: payload.phoneNumber,
     // });
 
     // logger.log("onboarding message #3 sent", { message3 });
 
     return {
-      message: `onboarding message sent to ${payload.phone_number}`,
+      message: `onboarding message sent to ${payload.phoneNumber}`,
     };
   },
 });

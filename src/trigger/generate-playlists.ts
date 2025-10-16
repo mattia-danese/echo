@@ -38,21 +38,21 @@ type PlaylistSongRecords = {
 }[];
 
 type UserSongData = {
-  user_id: number;
-  track_id: string;
+  userId: number;
+  trackId: string;
   platform: string;
   users: {
-    first_name: string;
+    firstName: string;
     platform: string;
-    phone_number: string;
-    spotify_user_id: string;
-    spotify_access_token: string;
-    spotify_refresh_token: string;
-    spotify_token_expires_at: string;
-    // apple_music_user_id: string;
-    // apple_music_access_token: string;
-    // apple_music_refresh_token: string;
-    // apple_music_token_expires_at: string;
+    phoneNumber: string;
+    spotifyUserId: string;
+    spotifyAccessToken: string;
+    spotifyRefreshToken: string;
+    spotifyTokenExpiresAt: string;
+    // appleMusicUserId: string;
+    // appleMusicAccessToken: string;
+    // appleMusicRefreshToken: string;
+    // appleMusicTokenExpiresAt: string;
   };
 };
 
@@ -93,23 +93,23 @@ export const generatePlaylistsTask = schedules.task({
       playlistDate,
     });
 
-    // create lookup table mapping user_id to song_id
+    // create lookup table mapping userId to trackId
     const userSongLookup: Record<number, string> = {};
     for (const user of userSongData) {
-      userSongLookup[user.user_id] = user.track_id;
+      userSongLookup[user.userId] = user.trackId;
     }
 
     logger.log("user to song lookup created");
 
-    // create lookup table mapping user_id to platform (used to determine which platform to create playlist on)
+    // create lookup table mapping userId to platform (used to determine which platform to create playlist on)
     const userToSongSubmittedPlatformLookup: Record<number, string> = {};
     for (const user of userSongData) {
-      userToSongSubmittedPlatformLookup[user.user_id] = user.platform;
+      userToSongSubmittedPlatformLookup[user.userId] = user.platform;
     }
 
     logger.log("user to song platform lookup created");
 
-    // user_id -> [friend_id, song_id]
+    // userId -> [friendId, trackId]
     const playlists: Record<number, string[][]> = {};
 
     const playlistRecords: PlaylistRecords = [];
@@ -124,17 +124,17 @@ export const generatePlaylistsTask = schedules.task({
         ok,
         data: userFriendData,
         error,
-      } = await getUserFriends(user.user_id);
+      } = await getUserFriends(user.userId);
 
       if (!ok) {
         logger.error("error getting user's friends", { user, error });
-        usersThatEncounteredErrors.add(user.user_id);
+        usersThatEncounteredErrors.add(user.userId);
         continue;
       }
 
       logger.log("user's friends fetched", { userFriendData });
 
-      playlists[user.user_id] = await compilePlaylistSongs(
+      playlists[user.userId] = await compilePlaylistSongs(
         user.users.platform,
         userFriendData,
         userSongLookup,
@@ -150,7 +150,7 @@ export const generatePlaylistsTask = schedules.task({
 
       if (!createPlaylistOk) {
         logger.error("error creating playlist", { user, createPlaylistError });
-        usersThatEncounteredErrors.add(user.user_id);
+        usersThatEncounteredErrors.add(user.userId);
         continue;
       }
 
@@ -159,7 +159,7 @@ export const generatePlaylistsTask = schedules.task({
           user,
           playlistData,
         });
-        usersThatEncounteredErrors.add(user.user_id);
+        usersThatEncounteredErrors.add(user.userId);
         continue;
       }
 
@@ -168,8 +168,8 @@ export const generatePlaylistsTask = schedules.task({
       const { ok: populatePlaylistOk, error: populatePlaylistError } =
         await populatePlatformPlaylist(
           user,
-          playlists[user.user_id].map((song) => song[1]),
-          playlistData.playlist_id,
+          playlists[user.userId].map((song) => song[1]),
+          playlistData.playlistId,
         );
 
       if (!populatePlaylistOk) {
@@ -177,23 +177,23 @@ export const generatePlaylistsTask = schedules.task({
           user,
           populatePlaylistError,
         });
-        usersThatEncounteredErrors.add(user.user_id);
+        usersThatEncounteredErrors.add(user.userId);
         continue;
       }
 
       playlistRecords.push({
-        userId: user.user_id,
+        userId: user.userId,
         platform: user.users.platform as Platform,
         sessionId: echoSessionId,
-        platformPlaylistId: playlistData.playlist_id,
+        platformPlaylistId: playlistData.playlistId,
       });
 
       playlistSongRecords.push(
-        ...playlists[user.user_id].map((song) => ({
+        ...playlists[user.userId].map((song) => ({
           playlistId: 0,
           trackId: song[1],
           submittedByUserId: parseInt(song[0], 10),
-          platformPlaylistId: playlistData.playlist_id, // will not be persisted to database, just used to get Playlist.id in persistPlaylistsToDatabase
+          platformPlaylistId: playlistData.playlistId, // will not be persisted to database, just used to get Playlist.id in persistPlaylistsToDatabase
         })),
       );
     }
@@ -247,20 +247,20 @@ const getEchoSessionAndUsers = async () => {
       },
     );
 
-    // get all users that submitted a song in the last session (user_id, phone_number, song_id)
+    // get all users that submitted a song in the last session (userId, phoneNumber, trackId)
     const userSongData = (await db
       .select({
-        user_id: userEchoSessions.userId,
-        track_id: userEchoSessions.trackId,
+        userId: userEchoSessions.userId,
+        trackId: userEchoSessions.trackId,
         platform: userEchoSessions.platform,
         users: {
           platform: users.platform,
-          first_name: users.firstName,
-          phone_number: users.phoneNumber,
-          spotify_user_id: users.spotifyUserId || "",
-          spotify_access_token: users.spotifyAccessToken || "",
-          spotify_refresh_token: users.spotifyRefreshToken || "",
-          spotify_token_expires_at: users.spotifyTokenExpiresAt || "",
+          firstName: users.firstName,
+          phoneNumber: users.phoneNumber,
+          spotifyUserId: users.spotifyUserId || "",
+          spotifyAccessToken: users.spotifyAccessToken || "",
+          spotifyRefreshToken: users.spotifyRefreshToken || "",
+          spotifyTokenExpiresAt: users.spotifyTokenExpiresAt || "",
         },
       })
       .from(userEchoSessions)
@@ -289,7 +289,7 @@ const getEchoSessionAndUsers = async () => {
 const getUserFriends = async (userId: number) => {
   try {
     const userFriendData = await db
-      .select({ friend_id: friends.friendId })
+      .select({ friendId: friends.friendId })
       .from(friends)
       .where(eq(friends.userId, userId));
 
@@ -299,7 +299,7 @@ const getUserFriends = async (userId: number) => {
 
     return {
       ok: true,
-      data: userFriendData.map((friend) => friend.friend_id),
+      data: userFriendData.map((friend) => friend.friendId),
       error: null,
     };
   } catch (error) {
@@ -308,18 +308,18 @@ const getUserFriends = async (userId: number) => {
 };
 
 const compilePlaylistSongs = async (
-  user_platform: string,
+  userPlatform: string,
   userFriendData: number[],
   userSongLookup: Record<number, string>,
   userToSongSubmittedPlatformLookup: Record<number, string>,
   numSongsPerPlaylist: number,
 ) => {
-  const playlist: string[][] = []; // [friend_id, song_id]
+  const playlist: string[][] = []; // [friendId, trackId]
 
-  for (const friend_id of userFriendData) {
-    const friendSong = userSongLookup[friend_id];
+  for (const friendId of userFriendData) {
+    const friendSong = userSongLookup[friendId];
     const friendSongSubmittedPlatform =
-      userToSongSubmittedPlatformLookup[friend_id];
+      userToSongSubmittedPlatformLookup[friendId];
 
     if (!friendSong) continue;
 
@@ -329,9 +329,9 @@ const compilePlaylistSongs = async (
     if (playlist.length === numSongsPerPlaylist) break;
 
     playlist.push([
-      friend_id.toString(),
+      friendId.toString(),
       await matchFriendSongToUserPlatform(
-        user_platform,
+        userPlatform,
         friendSongSubmittedPlatform,
         friendSong,
       ),
@@ -345,7 +345,7 @@ const createPlaylistOnPlatformForUser = async (
   user: UserSongData,
   playlistDate: string,
 ) => {
-  const playlistNameAbbreviation = user.users.first_name.endsWith("s")
+  const playlistNameAbbreviation = user.users.firstName.endsWith("s")
     ? "'s"
     : "'s";
 
@@ -374,7 +374,7 @@ const createSpotifyPlaylistForUser = async (
   playlistNameAbbreviation: string,
   playlistDate: string,
 ) => {
-  if (new Date(user.users.spotify_token_expires_at) < new Date()) {
+  if (new Date(user.users.spotifyTokenExpiresAt) < new Date()) {
     logger.log("spotify token expired, refreshing ...", { user });
 
     const {
@@ -382,8 +382,8 @@ const createSpotifyPlaylistForUser = async (
       data: refreshTokensData,
       error: refreshTokensError,
     } = await SpotifyPlatform.refreshTokens({
-      user_id: user.user_id.toString(),
-      refresh_token: user.users.spotify_refresh_token,
+      userId: user.userId.toString(),
+      refreshToken: user.users.spotifyRefreshToken,
     });
 
     if (!refreshTokensOk) {
@@ -406,9 +406,9 @@ const createSpotifyPlaylistForUser = async (
       };
     }
 
-    user.users.spotify_access_token = refreshTokensData.access_token;
-    user.users.spotify_refresh_token = refreshTokensData.refresh_token;
-    user.users.spotify_token_expires_at = refreshTokensData.expires_in;
+    user.users.spotifyAccessToken = refreshTokensData.accessToken;
+    user.users.spotifyRefreshToken = refreshTokensData.refreshToken;
+    user.users.spotifyTokenExpiresAt = refreshTokensData.expiresIn;
 
     logger.log("user update complete", { user });
   }
@@ -420,11 +420,11 @@ const createSpotifyPlaylistForUser = async (
     data: createPlaylistData,
     error: createPlaylistError,
   } = await SpotifyPlatform.createPlaylist({
-    user_id: user.users.spotify_user_id,
-    access_token: user.users.spotify_access_token,
-    playlist_name: `${user.users.first_name}${playlistNameAbbreviation} echo ${playlistDate}`,
-    playlist_description: `here are the songs your friends shared for the ${playlistDate} echo`,
-    playlist_date: playlistDate,
+    userId: user.users.spotifyUserId,
+    accessToken: user.users.spotifyAccessToken,
+    playlistName: `${user.users.firstName}${playlistNameAbbreviation} echo ${playlistDate}`,
+    playlistDescription: `here are the songs your friends shared for the ${playlistDate} echo`,
+    playlistDate: playlistDate,
   });
 
   if (!createPlaylistOk) {
@@ -445,15 +445,15 @@ const createAppleMusicPlaylistForUser = async (
 const populatePlatformPlaylist = async (
   user: UserSongData,
   songs: string[],
-  playlist_id: string,
+  playlistId: string,
 ) => {
   if (user.users.platform === "spotify") {
     const songURIs = songs.map((song) => `spotify:track:${song}`);
 
     return await SpotifyPlatform.populatePlaylist({
-      access_token: user.users.spotify_access_token,
+      accessToken: user.users.spotifyAccessToken,
       trackURIs: songURIs,
-      playlist_id: playlist_id,
+      playlistId: playlistId,
     });
   } else if (user.users.platform === "apple-music") {
     return { ok: false, error: "not implemented" };
@@ -484,17 +484,17 @@ const persistPlaylistsToDatabase = async (
       });
     logger.log("saving playlists to database done", {});
 
-    const playlistIdByPlatfomPlaylistId = new Map(
+    const playlistIdByPlatformPlaylistId = new Map(
       playlistsInserted.map((r) => [r.platformPlaylistId, r.id]),
     );
 
     logger.log("saving playlists to database done", {
-      numPlaylists: playlistIdByPlatfomPlaylistId.size,
+      numPlaylists: playlistIdByPlatformPlaylistId.size,
     });
 
-    // save each playlist_song to database
+    // save each playlistSong to database
     for (const playlistSong of newPlaylistSongs) {
-      playlistSong.playlistId = playlistIdByPlatfomPlaylistId.get(
+      playlistSong.playlistId = playlistIdByPlatformPlaylistId.get(
         playlistSong.platformPlaylistId,
       ) as number;
     }
@@ -523,8 +523,8 @@ const textUsersPlaylists = async (
     }
 
     const userPhoneNumber = userSongData.find(
-      (user) => user.user_id === playlist.userId,
-    )?.users.phone_number;
+      (user) => user.userId === playlist.userId,
+    )?.users.phoneNumber;
 
     if (!userPhoneNumber) {
       logger.error("phone number not found for user", {

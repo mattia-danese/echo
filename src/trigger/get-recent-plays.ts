@@ -1,6 +1,7 @@
 import { logger, task } from "@trigger.dev/sdk/v3";
 import { db } from "@/db";
 import { users, userTrackPlays } from "@/db/schema";
+import { Platform } from "@/db/types";
 import { SpotifyPlatform } from "@/platforms";
 import type { RecentTrackPlay, User } from "@/types";
 
@@ -18,9 +19,9 @@ export const getRecentPlaysTask = task({
           .select({
             id: users.id,
             platform: users.platform,
-            spotify_access_token: users.spotifyAccessToken,
-            spotify_refresh_token: users.spotifyRefreshToken,
-            spotify_token_expires_at: users.spotifyTokenExpiresAt,
+            spotifyAccessToken: users.spotifyAccessToken,
+            spotifyRefreshToken: users.spotifyRefreshToken,
+            spotifyTokenExpiresAt: users.spotifyTokenExpiresAt,
           })
           .from(users);
 
@@ -29,9 +30,9 @@ export const getRecentPlaysTask = task({
     for (const user of data) {
       if (user.platform === "spotify") {
         if (
-          !user.spotify_access_token ||
-          !user.spotify_refresh_token ||
-          !user.spotify_token_expires_at
+          !user.spotifyAccessToken ||
+          !user.spotifyRefreshToken ||
+          !user.spotifyTokenExpiresAt
         ) {
           logger.error("missing spotify tokens", { user });
           continue;
@@ -40,9 +41,9 @@ export const getRecentPlaysTask = task({
         const { ok: handleSpotifyUserOk, error: handleSpotifyUserError } =
           await handleSpotifyUser(
             user.id,
-            user.spotify_access_token,
-            user.spotify_refresh_token,
-            user.spotify_token_expires_at,
+            user.spotifyAccessToken,
+            user.spotifyRefreshToken,
+            user.spotifyTokenExpiresAt,
           );
 
         if (!handleSpotifyUserOk) {
@@ -54,9 +55,9 @@ export const getRecentPlaysTask = task({
       } else if (user.platform === "apple-music") {
         logger.error("apple music auth not implemented yet", { user });
         // if (
-        //   !user.apple_music_access_token ||
-        //   !user.apple_music_refresh_token ||
-        //   !user.apple_music_token_expires_at
+        //   !user.appleMusicAccessToken ||
+        //   !user.appleMusicRefreshToken ||
+        //   !user.appleMusicTokenExpiresAt
         // ) {
         //   logger.error("missing apple music tokens", { user });
         //   continue;
@@ -65,9 +66,9 @@ export const getRecentPlaysTask = task({
         // const { ok: handleAppleMusicUserOk, error: handleAppleMusicUserError } =
         //   await handleAppleMusicUser(
         //     user.id,
-        //     user.apple_music_access_token,
-        //     user.apple_music_refresh_token,
-        //     user.apple_music_token_expires_at,
+        //     user.appleMusicAccessToken,
+        //     user.appleMusicRefreshToken,
+        //     user.appleMusicTokenExpiresAt,
         //   );
 
         // if (!handleAppleMusicUserOk) {
@@ -88,27 +89,27 @@ export const getRecentPlaysTask = task({
 });
 
 const handleSpotifyUser = async (
-  user_id: number,
-  access_token: string,
-  refresh_token: string,
-  token_expires_at: string,
+  userId: number,
+  accessToken: string,
+  refreshToken: string,
+  tokenExpiresAt: string,
 ) => {
   // refresh spotify access token if it's expired
-  if (new Date(token_expires_at) < new Date()) {
-    logger.log("spotify token expired, refreshing ...", { user_id });
+  if (new Date(tokenExpiresAt) < new Date()) {
+    logger.log("spotify token expired, refreshing ...", { userId });
 
     const {
       ok: refreshTokensOk,
       data: refreshTokensData,
       error: refreshTokensError,
     } = await SpotifyPlatform.refreshTokens({
-      user_id: user_id.toString(),
-      refresh_token: refresh_token,
+      userId: userId.toString(),
+      refreshToken: refreshToken,
     });
 
     if (!refreshTokensOk) {
       logger.error("error refreshing spotify token", {
-        user_id,
+        userId,
         refreshTokensError,
       });
       return { ok: false, error: refreshTokensError };
@@ -116,39 +117,39 @@ const handleSpotifyUser = async (
 
     if (!refreshTokensData) {
       logger.error("no data returned from refreshAccessToken", {
-        user_id,
+        userId,
         refreshTokensData,
       });
       return { ok: false, error: `no data returned from refreshAccessToken` };
     }
 
-    access_token = refreshTokensData.access_token;
-    refresh_token = refreshTokensData.refresh_token;
-    token_expires_at = refreshTokensData.expires_in;
+    accessToken = refreshTokensData.accessToken;
+    refreshToken = refreshTokensData.refreshToken;
+    tokenExpiresAt = refreshTokensData.expiresIn;
 
-    logger.log("user update complete", { user_id });
+    logger.log("user update complete", { userId });
   }
 
-  logger.log("getting recent plays", { user_id });
+  logger.log("getting recent plays", { userId });
 
   const {
     ok: recentPlaysOk,
     data: recentPlaysData,
     error: recentPlaysError,
   } = await SpotifyPlatform.getRecentTracks({
-    user_id: user_id.toString(),
-    access_token: access_token,
-    platform: "spotify",
+    userId: userId.toString(),
+    accessToken: accessToken,
+    platform: Platform.SPOTIFY,
   });
 
   if (!recentPlaysOk) {
-    logger.error("error getting recent plays", { user_id, recentPlaysError });
+    logger.error("error getting recent plays", { userId, recentPlaysError });
     return { ok: false, error: recentPlaysError };
   }
 
   if (!recentPlaysData) {
     logger.error("no data returned from getRecentPlays", {
-      user_id,
+      userId,
       recentPlaysData,
     });
     return { ok: false, error: `no data returned from getRecentPlays` };
@@ -158,11 +159,11 @@ const handleSpotifyUser = async (
 
   const { ok: storeTracksOk, error: storeTracksError } = await storeTracks(
     recentPlaysData.tracks,
-    user_id,
+    userId,
   );
 
   if (!storeTracksOk) {
-    logger.error("error storing recent plays", { user_id, storeTracksError });
+    logger.error("error storing recent plays", { userId, storeTracksError });
     return { ok: false, error: storeTracksError };
   }
 
@@ -172,25 +173,23 @@ const handleSpotifyUser = async (
 };
 
 const handleAppleMusicUser = async (
-  user_id: string,
-  user_access_token: string,
-  refresh_token: string,
-  token_expires_at: string,
+  userId: string,
+  accessToken: string,
+  refreshToken: string,
+  tokenExpiresAt: string,
 ) => {
   return { ok: false, error: "apple music auth not implemented yet" };
 };
 
-const refreshAppleMusicAccessToken = async (
-  apple_music_refresh_token: string,
-) => {
+const refreshAppleMusicAccessToken = async (appleMusicRefreshToken: string) => {
   return { data: null, error: null };
 };
 
-const getRecentAppleMusicPlays = async (apple_music_access_token: string) => {
+const getRecentAppleMusicPlays = async (appleMusicAccessToken: string) => {
   return { data: null, error: null };
 };
 
-const storeTracks = async (trackPlays: RecentTrackPlay[], user_id: number) => {
+const storeTracks = async (trackPlays: RecentTrackPlay[], userId: number) => {
   try {
     await db.insert(userTrackPlays).values(trackPlays);
     return { ok: true, error: null };

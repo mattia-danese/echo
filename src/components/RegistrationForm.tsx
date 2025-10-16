@@ -45,9 +45,9 @@ export default function RegistrationForm({
     e.preventDefault();
 
     const { ok, message } = await checkRegistrationData({
-      first_name: formData.firstName,
-      last_name: formData.lastName,
-      phone_number: formData.phoneNumber,
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      phoneNumber: formData.phoneNumber,
     });
 
     if (!ok) {

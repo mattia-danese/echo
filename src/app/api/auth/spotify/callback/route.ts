@@ -41,21 +41,21 @@ export async function GET(req: Request) {
     }
 
     const result = await createUser({
-      first_name: firstName,
-      last_name: lastName,
-      phone_number: phoneNumber,
-      spotify_code: code,
+      firstName: firstName,
+      lastName: lastName,
+      phoneNumber: phoneNumber,
+      spotifyCode: code,
       platform: platform,
-      referral_friend_link_token: formParams.get("friendLinkToken") || "",
+      referralFriendLinkToken: formParams.get("friendLinkToken") || "",
     });
 
     if (result.ok) {
       if (result.created) {
         sendOnboardingMessage({
-          phone_number: phoneNumber,
-          onboarding_token: result.onboarding_token || "",
+          phoneNumber: phoneNumber,
+          onboardingToken: result.onboardingToken || "",
         });
-        // FIXME: should not need to include || "" as onboarding_token is not nullable
+        // FIXME: should not need to include || "" as onboardingToken is not nullable
 
         accountStatus = "created";
       } else {

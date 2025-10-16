@@ -33,8 +33,8 @@ export default function FriendRequest({
 
   const handleCreateFriendship = async (data: { id: number }) => {
     const { ok, message } = await createFriendships({
-      user_id: data.id,
-      referral_friend_link_token: inviter.link,
+      userId: data.id,
+      referralFriendLinkToken: inviter.link,
     });
 
     if (ok) {

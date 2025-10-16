@@ -2,6 +2,7 @@ import { logger, task } from "@trigger.dev/sdk/v3";
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { friends, userEchoSessions } from "@/db/schema";
+import type { Platform } from "@/db/types";
 import { spotifyAdmin } from "@/lib/spotifyAdmin";
 import { twilioAdmin } from "@/lib/twilioAdmin";
 import { SpotifyPlatform } from "@/platforms";
@@ -16,18 +17,18 @@ const client = twilio(accountSid, authToken);
 
 type UserData = {
   id: number;
-  friend_link_token: string;
-  spotify_user_id: string;
-  spotify_access_token: string;
-  spotify_refresh_token: string;
-  spotify_token_expires_at: string;
-  // apple_music_user_id: string;
-  // apple_music_access_token: string;
-  // apple_music_refresh_token: string;
-  // apple_music_token_expires_at: string;
-  first_name: string;
-  phone_number: string;
-  platform: string;
+  friendLinkToken: string;
+  spotifyUserId: string;
+  spotifyAccessToken: string;
+  spotifyRefreshToken: string;
+  spotifyTokenExpiresAt: string;
+  // appleMusicUserId: string;
+  // appleMusicAccessToken: string;
+  // appleMusicRefreshToken: string;
+  // appleMusicTokenExpiresAt: string;
+  firstName: string;
+  phoneNumber: string;
+  platform: Platform;
 };
 
 export const onboardingCompletionTask = task({
@@ -42,7 +43,7 @@ export const onboardingCompletionTask = task({
       // get user friends' most recent shared songs (1 song per friend, max 15 friends)
       // First get the user's friends
       const userFriends = await db
-        .select({ friend_id: friends.friendId })
+        .select({ friendId: friends.friendId })
         .from(friends)
         .where(eq(friends.userId, payload.user.id));
 
@@ -52,14 +53,14 @@ export const onboardingCompletionTask = task({
         );
 
         await sendMessages({
-          phone_number: payload.user.phone_number,
-          playlist_id: spotifyAdmin.genericPlaylistId,
+          phoneNumber: payload.user.phoneNumber,
+          playlistId: spotifyAdmin.genericPlaylistId,
           numFriends: 0,
-          friend_link_token: payload.user.friend_link_token,
+          friendLinkToken: payload.user.friendLinkToken,
         });
 
         return {
-          message: `sent generic playlist to ${payload.user.id} at ${payload.user.phone_number}`,
+          message: `sent generic playlist to ${payload.user.id} at ${payload.user.phoneNumber}`,
         };
       }
 
@@ -68,16 +69,16 @@ export const onboardingCompletionTask = task({
       // Then get echo sessions for those friends
       const friendsData = await db
         .select({
-          track_id: userEchoSessions.trackId,
-          created_at: userEchoSessions.createdAt,
-          user_id: userEchoSessions.userId,
+          trackId: userEchoSessions.trackId,
+          createdAt: userEchoSessions.createdAt,
+          userId: userEchoSessions.userId,
         })
         .from(userEchoSessions)
         .where(
           and(
             inArray(
               userEchoSessions.userId,
-              userFriends.map((f) => f.friend_id),
+              userFriends.map((f) => f.friendId),
             ),
             isNotNull(userEchoSessions.trackId),
           ),
@@ -90,14 +91,14 @@ export const onboardingCompletionTask = task({
         );
 
         await sendMessages({
-          phone_number: payload.user.phone_number,
-          playlist_id: spotifyAdmin.genericPlaylistId,
+          phoneNumber: payload.user.phoneNumber,
+          playlistId: spotifyAdmin.genericPlaylistId,
           numFriends: numFriends,
-          friend_link_token: payload.user.friend_link_token,
+          friendLinkToken: payload.user.friendLinkToken,
         });
 
         return {
-          message: `sent generic playlist to ${payload.user.id} at ${payload.user.phone_number}`,
+          message: `sent generic playlist to ${payload.user.id} at ${payload.user.phoneNumber}`,
         };
       }
 
@@ -105,9 +106,9 @@ export const onboardingCompletionTask = task({
       const { ok, data, error } = await createOnboardingPlaylistForUser(
         payload.user,
         friendsData as {
-          track_id: string;
-          created_at: string;
-          user_id: number;
+          trackId: string;
+          createdAt: string;
+          userId: number;
         }[],
       );
 
@@ -128,14 +129,14 @@ export const onboardingCompletionTask = task({
 
       // send messages to user
       await sendMessages({
-        phone_number: payload.user.phone_number,
-        playlist_id: data.playlist_id,
+        phoneNumber: payload.user.phoneNumber,
+        playlistId: data.playlistId,
         numFriends: numFriends,
-        friend_link_token: payload.user.friend_link_token,
+        friendLinkToken: payload.user.friendLinkToken,
       });
 
       return {
-        message: `sent onboarding completion playlist to ${payload.user.id} at ${payload.user.phone_number}`,
+        message: `sent onboarding completion playlist to ${payload.user.id} at ${payload.user.phoneNumber}`,
       };
     } catch (error) {
       logger.error("error onboarding completion", { error });
@@ -145,24 +146,24 @@ export const onboardingCompletionTask = task({
 });
 
 const sendMessages = async (payload: {
-  phone_number: string;
-  playlist_id: string;
+  phoneNumber: string;
+  playlistId: string;
   numFriends: number;
-  friend_link_token: string;
+  friendLinkToken: string;
 }) => {
   logger.log("sending messages", { payload });
   // const message1 = await client.messages.create({
   //     body: `perfect :) at the end of the day you'll get a playlist with the songs your friends shared`,
   //     from: fromNumber,
-  //     to: payload.phone_number,
+  //     to: payload.phoneNumber,
   // });
 
   // logger.log("onboarding completion message #1 sent", { message1 });
 
   // const message2 = await client.messages.create({
-  //     body: `https://open.spotify.com/playlist/${payload.playlist_id}`,
+  //     body: `https://open.spotify.com/playlist/${payload.playlistId}`,
   //     from: fromNumber,
-  //     to: payload.phone_number,
+  //     to: payload.phoneNumber,
   // });
 
   // logger.log("onboarding completion message #2 sent", { message2 });
@@ -170,7 +171,7 @@ const sendMessages = async (payload: {
   // const message3 = await client.messages.create({
   //     body: `and that's echo :)`,
   //     from: fromNumber,
-  //     to: payload.phone_number,
+  //     to: payload.phoneNumber,
   // });
 
   // logger.log("onboarding completion message #3 sent", { message3 });
@@ -180,15 +181,15 @@ const sendMessages = async (payload: {
   //     you only have ${payload.numFriends} friends
   //     here's your unique friend request link. send friends this link to add them and start discovering music together :)`,
   //     from: fromNumber,
-  //     to: payload.phone_number,
+  //     to: payload.phoneNumber,
   // });
 
   // logger.log("onboarding completion message #4 sent", { message4 });
 
   // const message5 = await client.messages.create({
-  //     body: `https://text-echo.com/${payload.friend_link_token}`,
+  //     body: `https://text-echo.com/${payload.friendLinkToken}`,
   //     from: fromNumber,
-  //     to: payload.phone_number,
+  //     to: payload.phoneNumber,
   // });
 
   // logger.log("onboarding completion message #5 sent", { message5 });
@@ -196,7 +197,7 @@ const sendMessages = async (payload: {
 
 const createOnboardingPlaylistForUser = async (
   user: UserData,
-  friendsData: { track_id: string; created_at: string; user_id: number }[],
+  friendsData: { trackId: string; createdAt: string; userId: number }[],
 ) => {
   if (user.platform === "spotify") {
     return await handleSpotifyUser(user, friendsData);
@@ -210,10 +211,10 @@ const createOnboardingPlaylistForUser = async (
 
 const handleSpotifyUser = async (
   user: UserData,
-  friendsData: { track_id: string; created_at: string; user_id: number }[],
+  friendsData: { trackId: string; createdAt: string; userId: number }[],
 ) => {
   // refresh spotify access token if it's expired
-  if (new Date(user.spotify_token_expires_at) < new Date()) {
+  if (new Date(user.spotifyTokenExpiresAt) < new Date()) {
     logger.log("spotify token expired, refreshing ...", { user: user });
 
     const {
@@ -221,8 +222,8 @@ const handleSpotifyUser = async (
       data: refreshTokensData,
       error: refreshTokensError,
     } = await SpotifyPlatform.refreshTokens({
-      user_id: user.id.toString(),
-      refresh_token: user.spotify_refresh_token,
+      userId: user.id.toString(),
+      refreshToken: user.spotifyRefreshToken,
     });
 
     if (!refreshTokensOk) {
@@ -245,9 +246,9 @@ const handleSpotifyUser = async (
       };
     }
 
-    user.spotify_access_token = refreshTokensData.access_token;
-    user.spotify_refresh_token = refreshTokensData.refresh_token;
-    user.spotify_token_expires_at = refreshTokensData.expires_in;
+    user.spotifyAccessToken = refreshTokensData.accessToken;
+    user.spotifyRefreshToken = refreshTokensData.refreshToken;
+    user.spotifyTokenExpiresAt = refreshTokensData.expiresIn;
 
     logger.log("user update complete", { user: user });
   }
@@ -260,7 +261,7 @@ const handleSpotifyUser = async (
     month: "2-digit",
     day: "2-digit",
   });
-  const playlistNameAbbreviation = user.first_name.endsWith("s") ? "'s" : "'s";
+  const playlistNameAbbreviation = user.firstName.endsWith("s") ? "'s" : "'s";
 
   // generate spotify playlist of last songs shared by friends
 
@@ -269,11 +270,11 @@ const handleSpotifyUser = async (
     data: createPlaylistData,
     error: createPlaylistError,
   } = await SpotifyPlatform.createPlaylist({
-    user_id: user.spotify_user_id,
-    access_token: user.spotify_access_token,
-    playlist_name: `${user.first_name}${playlistNameAbbreviation} echo ${playlistDate}`,
-    playlist_description: `here are the songs your friends shared for the ${playlistDate} echo`,
-    playlist_date: playlistDate,
+    userId: user.spotifyUserId,
+    accessToken: user.spotifyAccessToken,
+    playlistName: `${user.firstName}${playlistNameAbbreviation} echo ${playlistDate}`,
+    playlistDescription: `here are the songs your friends shared for the ${playlistDate} echo`,
+    playlistDate: playlistDate,
   });
 
   if (!createPlaylistOk) {
@@ -296,13 +297,13 @@ const handleSpotifyUser = async (
   logger.log("playlist created", { createPlaylistData });
 
   const songURIs = friendsData.map(
-    (friend) => `spotify:track:${friend.track_id}`,
+    (friend) => `spotify:track:${friend.trackId}`,
   );
   const { ok: addSongsToPlaylistOk, error: addSongsToPlaylistError } =
     await SpotifyPlatform.populatePlaylist({
-      access_token: user.spotify_access_token,
+      accessToken: user.spotifyAccessToken,
       trackURIs: songURIs,
-      playlist_id: createPlaylistData.playlist_id,
+      playlistId: createPlaylistData.playlistId,
     });
 
   if (!addSongsToPlaylistOk) {
@@ -320,7 +321,7 @@ const handleSpotifyUser = async (
 
 const handleAppleMusicUser = async (
   user: UserData,
-  friendsData: { track_id: string; created_at: string; user_id: string }[],
+  friendsData: { trackId: string; createdAt: string; userId: number }[],
 ) => {
   return { ok: false, data: null, error: `apple music not implemented yet` };
 };

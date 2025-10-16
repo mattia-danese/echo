@@ -69,7 +69,7 @@ export default function SessionPageClient({
 
     if (isOnboarding) {
       const result = await completeOnboarding({
-        onboarding_token: token,
+        onboardingToken: token,
       });
 
       if (result.ok) {
@@ -84,7 +84,7 @@ export default function SessionPageClient({
 
     const result = await submitSong({
       token: token,
-      track_id: selectedSong.track_id,
+      trackId: selectedSong.trackId,
     });
 
     if (result.ok) {
@@ -96,12 +96,12 @@ export default function SessionPageClient({
   };
 
   const handleSongSelect = (
-    track_id: string,
-    track_name: string,
+    trackId: string,
+    trackName: string,
     artists: string,
-    album_image_url: string,
+    albumImageUrl: string,
   ) => {
-    setSelectedSong({ track_id, track_name, artists, album_image_url });
+    setSelectedSong({ trackId, trackName, artists, albumImageUrl });
     setIsPopoverOpen(false); // Close popover when song is selected
   };
 
@@ -242,15 +242,15 @@ export default function SessionPageClient({
           {selectedSong ? (
             <>
               <Image
-                src={selectedSong.album_image_url}
-                alt={selectedSong.track_name}
+                src={selectedSong.albumImageUrl}
+                alt={selectedSong.trackName}
                 width={64}
                 height={64}
                 className="h-16 w-16 rounded-lg object-cover"
               />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-lg font-medium text-white">
-                  {selectedSong.track_name}
+                  {selectedSong.trackName}
                 </div>
                 <div className="truncate text-sm text-gray-400">
                   {selectedSong.artists}
@@ -288,39 +288,39 @@ export default function SessionPageClient({
               <div className="max-h-72 overflow-y-auto scrollbar-thin scrollbar-track-black scrollbar-thumb-gray-600">
                 {searchResults.map((result) => (
                   <button
-                    key={result.track_id}
+                    key={result.trackId}
                     type="button"
                     className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 cursor-pointer transition-colors duration-150"
                     onClick={() =>
                       handleSongSelect(
-                        result.track_id,
-                        result.track_name,
+                        result.trackId,
+                        result.trackName,
                         result.artists,
-                        result.album_image_url,
+                        result.albumImageUrl,
                       )
                     }
                     // onKeyDown={(e) => {
                     //   if (e.key === "Enter" || e.key === " ") {
                     //     e.preventDefault();
                     //     handleSongSelect(
-                    //       result.track_id,
-                    //       result.track_name,
+                    //       result.trackId,
+                    //       result.trackName,
                     //       result.artists,
-                    //       result.album_image_url,
+                    //       result.albumImageUrl,
                     //     );
                     //   }
                     // }}
                   >
                     <Image
-                      src={result.album_image_url}
-                      alt={result.track_name}
+                      src={result.albumImageUrl}
+                      alt={result.trackName}
                       width={40}
                       height={40}
                       className="h-10 w-10 rounded-sm object-cover"
                     />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">
-                        {result.track_name}
+                        {result.trackName}
                       </div>
                       <div className="truncate text-xs text-gray-400">
                         {result.artists}
@@ -358,7 +358,7 @@ export default function SessionPageClient({
                 )
               }
               className={`flex flex-col items-center gap-1.5 p-1.5 rounded-lg transition-all ${
-                selectedSong?.track_id === song.trackId
+                selectedSong?.trackId === song.trackId
                   ? "border-2 border-white"
                   : "border-2 border-transparent"
               }`}

@@ -18,22 +18,22 @@ export const inboundTextResponseTask = task({
   // Set an optional maxDuration to prevent tasks from running indefinitely
   maxDuration: 300, // Stop executing after 300 secs (5 mins) of compute
   run: async (
-    payload: { inbound_message: string; phone_number: string },
+    payload: { inboundMessage: string; phoneNumber: string },
     { ctx },
   ) => {
     logger.log("inbound text response task starting", { payload, ctx });
 
-    if (payload.inbound_message.trim().toLowerCase() === "help") {
+    if (payload.inboundMessage.trim().toLowerCase() === "help") {
       const message = await client.messages.create({
         body: `
             HELP
             `,
         from: fromNumber,
-        to: payload.phone_number,
+        to: payload.phoneNumber,
       });
 
       return {
-        message: `responded to help message from ${payload.phone_number}: ${message}`,
+        message: `responded to help message from ${payload.phoneNumber}: ${message}`,
       };
     }
 
@@ -45,18 +45,18 @@ export const inboundTextResponseTask = task({
           receivedNoTextAlert: users.receivedNoTextAlert,
         })
         .from(users)
-        .where(eq(users.phoneNumber, payload.phone_number))
+        .where(eq(users.phoneNumber, payload.phoneNumber))
         .limit(1);
 
       if (!user) {
         throw new Error(
-          `user not found for phone number: ${payload.phone_number}`,
+          `user not found for phone number: ${payload.phoneNumber}`,
         );
       }
 
       if (user.receivedNoTextAlert) {
         return {
-          message: `already sent no text alert to ${payload.phone_number} - skipping`,
+          message: `already sent no text alert to ${payload.phoneNumber} - skipping`,
         };
       }
 
@@ -65,7 +65,7 @@ export const inboundTextResponseTask = task({
         thanks for the message - we don’t respond to texts, but text "help" if you need support
         `,
         from: fromNumber,
-        to: payload.phone_number,
+        to: payload.phoneNumber,
       });
 
       await db
@@ -74,7 +74,7 @@ export const inboundTextResponseTask = task({
         .where(eq(users.id, user.id));
 
       return {
-        message: `no text alert sent to ${payload.phone_number}: ${message}`,
+        message: `no text alert sent to ${payload.phoneNumber}: ${message}`,
       };
     } catch (error) {
       logger.error("error sending no text alert", { error });

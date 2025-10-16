@@ -86,14 +86,14 @@ export const createNewEchoSessionTask = schedules.task({
 
       //     click here to share what you've been listening to by 9pm tonight`,
       //     from: fromNumber,
-      //     to: userEchoSession.phone_number,
+      //     to: userEchoSession.phoneNumber,
       //   });
 
       //   const userEchoSessionLinkMessage = await client.messages.create({
       //     body: `
       //     https://text-echo.com/session/${userEchoSession.token}`,
       //     from: fromNumber,
-      //     to: userEchoSession.phone_number,
+      //     to: userEchoSession.phoneNumber,
       //   });
 
       //   logger.log("started echo to", { userEchoSession, startEchoMessage, userEchoSessionLinkMessage });

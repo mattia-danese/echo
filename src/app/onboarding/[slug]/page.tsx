@@ -37,7 +37,7 @@ export default async function OnboardingPage({ params }: PageProps) {
     platform = user.platform;
 
     // get top songs of user
-    const result = await getUserTopSongs({ user_id: user.id, num_songs: 2 });
+    const result = await getUserTopSongs({ userId: user.id, numSongs: 2 });
 
     if (!result.ok) {
       throw new Error(result.message);
