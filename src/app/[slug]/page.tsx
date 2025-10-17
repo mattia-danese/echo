@@ -30,7 +30,7 @@ export default async function FriendRequestPage({
     const accountStatus = resolvedSearchParams.accountStatus;
 
     const [user] = await db
-      .select({ firstName: users.firstName })
+      .select({ firstName: users.firstName, platform: users.platform })
       .from(users)
       .where(eq(users.friendLinkToken, token))
       .limit(1);

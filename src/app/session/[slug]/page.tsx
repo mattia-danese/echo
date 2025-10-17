@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { getUserTopSongs } from "@/app/actions";
 import { db } from "@/db";
 import { echoSessions, userEchoSessions } from "@/db/schema";
+import { Platform } from "@/db/types";
 import SessionPageClient, {
   type SessionPageClientProps,
 } from "./_components/SessionPageClient";
@@ -19,11 +20,12 @@ export default async function SessionPage({ params }: PageProps) {
   const props: SessionPageClientProps = {
     error: false,
     topSongs: [],
-    platform: "",
+    platform: Platform.SPOTIFY,
     sessionEndsAt: "",
     alreadySubmitted: false,
     token: token,
     isOnboarding: false,
+    userId: 0,
   };
 
   try {
@@ -43,6 +45,7 @@ export default async function SessionPage({ params }: PageProps) {
       throw new Error(`User echo session not found for token ${token}`);
     }
 
+    props.userId = userEchoSession.userId;
     props.platform = userEchoSession.platform;
     props.alreadySubmitted = !!userEchoSession.trackId;
     props.sessionEndsAt = userEchoSession.echoSessionsEnd;

@@ -352,4 +352,16 @@ export class SpotifyPlatform extends Platform {
       return { ok: false, data: null, error: err };
     }
   }
+
+  static getSongLink(trackId: string): string {
+    return `spotify:track:${trackId}`;
+  }
+
+  static extractTrackId(url: string): string {
+    const match = url.match(/track\/(\w+)/);
+    if (match) {
+      return match[1];
+    }
+    throw new Error(`Could not extract Spotify track ID from URL ${url}`);
+  }
 }

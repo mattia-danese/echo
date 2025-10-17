@@ -16,12 +16,16 @@ export async function POST(request: NextRequest) {
 
     // Check if user exists with this phone number
     const [existingUser] = await db
-      .select({ id: users.id })
+      .select({ id: users.id, platform: users.platform })
       .from(users)
       .where(eq(users.phoneNumber, phoneNumber))
       .limit(1);
 
-    return NextResponse.json({ exists: !!existingUser, id: existingUser?.id });
+    return NextResponse.json({
+      exists: !!existingUser,
+      id: existingUser?.id,
+      platform: existingUser?.platform,
+    });
   } catch (error) {
     console.error("Error checking user existence:", error);
     return NextResponse.json(

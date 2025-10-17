@@ -88,4 +88,16 @@ export class AppleMusicPlatform extends Platform {
       error: "apple music auth not implemented yet",
     };
   }
+
+  static getSongLink(trackId: string): string {
+    return `https://api.apple.com/v1/tracks/${trackId}`;
+  }
+
+  static extractTrackId(url: string): string {
+    const match = url.match(/i=(\w+)/);
+    if (match) {
+      return match[1];
+    }
+    throw new Error(`Could not extract Apple Music track ID from URL ${url}`);
+  }
 }

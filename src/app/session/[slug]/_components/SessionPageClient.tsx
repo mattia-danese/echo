@@ -11,6 +11,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { Platform } from "@/db/types";
 import type { SearchResultTrack } from "@/types";
 import Hero from "../../../../components/Hero";
 import {
@@ -27,11 +28,12 @@ export interface SessionPageClientProps {
     albumImageUrl: string;
     artists: string;
   }[];
-  platform: string;
+  platform: Platform;
   sessionEndsAt: string;
   alreadySubmitted: boolean;
   token: string;
   isOnboarding: boolean;
+  userId: number;
 }
 
 export default function SessionPageClient({
@@ -42,6 +44,7 @@ export default function SessionPageClient({
   alreadySubmitted,
   token,
   isOnboarding,
+  userId,
 }: SessionPageClientProps) {
   const [spotifySearch, setSpotifySearch] = useState("");
   const [selectedSong, setSelectedSong] = useState<SearchResultTrack | null>(
@@ -83,8 +86,12 @@ export default function SessionPageClient({
     }
 
     const result = await submitSong({
+      userId: userId,
       token: token,
+      platform: platform,
       trackId: selectedSong.trackId,
+      trackName: selectedSong.trackName,
+      artists: selectedSong.artists,
     });
 
     if (result.ok) {

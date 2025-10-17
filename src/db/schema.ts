@@ -40,6 +40,9 @@ export const users = pgTable(
       .default(false)
       .notNull(),
     platform: platform("platform").notNull(),
+    hasCrossPlatformFriends: boolean("has_cross_platform_friends")
+      .default(false)
+      .notNull(),
 
     ...timestamps,
   },
@@ -245,5 +248,56 @@ export const playlistSongs = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+  ],
+);
+
+export const songlinkCache = pgTable(
+  "songlink_cache",
+  {
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+
+    title: varchar("title").notNull(),
+    artists: varchar("artists").notNull(),
+    lastCheckedAt: timestamp("last_checked_at", {
+      withTimezone: true,
+      mode: "string",
+    })
+      .defaultNow()
+      .notNull(),
+
+    createdAt: timestamps.createdAt,
+  },
+  (table) => [
+    unique("songlink_cache_title_artists_key").on(table.title, table.artists),
+  ],
+);
+
+export const songLinkCacheMappings = pgTable(
+  "songlink_cache_mappings",
+  {
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+
+    songlinkCacheId: integer("songlink_cache_id").notNull(),
+    platform: platform("platform").notNull(),
+    trackId: varchar("track_id").notNull(),
+
+    createdAt: timestamps.createdAt,
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.songlinkCacheId],
+      foreignColumns: [songlinkCache.id],
+      name: "songlink_cache_mappings_songlink_cache_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    unique("songlink_cache_mappings_platform_track_id_key").on(
+      table.platform,
+      table.trackId,
+    ),
+    unique("songlink_cache_mappings_platform_songlink_cache_id_key").on(
+      table.platform,
+      table.songlinkCacheId,
+    ),
   ],
 );

@@ -5,6 +5,7 @@ import { createFriendships } from "@/app/actions";
 import Hero from "@/components/Hero";
 import PhoneNumberChecker from "@/components/PhoneNumberChecker";
 import RegistrationForm from "@/components/RegistrationForm";
+import type { Platform } from "@/db/types";
 
 type FriendshipStatus = "created" | "error" | "error-same-user" | null;
 
@@ -31,9 +32,13 @@ export default function FriendRequest({
     window.history.replaceState({}, document.title, newUrl);
   }, []);
 
-  const handleCreateFriendship = async (data: { id: number }) => {
+  const handleCreateFriendship = async (data: {
+    id: number;
+    platform: Platform;
+  }) => {
     const { ok, message } = await createFriendships({
       userId: data.id,
+      userPlatform: data.platform,
       referralFriendLinkToken: inviter.link,
     });
 

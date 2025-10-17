@@ -3,6 +3,7 @@
 import { CircleArrowRight, CircleCheck, Loader2 } from "lucide-react";
 import { useId, useState } from "react";
 import { Input } from "@/components/ui/input";
+import type { Platform } from "@/db/types";
 
 interface PhoneNumberCheckerProps {
   phoneNumber: string;
@@ -11,7 +12,7 @@ interface PhoneNumberCheckerProps {
   setPhoneNumberChecked: (checked: boolean) => void;
   setShowRegistration: (show: boolean) => void;
 
-  handleCreateFriendship?: (data: { id: number }) => void;
+  handleCreateFriendship?: (data: { id: number; platform: Platform }) => void;
 }
 
 export default function PhoneNumberChecker({

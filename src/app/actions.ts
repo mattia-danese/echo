@@ -1,16 +1,19 @@
 "use server";
 
 import crypto from "node:crypto";
-import { and, count, desc, eq, gte } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
   friends,
+  songLinkCacheMappings,
+  songlinkCache,
   userAuth,
   userEchoSessions,
   users,
   userTrackPlays,
 } from "@/db/schema";
 import { Platform } from "@/db/types";
+import { songLinkAdmin } from "@/lib/songLinkAdmin";
 import { isNameValid, isPhoneNumberValid } from "@/lib/validation";
 import { SpotifyPlatform } from "@/platforms";
 import {
@@ -134,6 +137,7 @@ export async function createUser(payload: {
       const { ok, message } = await createFriendships({
         userId: newUser.id,
         referralFriendLinkToken: payload.referralFriendLinkToken,
+        userPlatform: payload.platform,
       });
 
       if (!ok) {
@@ -247,11 +251,12 @@ async function getPlatformAuth(payload: { platform: Platform; code: string }) {
 
 export async function createFriendships(payload: {
   userId: number;
+  userPlatform: Platform;
   referralFriendLinkToken: string;
 }) {
   try {
     const [friend] = await db
-      .select({ id: users.id })
+      .select({ id: users.id, platform: users.platform })
       .from(users)
       .where(eq(users.friendLinkToken, payload.referralFriendLinkToken))
       .limit(1);
@@ -279,6 +284,16 @@ export async function createFriendships(payload: {
         updatedAt: now,
       },
     ]);
+
+    // Update hasCrossPlatformFriends flag for both users if different platforms
+    if (payload.userPlatform !== friend.platform) {
+      await db
+        .update(users)
+        .set({
+          hasCrossPlatformFriends: true,
+        })
+        .where(inArray(users.id, [payload.userId, friend.id]));
+    }
 
     return { ok: true, message: "Friendship created successfully" };
   } catch (error: unknown) {
@@ -413,7 +428,14 @@ export async function getUserTopSongs(payload: {
   }
 }
 
-export async function submitSong(payload: { token: string; trackId: string }) {
+export async function submitSong(payload: {
+  userId: number;
+  token: string;
+  platform: Platform;
+  trackId: string;
+  trackName: string;
+  artists: string;
+}) {
   try {
     await db
       .update(userEchoSessions)
@@ -423,10 +445,124 @@ export async function submitSong(payload: { token: string; trackId: string }) {
       })
       .where(eq(userEchoSessions.token, payload.token));
 
+    const { ok, message: submissionMessage } =
+      await handleCrossPlatformSongSubmission({
+        userId: payload.userId,
+        platform: payload.platform,
+        trackId: payload.trackId,
+        trackName: payload.trackName,
+        artists: payload.artists,
+      });
+
+    if (!ok) {
+      throw new Error(submissionMessage!);
+    }
+
     return { ok: true, message: "Song submitted successfully" };
   } catch (error: unknown) {
     console.error("Error in submitSong:", error);
     return { ok: false, message: "An error occurred while submitting song" };
+  }
+}
+
+export async function handleCrossPlatformSongSubmission(payload: {
+  userId: number;
+  platform: Platform;
+  trackId: string;
+  trackName: string;
+  artists: string;
+}) {
+  try {
+    const [user] = await db
+      .select({
+        hasCrossPlatformFriends: users.hasCrossPlatformFriends,
+      })
+      .from(users)
+      .where(eq(users.id, payload.userId))
+      .limit(1);
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    if (!user.hasCrossPlatformFriends) {
+      return {
+        ok: true,
+        message: `${payload.userId} has no cross platform friends`,
+      };
+    }
+
+    const [songMapping] = await db
+      .select()
+      .from(songLinkCacheMappings)
+      .where(
+        and(
+          eq(songLinkCacheMappings.platform, payload.platform),
+          eq(songLinkCacheMappings.trackId, payload.trackId),
+        ),
+      )
+      .limit(1);
+
+    if (songMapping) {
+      return { ok: true, message: `Song ${payload.trackId} already cached` };
+    }
+
+    const { ok, data, error } = await songLinkAdmin.getLinks(
+      payload.platform,
+      payload.trackId,
+    );
+
+    if (!ok) {
+      return { ok: false, message: error };
+    }
+
+    if (!data) {
+      return {
+        ok: false,
+        message: `No data returned from songLinkAdmin.getLinks(${payload.platform}, ${payload.trackId})`,
+      };
+    }
+
+    const linksByPlatform = data.linksByPlatform;
+
+    if (!linksByPlatform) {
+      return {
+        ok: false,
+        message: `No linksByPlatform field in return from songLinkAdmin.getLinks(${payload.platform}, ${payload.trackId})`,
+      };
+    }
+
+    const [songlinkCacheRecord] = await db
+      .insert(songlinkCache)
+      .values({
+        title: payload.trackName,
+        artists: payload.artists,
+      })
+      .returning({ id: songlinkCache.id });
+
+    for (const platformKey of Object.values(Platform)) {
+      const songLinkPlatform = songLinkAdmin.songLinkPlatformMap[platformKey];
+      const trackId = songLinkAdmin.extractTrackId(
+        linksByPlatform[songLinkPlatform].url,
+        platformKey,
+      );
+
+      await db.insert(songLinkCacheMappings).values({
+        songlinkCacheId: songlinkCacheRecord.id,
+        platform: platformKey,
+        trackId: trackId,
+      });
+    }
+
+    return { ok: true, message: "Song submitted successfully" };
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "An error occurred while submitting song",
+    };
   }
 }
 

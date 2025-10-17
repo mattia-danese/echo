@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { getUserTopSongs } from "@/app/actions";
 import { db } from "@/db";
 import { users } from "@/db/schema";
+import { Platform } from "@/db/types";
 import SessionPageClient from "../../session/[slug]/_components/SessionPageClient";
 
 interface PageProps {
@@ -16,7 +17,7 @@ export default async function OnboardingPage({ params }: PageProps) {
   const token = resolvedParams.slug;
 
   let alreadySubmitted = false;
-  let platform = "";
+  let platform = Platform.SPOTIFY;
 
   try {
     const [user] = await db
@@ -59,6 +60,7 @@ export default async function OnboardingPage({ params }: PageProps) {
         token={token}
         isOnboarding={true}
         platform={platform}
+        userId={user.id}
       />
     );
   } catch (error: unknown) {
@@ -72,6 +74,7 @@ export default async function OnboardingPage({ params }: PageProps) {
         token={token}
         isOnboarding={true}
         platform={platform}
+        userId={0}
       />
     );
   }
