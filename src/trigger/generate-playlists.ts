@@ -29,6 +29,8 @@ type PlaylistRecords = {
   platform: Platform;
   sessionId: number;
   platformPlaylistId: string;
+  playlistName: string;
+  playlistImageUrl: string;
 }[];
 
 type PlaylistSongRecords = {
@@ -40,17 +42,16 @@ type PlaylistSongRecords = {
 
 type UserSongData = {
   userId: number;
+  firstName: string;
+  phoneNumber: string;
+  platformUserId: string;
+  platform: Platform;
+  accessToken: string;
+  refreshToken: string;
+  tokenExpiresAt: string;
+  platformOfEchoSession: Platform;
   trackId: string;
-  platform: string;
-  users: {
-    firstName: string;
-    platform: string;
-    phoneNumber: string;
-    platformUserId: string;
-    accessToken: string;
-    refreshToken: string;
-    tokenExpiresAt: string;
-  };
+  trackAlbumImageUrl: string;
 };
 
 const NUM_SONGS_PER_PLAYLIST = 10;
@@ -90,29 +91,30 @@ export const generatePlaylistsTask = schedules.task({
       playlistDate,
     });
 
-    // create lookup table mapping userId to trackId
-    const userSongLookup: Record<number, string> = {};
+    // create lookup table mapping userId to [trackId, trackAlbumImageUrl]
+    const userSongLookup: Record<number, [string, string]> = {};
     for (const user of userSongData) {
-      userSongLookup[user.userId] = user.trackId;
+      userSongLookup[user.userId] = [user.trackId, user.trackAlbumImageUrl];
     }
 
     logger.log("user to song lookup created");
 
     // create lookup table mapping userId to platform (used to determine which platform to create playlist on)
-    const userToSongSubmittedPlatformLookup: Record<number, string> = {};
+    const userToPlatformOfEchoSessionLookup: Record<number, Platform> = {};
     for (const user of userSongData) {
-      userToSongSubmittedPlatformLookup[user.userId] = user.platform;
+      userToPlatformOfEchoSessionLookup[user.userId] =
+        user.platformOfEchoSession;
     }
 
     logger.log("user to song platform lookup created");
 
     // userId -> [friendId, trackId]
-    const playlists: Record<number, string[][]> = {};
+    const playlists: Record<number, Array<[number, [string, string]]>> = {}; // userId -> [friendId, [trackId, trackAlbumImageUrl]]
 
     const playlistRecords: PlaylistRecords = [];
     const playlistSongRecords: PlaylistSongRecords = [];
 
-    const usersThatEncounteredErrors: Set<number> = new Set();
+    const usersThatEncounteredErrors: Record<number, (string | unknown)[]> = {};
 
     for (const user of userSongData) {
       logger.log("processing user", { user });
@@ -124,72 +126,114 @@ export const generatePlaylistsTask = schedules.task({
       } = await getUserFriends(user.userId);
 
       if (!ok) {
-        logger.error("error getting user's friends", { user, error });
-        usersThatEncounteredErrors.add(user.userId);
+        // logger.error("error getting user's friends", { user, error });
+        usersThatEncounteredErrors[user.userId] ??= [];
+        usersThatEncounteredErrors[user.userId].push(error);
         continue;
       }
 
       logger.log("user's friends fetched", { userFriendData });
 
       playlists[user.userId] = await compilePlaylistSongs(
-        user.users.platform,
+        user.platform,
         userFriendData,
         userSongLookup,
-        userToSongSubmittedPlatformLookup,
+        userToPlatformOfEchoSessionLookup,
         NUM_SONGS_PER_PLAYLIST,
       );
+
+      if (playlists[user.userId].length === 0) {
+        // logger.error("no songs to add to playlist for user", { user });
+        usersThatEncounteredErrors[user.userId] ??= [];
+        usersThatEncounteredErrors[user.userId].push(
+          "compileSongs() found 0 songs to add to playlist",
+        );
+        continue;
+      }
+
+      const playlistNameAbbreviation = user.firstName.endsWith("s")
+        ? "'"
+        : "'s";
+
+      const playlistName = `${user.firstName}${playlistNameAbbreviation} echo ${playlistDate}`;
+      const playlistDescription = `here are the songs your friends shared for the ${playlistDate} echo`;
 
       const {
         ok: createPlaylistOk,
         data: playlistData,
         error: createPlaylistError,
-      } = await createPlaylistOnPlatformForUser(user, playlistDate);
+      } = await createPlaylistOnPlatformForUser(
+        user,
+        playlistName,
+        playlistDescription,
+        playlistDate,
+      );
 
       if (!createPlaylistOk) {
-        logger.error("error creating playlist", { user, createPlaylistError });
-        usersThatEncounteredErrors.add(user.userId);
+        // logger.error("error creating playlist", { user, createPlaylistError });
+        usersThatEncounteredErrors[user.userId] ??= [];
+        usersThatEncounteredErrors[user.userId].push(createPlaylistError);
         continue;
       }
 
       if (!playlistData) {
-        logger.error("no data returned from createPlaylist", {
-          user,
-          playlistData,
-        });
-        usersThatEncounteredErrors.add(user.userId);
+        // logger.error("no data returned from createPlaylist", {
+        //   user,
+        //   playlistData,
+        // });
+        usersThatEncounteredErrors[user.userId] ??= [];
+        usersThatEncounteredErrors[user.userId].push(
+          "no data returned from createPlaylist()",
+        );
         continue;
       }
-
-      logger.log("playlist created", { playlistData });
 
       const { ok: populatePlaylistOk, error: populatePlaylistError } =
         await populatePlatformPlaylist(
           user,
-          playlists[user.userId].map((song) => song[1]),
+          playlists[user.userId].map((song) => song[1][0]),
           playlistData.playlistId,
         );
 
       if (!populatePlaylistOk) {
-        logger.error("error populating playlist", {
-          user,
-          populatePlaylistError,
-        });
-        usersThatEncounteredErrors.add(user.userId);
+        // logger.error("error populating playlist", {
+        //   user,
+        //   populatePlaylistError,
+        // });
+        usersThatEncounteredErrors[user.userId] ??= [];
+        usersThatEncounteredErrors[user.userId].push(populatePlaylistError);
         continue;
       }
 
+      /* 
+      this matches how Spotify generates playlist images - uses first 4 track 
+      album images or first track album image if less than 4
+      
+      we need to track this ourselves because, once we generate a playlist, we
+      do not get back the playlist image url since it's initially empty
+      */
+      const playlistImageUrl =
+        playlists[user.userId].length >= 4
+          ? playlists[user.userId]
+              .slice(0, 4)
+              .map((song) => song[1][1])
+              .join("|")
+          : playlists[user.userId][0][1][1];
+
       playlistRecords.push({
         userId: user.userId,
-        platform: user.users.platform as Platform,
+        platform: user.platform,
         sessionId: echoSessionId,
         platformPlaylistId: playlistData.playlistId,
+        playlistName: playlistName,
+        playlistImageUrl: playlistImageUrl,
       });
 
       playlistSongRecords.push(
         ...playlists[user.userId].map((song) => ({
           playlistId: 0,
-          trackId: song[1],
-          submittedByUserId: parseInt(song[0], 10),
+          trackId: song[1][0],
+          submittedByUserId: song[0],
           platformPlaylistId: playlistData.playlistId, // will not be persisted to database, just used to get Playlist.id in persistPlaylistsToDatabase
         })),
       );
@@ -215,6 +259,11 @@ export const generatePlaylistsTask = schedules.task({
       userSongData,
       usersThatEncounteredErrors,
     );
+
+    // logging all encountered errors
+    if (Object.keys(usersThatEncounteredErrors).length > 0) {
+      logger.error("ERRORS", { usersThatEncounteredErrors });
+    }
 
     return {
       message: `generate playlists task completed`,
@@ -249,17 +298,28 @@ const getEchoSessionAndUsers = async () => {
     const userSongData = (await db
       .select({
         userId: userEchoSessions.userId,
+        firstName: users.firstName,
+        phoneNumber: users.phoneNumber,
+        platform: users.platform,
+        platformUserId: userAuth.platformUserId,
+
+        accessToken: userAuth.accessToken,
+        refreshToken: userAuth.refreshToken,
+        tokenExpiresAt: userAuth.tokenExpiresAt,
+
+        platformOfEchoSession: userEchoSessions.platform,
         trackId: userEchoSessions.trackId,
-        platform: userEchoSessions.platform,
-        users: {
-          platform: users.platform,
-          firstName: users.firstName,
-          phoneNumber: users.phoneNumber,
-          platformUserId: userAuth.platformUserId,
-          accessToken: userAuth.accessToken,
-          refreshToken: userAuth.refreshToken,
-          tokenExpiresAt: userAuth.tokenExpiresAt,
-        },
+        trackAlbumImageUrl: userEchoSessions.trackAlbumImageUrl,
+
+        // users: {
+        //   platform: users.platform,
+        //   firstName: users.firstName,
+        //   phoneNumber: users.phoneNumber,
+        //   platformUserId: userAuth.platformUserId,
+        //   accessToken: userAuth.accessToken,
+        //   refreshToken: userAuth.refreshToken,
+        //   tokenExpiresAt: userAuth.tokenExpiresAt,
+        // },
       })
       .from(userEchoSessions)
       .innerJoin(users, eq(userEchoSessions.userId, users.id))
@@ -307,33 +367,37 @@ const getUserFriends = async (userId: number) => {
 };
 
 const compilePlaylistSongs = async (
-  userPlatform: string,
+  userPlatform: Platform,
   userFriendData: number[],
-  userSongLookup: Record<number, string>,
-  userToSongSubmittedPlatformLookup: Record<number, string>,
+  userSongLookup: Record<number, [string, string]>, // userId -> [trackId, trackAlbumImageUrl]
+  userToPlatformOfEchoSessionLookup: Record<number, Platform>,
   numSongsPerPlaylist: number,
 ) => {
-  const playlist: string[][] = []; // [friendId, trackId]
+  const playlist: Array<[number, [string, string]]> = []; // [friendId, [trackId, trackAlbumImageUrl]]
 
   for (const friendId of userFriendData) {
-    const friendSong = userSongLookup[friendId];
-    const friendSongSubmittedPlatform =
-      userToSongSubmittedPlatformLookup[friendId];
+    const [friendSongTrackId, friendSongAlbumImageUrl] =
+      userSongLookup[friendId];
+    const friendSongPlatformOfEchoSession =
+      userToPlatformOfEchoSessionLookup[friendId];
 
-    if (!friendSong) continue;
+    if (!friendSongTrackId || !friendSongAlbumImageUrl) continue;
 
     // FIXME: use set instead of array
-    if (playlist.map((p) => p[1]).includes(friendSong)) continue;
+    if (playlist.map((p) => p[1][0]).includes(friendSongTrackId)) continue;
 
     if (playlist.length === numSongsPerPlaylist) break;
 
     playlist.push([
-      friendId.toString(),
-      await matchFriendSongToUserPlatform(
-        userPlatform,
-        friendSongSubmittedPlatform,
-        friendSong,
-      ),
+      friendId,
+      [
+        await matchFriendSongToUserPlatform(
+          userPlatform,
+          friendSongPlatformOfEchoSession,
+          friendSongTrackId,
+        ),
+        friendSongAlbumImageUrl,
+      ],
     ]);
   }
 
@@ -342,38 +406,39 @@ const compilePlaylistSongs = async (
 
 const createPlaylistOnPlatformForUser = async (
   user: UserSongData,
+  playlistName: string,
+  playlistDescription: string,
   playlistDate: string,
 ) => {
-  const playlistNameAbbreviation = user.users.firstName.endsWith("s")
-    ? "'s"
-    : "'s";
-
-  if (user.users.platform === "spotify") {
+  if (user.platform === "spotify") {
     return await createSpotifyPlaylistForUser(
       user,
-      playlistNameAbbreviation,
+      playlistName,
+      playlistDescription,
       playlistDate,
     );
-  } else if (user.users.platform === "apple-music") {
+  } else if (user.platform === "apple-music") {
     return await createAppleMusicPlaylistForUser(
       user,
-      playlistNameAbbreviation,
+      playlistName,
+      playlistDescription,
     );
   }
 
   return {
     ok: false,
     data: null,
-    error: `invalid platform ${user.users.platform}`,
+    error: `invalid platform ${user.platform}`,
   };
 };
 
 const createSpotifyPlaylistForUser = async (
   user: UserSongData,
-  playlistNameAbbreviation: string,
+  playlistName: string,
+  playlistDescription: string,
   playlistDate: string,
 ) => {
-  if (new Date(user.users.tokenExpiresAt) < new Date()) {
+  if (new Date(user.tokenExpiresAt) < new Date()) {
     logger.log("spotify token expired, refreshing ...", { user });
 
     const {
@@ -382,14 +447,14 @@ const createSpotifyPlaylistForUser = async (
       error: refreshTokensError,
     } = await SpotifyPlatform.refreshTokens({
       userId: user.userId,
-      refreshToken: user.users.refreshToken,
+      refreshToken: user.refreshToken,
     });
 
     if (!refreshTokensOk) {
-      logger.error("error refreshing spotify token", {
-        user,
-        refreshTokensError,
-      });
+      // logger.error("error refreshing spotify token", {
+      //   user,
+      //   refreshTokensError,
+      // });
       return { ok: false, data: null, error: refreshTokensError };
     }
 
@@ -405,9 +470,9 @@ const createSpotifyPlaylistForUser = async (
       };
     }
 
-    user.users.accessToken = refreshTokensData.accessToken;
-    user.users.refreshToken = refreshTokensData.refreshToken;
-    user.users.tokenExpiresAt = refreshTokensData.expiresIn;
+    user.accessToken = refreshTokensData.accessToken;
+    user.refreshToken = refreshTokensData.refreshToken;
+    user.tokenExpiresAt = refreshTokensData.expiresIn;
 
     logger.log("user update complete", { user });
   }
@@ -419,15 +484,15 @@ const createSpotifyPlaylistForUser = async (
     data: createPlaylistData,
     error: createPlaylistError,
   } = await SpotifyPlatform.createPlaylist({
-    userId: user.users.platformUserId,
-    accessToken: user.users.accessToken,
-    playlistName: `${user.users.firstName}${playlistNameAbbreviation} echo ${playlistDate}`,
-    playlistDescription: `here are the songs your friends shared for the ${playlistDate} echo`,
+    userId: user.platformUserId,
+    accessToken: user.accessToken,
+    playlistName: playlistName,
+    playlistDescription: playlistDescription,
     playlistDate: playlistDate,
   });
 
   if (!createPlaylistOk) {
-    logger.error("error creating playlist", { user, createPlaylistError });
+    // logger.error("error creating playlist", { user, createPlaylistError });
     return { ok: false, data: null, error: createPlaylistError };
   }
 
@@ -436,7 +501,8 @@ const createSpotifyPlaylistForUser = async (
 
 const createAppleMusicPlaylistForUser = async (
   user: UserSongData,
-  playlistNameAbbreviation: string,
+  playlistName: string,
+  playlistDescription: string,
 ) => {
   return { ok: true, data: null, error: null };
 };
@@ -446,19 +512,26 @@ const populatePlatformPlaylist = async (
   songs: string[],
   playlistId: string,
 ) => {
-  if (user.users.platform === "spotify") {
+  if (user.platform === "spotify") {
     const songURIs = songs.map((song) => `spotify:track:${song}`);
 
     return await SpotifyPlatform.populatePlaylist({
-      accessToken: user.users.accessToken,
+      accessToken: user.accessToken,
       trackURIs: songURIs,
       playlistId: playlistId,
     });
-  } else if (user.users.platform === "apple-music") {
-    return { ok: false, error: "not implemented" };
+  } else if (user.platform === "apple-music") {
+    return {
+      ok: false,
+      error:
+        "platform apple-music not implemented in populatePlatformPlaylist()",
+    };
   }
 
-  return { ok: false, error: `invalid platform ${user.users.platform}` };
+  return {
+    ok: false,
+    error: `invalid platform ${user.platform} in populatePlatformPlaylist()`,
+  };
 };
 
 const persistPlaylistsToDatabase = async (
@@ -513,23 +586,26 @@ const persistPlaylistsToDatabase = async (
 const textUsersPlaylists = async (
   playlists: PlaylistRecords,
   userSongData: UserSongData[],
-  usersThatEncounteredErrors: Set<number>,
+  usersThatEncounteredErrors: Record<number, (string | unknown)[]>,
 ) => {
   for (const playlist of playlists) {
-    if (usersThatEncounteredErrors.has(playlist.userId)) {
-      logger.error("user encountered errors, skipping text", { playlist });
+    if (usersThatEncounteredErrors[playlist.userId]) {
       continue;
     }
 
     const userPhoneNumber = userSongData.find(
       (user) => user.userId === playlist.userId,
-    )?.users.phoneNumber;
+    )?.phoneNumber;
 
     if (!userPhoneNumber) {
-      logger.error("phone number not found for user", {
-        playlist,
-        userSongData,
-      });
+      // logger.error("phone number not found for user", {
+      //   playlist,
+      //   userSongData,
+      // });
+      usersThatEncounteredErrors[playlist.userId] ??= [];
+      usersThatEncounteredErrors[playlist.userId].push(
+        "NO TEXT send to user because phone number not found",
+      );
       continue;
     }
 
@@ -554,13 +630,17 @@ const textUsersPlaylists = async (
 
     const message = "";
 
-    logger.log("texted user their playlist", { playlist, message });
+    logger.log("texted user their playlist", {
+      userId: playlist.userId,
+      playlistLink,
+      message,
+    });
   }
 };
 
 const matchFriendSongToUserPlatform = async (
-  userPlatform: string,
-  songSubmittedPlatform: string,
+  userPlatform: Platform,
+  songSubmittedPlatform: Platform,
   submittedSong: string,
 ) => {
   if (userPlatform === songSubmittedPlatform) {
@@ -571,6 +651,6 @@ const matchFriendSongToUserPlatform = async (
 };
 
 // TODO: use SongLink API to convert song to target user platform
-const convertSong = async (song: string, platform: string) => {
+const convertSong = async (song: string, platform: Platform) => {
   throw new Error(`Not implemented: convertSong for ${platform}`);
 };

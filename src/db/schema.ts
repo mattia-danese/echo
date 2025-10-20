@@ -43,6 +43,8 @@ export const users = pgTable(
     hasCrossPlatformFriends: boolean("has_cross_platform_friends")
       .default(false)
       .notNull(),
+    profilePictureUrl: varchar("profile_picture_url"), //nullable
+    isDeleted: boolean("is_deleted").default(false).notNull(),
 
     ...timestamps,
   },
@@ -168,6 +170,9 @@ export const userEchoSessions = pgTable(
 
     platform: platform("platform").notNull(),
     trackId: varchar("track_id"), //nullable if user never submits a song
+    trackName: varchar("track_name"), //nullable if user never submits a song
+    trackArtists: varchar("track_artists"), //nullable if user never submits a song
+    trackAlbumImageUrl: varchar("track_album_image_url"), //nullable if user never submits a song
 
     ...timestamps,
   },
@@ -200,6 +205,8 @@ export const playlists = pgTable(
 
     platform: platform("platform").notNull(),
     platformPlaylistId: varchar("platform_playlist_id").notNull(),
+    playlistName: varchar("playlist_name").notNull(),
+    playlistImageUrl: varchar("playlist_image_url").notNull(),
 
     createdAt: timestamps.createdAt,
   },

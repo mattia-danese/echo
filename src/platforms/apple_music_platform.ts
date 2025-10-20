@@ -100,4 +100,8 @@ export class AppleMusicPlatform extends Platform {
     }
     throw new Error(`Could not extract Apple Music track ID from URL ${url}`);
   }
+
+  static createPlaylistLink(platformPlaylistId: string) {
+    return `https://music.apple.com/playlist/${platformPlaylistId}`;
+  }
 }

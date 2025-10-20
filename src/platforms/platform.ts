@@ -45,6 +45,7 @@ export interface PlatformStatic {
   ): Promise<{ ok: boolean; data: GetUserIdResponse | null; error: unknown }>;
   getSongLink(trackId: string): string;
   extractTrackId(url: string): string;
+  createPlaylistLink(platformPlaylistId: string): string;
 }
 
 // Abstract class that enforces static method implementation through type constraints

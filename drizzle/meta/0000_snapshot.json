@@ -1,6 +1,6 @@
 {
-  "id": "01dd78f3-01f8-476a-9e5e-513d1326322f",
-  "prevId": "",
+  "id": "a8471d9e-a322-4ea2-bea6-a3017d729297",
+  "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -255,6 +255,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "playlist_name": {
+          "name": "playlist_name",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "playlist_image_url": {
+          "name": "playlist_image_url",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -299,6 +311,268 @@
           "nullsNotDistinct": false,
           "columns": [
             "platform_playlist_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.songlink_cache_mappings": {
+      "name": "songlink_cache_mappings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "songlink_cache_mappings_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "songlink_cache_id": {
+          "name": "songlink_cache_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "platform": {
+          "name": "platform",
+          "type": "platform",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "track_id": {
+          "name": "track_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "songlink_cache_mappings_songlink_cache_id_fkey": {
+          "name": "songlink_cache_mappings_songlink_cache_id_fkey",
+          "tableFrom": "songlink_cache_mappings",
+          "tableTo": "songlink_cache",
+          "columnsFrom": [
+            "songlink_cache_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "songlink_cache_mappings_platform_track_id_key": {
+          "name": "songlink_cache_mappings_platform_track_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "platform",
+            "track_id"
+          ]
+        },
+        "songlink_cache_mappings_platform_songlink_cache_id_key": {
+          "name": "songlink_cache_mappings_platform_songlink_cache_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "platform",
+            "songlink_cache_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.songlink_cache": {
+      "name": "songlink_cache",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "songlink_cache_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "artists": {
+          "name": "artists",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_checked_at": {
+          "name": "last_checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "songlink_cache_title_artists_key": {
+          "name": "songlink_cache_title_artists_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "title",
+            "artists"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_auth": {
+      "name": "user_auth",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "user_auth_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "platform": {
+          "name": "platform",
+          "type": "platform",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "platform_user_id": {
+          "name": "platform_user_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "access_token": {
+          "name": "access_token",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "refresh_token": {
+          "name": "refresh_token",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_expires_at": {
+          "name": "token_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "extra": {
+          "name": "extra",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_auth_user_id_fkey": {
+          "name": "user_auth_user_id_fkey",
+          "tableFrom": "user_auth",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "user_auth_user_id_key": {
+          "name": "user_auth_user_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id"
           ]
         }
       },
@@ -354,6 +628,24 @@
         },
         "track_id": {
           "name": "track_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "track_name": {
+          "name": "track_name",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "track_artists": {
+          "name": "track_artists",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "track_album_image_url": {
+          "name": "track_album_image_url",
           "type": "varchar",
           "primaryKey": false,
           "notNull": false
@@ -578,6 +870,13 @@
           "notNull": true,
           "default": false
         },
+        "received_no_text_alert": {
+          "name": "received_no_text_alert",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "platform": {
           "name": "platform",
           "type": "platform",
@@ -585,29 +884,25 @@
           "primaryKey": false,
           "notNull": true
         },
-        "spotify_user_id": {
-          "name": "spotify_user_id",
+        "has_cross_platform_friends": {
+          "name": "has_cross_platform_friends",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "profile_picture_url": {
+          "name": "profile_picture_url",
           "type": "varchar",
           "primaryKey": false,
           "notNull": false
         },
-        "spotify_access_token": {
-          "name": "spotify_access_token",
-          "type": "varchar",
+        "is_deleted": {
+          "name": "is_deleted",
+          "type": "boolean",
           "primaryKey": false,
-          "notNull": false
-        },
-        "spotify_refresh_token": {
-          "name": "spotify_refresh_token",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "spotify_token_expires_at": {
-          "name": "spotify_token_expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": false
         },
         "updated_at": {
           "name": "updated_at",
@@ -655,16 +950,7 @@
       "isRLSEnabled": false
     }
   },
-  "enums": {
-    "public.platform": {
-      "name": "platform",
-      "schema": "",
-      "values": [
-        "spotify",
-        "apple-music"
-      ]
-    }
-  },
+  "enums": {},
   "schemas": {},
   "sequences": {},
   "roles": {},

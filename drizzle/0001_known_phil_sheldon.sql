@@ -1,1 +1,0 @@
-ALTER TABLE "users" ADD COLUMN "received_no_text_alert" boolean DEFAULT false NOT NULL;--> statement-breakpoint

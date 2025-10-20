@@ -92,6 +92,7 @@ export default function SessionPageClient({
       trackId: selectedSong.trackId,
       trackName: selectedSong.trackName,
       artists: selectedSong.artists,
+      albumImageUrl: selectedSong.albumImageUrl,
     });
 
     if (result.ok) {
@@ -297,7 +298,7 @@ export default function SessionPageClient({
                   <button
                     key={result.trackId}
                     type="button"
-                    className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 cursor-pointer transition-colors duration-150"
+                    className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 cursor-pointer transition-colors duration-150 text-left w-full"
                     onClick={() =>
                       handleSongSelect(
                         result.trackId,

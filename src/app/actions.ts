@@ -339,16 +339,19 @@ export async function searchPlatformTracks(platform: string, query: string) {
       };
     }
 
-    if (platform === "spotify") {
+    if (platform === Platform.SPOTIFY) {
       const { ok, data, error } = await SpotifyPlatform.searchTracks({
         query: query,
       });
+
       if (!ok) {
         return { ok: false, tracks: [], message: error };
       }
+
       return { ok: true, tracks: data?.tracks || [], message: error };
-    } else if (platform === "apple-music") {
+    } else if (platform === Platform.APPLE_MUSIC) {
       const { ok, data, error } = await handleAppleMusicSearch(query);
+
       if (!ok) {
         return { ok: false, tracks: [], message: error };
       }
@@ -435,12 +438,16 @@ export async function submitSong(payload: {
   trackId: string;
   trackName: string;
   artists: string;
+  albumImageUrl: string;
 }) {
   try {
     await db
       .update(userEchoSessions)
       .set({
         trackId: payload.trackId,
+        trackName: payload.trackName,
+        trackArtists: payload.artists,
+        trackAlbumImageUrl: payload.albumImageUrl,
         updatedAt: new Date().toISOString(),
       })
       .where(eq(userEchoSessions.token, payload.token));

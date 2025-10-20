@@ -148,7 +148,7 @@ export class SpotifyPlatform extends Platform {
 
   static async createPlaylist(request: CreatePlaylistRequest): Promise<{
     ok: boolean;
-    data: CreatePlaylistResponse | null;
+    data: { playlistId: string; allData: unknown } | null;
     error: unknown;
   }> {
     try {
@@ -174,7 +174,11 @@ export class SpotifyPlatform extends Platform {
       }
 
       const playlistData = await response.json();
-      return { ok: true, data: { playlistId: playlistData.id }, error: null };
+      return {
+        ok: true,
+        data: { playlistId: playlistData.id, allData: playlistData },
+        error: null,
+      };
     } catch (err) {
       return { ok: false, data: null, error: err };
     }
@@ -294,7 +298,7 @@ export class SpotifyPlatform extends Platform {
         `https://api.spotify.com/v1/search?q=${encodeURIComponent(request.query)}&type=track&limit=10`,
         {
           headers: {
-            Authorization: `Bearer ${authData.accessToken}`,
+            Authorization: `Bearer ${authData.access_token}`,
           },
         },
       );
@@ -363,5 +367,9 @@ export class SpotifyPlatform extends Platform {
       return match[1];
     }
     throw new Error(`Could not extract Spotify track ID from URL ${url}`);
+  }
+
+  static createPlaylistLink(platformPlaylistId: string) {
+    return `https://open.spotify.com/playlist/${platformPlaylistId}`;
   }
 }

@@ -1,1 +1,0 @@
-ALTER TABLE "songlink_cache" ALTER COLUMN "last_checked_at" SET DEFAULT now();

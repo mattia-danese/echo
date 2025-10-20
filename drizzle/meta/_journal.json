@@ -5,36 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1760485288123,
-      "tag": "0000_grey_banshee",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1760506358248,
-      "tag": "0001_known_phil_sheldon",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1760592698212,
-      "tag": "0002_outstanding_newton_destine",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1760674923338,
-      "tag": "0003_dusty_meteorite",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1760681374834,
-      "tag": "0004_brief_prima",
+      "when": 1760930686623,
+      "tag": "0000_first_silver_fox",
       "breakpoints": true
     }
   ]

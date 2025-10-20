@@ -19,6 +19,14 @@ export default function LogInSignUp({ accountStatus }: LogInSignUpProps) {
     window.history.replaceState({}, document.title, newUrl);
   }, []);
 
+  useEffect(() => {
+    if (phoneNumberChecked && !showRegistration && phoneNumber) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("profile", phoneNumber);
+      window.location.replace(url.toString());
+    }
+  }, [phoneNumberChecked, showRegistration, phoneNumber]);
+
   return (
     <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
       <main className="flex flex-col items-center gap-8 max-w-md w-full">
@@ -62,6 +70,7 @@ export default function LogInSignUp({ accountStatus }: LogInSignUpProps) {
         {phoneNumberChecked && !showRegistration && (
           <div className="text-white text-center">
             an account is already registered with that phone number :)
+            redirecting to your profile...
           </div>
         )}
       </main>
