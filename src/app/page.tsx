@@ -1,7 +1,6 @@
 "use server";
 
 import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
-import Hero from "@/components/Hero";
 import LogInSignUp from "@/components/LogInSignUp";
 import Profile from "@/components/Profile";
 import { db } from "@/db";
@@ -13,23 +12,22 @@ import {
   users,
 } from "@/db/schema";
 import { Platform } from "@/db/types";
+import { getCurrentUser } from "@/lib/cookieSession";
 import { AppleMusicPlatform } from "@/platforms/apple_music_platform";
 import { SpotifyPlatform } from "@/platforms/spotify_platform";
 
 interface PageProps {
   searchParams: Promise<{
     accountStatus?: string;
-    profile?: string;
   }>;
 }
 
 export default async function RootPage({ searchParams }: PageProps) {
   const resolvedSearchParams = await searchParams;
   const accountStatus = resolvedSearchParams.accountStatus;
-  const profilePhoneNumber = resolvedSearchParams.profile;
 
-  // FIXME: this should be a cookie check
-  if (!profilePhoneNumber) {
+  const user = await getCurrentUser();
+  if (!user) {
     return <LogInSignUp accountStatus={accountStatus} />;
   }
 
@@ -37,46 +35,13 @@ export default async function RootPage({ searchParams }: PageProps) {
     BELOW ARE ALL METHODS FOR PROFILE PAGE
   */
 
-  // Resolve user by phone number first; this drives all subsequent queries
-  const [userRecord] = await db
-    .select({
-      id: users.id,
-      firstName: users.firstName,
-      lastName: users.lastName,
-      platform: users.platform,
-      profilePictureUrl: users.profilePictureUrl,
-    })
-    .from(users)
-    .where(
-      and(
-        eq(users.phoneNumber, profilePhoneNumber),
-        eq(users.isDeleted, false),
-      ),
-    )
-    .limit(1);
-
-  if (!userRecord) {
-    return (
-      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
-        <main className="flex flex-col items-center gap-8 max-w-md w-full">
-          <Hero />
-          <div className="text-white text-center">
-            No user found for this phone number.
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  const userId = userRecord.id;
-
   // Songs Shared: user_echo_sessions where track_id IS NOT NULL for this user
   const [{ count: songsShared }] = await db
     .select({ count: sql<number>`count(*)` })
     .from(userEchoSessions)
     .where(
       and(
-        eq(userEchoSessions.userId, userId),
+        eq(userEchoSessions.userId, user.id),
         isNotNull(userEchoSessions.trackId),
       ),
     );
@@ -85,7 +50,7 @@ export default async function RootPage({ searchParams }: PageProps) {
   const playlistIdsSubquery = db
     .select({ id: playlists.id })
     .from(playlists)
-    .where(eq(playlists.userId, userId));
+    .where(eq(playlists.userId, user.id));
 
   const [{ count: songsDiscovered }] = await db
     .select({ count: sql<number>`count(*)` })
@@ -103,7 +68,7 @@ export default async function RootPage({ searchParams }: PageProps) {
     })
     .from(friends)
     .innerJoin(users, eq(users.id, friends.friendId))
-    .where(and(eq(friends.userId, userId), eq(friends.active, true)))
+    .where(and(eq(friends.userId, user.id), eq(friends.active, true)))
     .orderBy(asc(users.firstName), asc(users.lastName));
 
   // Past echoes → "your songs": join mappings and cache in a single query
@@ -118,7 +83,7 @@ export default async function RootPage({ searchParams }: PageProps) {
     .from(userEchoSessions)
     .where(
       and(
-        eq(userEchoSessions.userId, userId),
+        eq(userEchoSessions.userId, user.id),
         isNotNull(userEchoSessions.trackId),
       ),
     )
@@ -135,7 +100,7 @@ export default async function RootPage({ searchParams }: PageProps) {
       playlistUrl: sql<string>`''`,
     })
     .from(playlists)
-    .where(eq(playlists.userId, userId))
+    .where(eq(playlists.userId, user.id))
     .orderBy(desc(playlists.createdAt));
 
   const getPlaylistUrl = (platform: Platform, platformPlaylistId: string) => {
@@ -159,11 +124,11 @@ export default async function RootPage({ searchParams }: PageProps) {
 
   return (
     <Profile
-      phoneNumber={profilePhoneNumber}
-      firstName={userRecord.firstName}
-      lastName={userRecord.lastName}
-      profilePictureUrl={userRecord.profilePictureUrl}
-      platform={userRecord.platform}
+      phoneNumber={user.phoneNumber}
+      firstName={user.firstName}
+      lastName={user.lastName}
+      profilePictureUrl={user.profilePictureUrl}
+      platform={user.platform}
       songsShared={songsShared}
       songsDiscovered={songsDiscovered}
       friendsList={friendsList}
@@ -177,7 +142,7 @@ export default async function RootPage({ searchParams }: PageProps) {
         }>
       }
       userPlaylists={userPlaylists}
-      userId={userId}
+      userId={user.id}
     />
   );
 }

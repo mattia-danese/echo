@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { logInExistingUser } from "@/app/actions";
 import Hero from "@/components/Hero";
 import PhoneNumberChecker from "@/components/PhoneNumberChecker";
 import RegistrationForm from "@/components/RegistrationForm";
@@ -19,13 +20,15 @@ export default function LogInSignUp({ accountStatus }: LogInSignUpProps) {
     window.history.replaceState({}, document.title, newUrl);
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: phoneNumber is a valid dependency
   useEffect(() => {
-    if (phoneNumberChecked && !showRegistration && phoneNumber) {
-      const url = new URL(window.location.href);
-      url.searchParams.set("profile", phoneNumber);
-      window.location.replace(url.toString());
+    async function tryLogin() {
+      if (phoneNumberChecked && !showRegistration) {
+        void logInExistingUser(phoneNumber);
+      }
     }
-  }, [phoneNumberChecked, showRegistration, phoneNumber]);
+    void tryLogin();
+  }, [phoneNumberChecked, showRegistration]);
 
   return (
     <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
@@ -67,12 +70,12 @@ export default function LogInSignUp({ accountStatus }: LogInSignUpProps) {
         )}
 
         {/* once we hit this condtion, perform OTP --> authenticate user --> show profile page */}
-        {phoneNumberChecked && !showRegistration && (
+        {/* {phoneNumberChecked && !showRegistration && (
           <div className="text-white text-center">
             an account is already registered with that phone number :)
             redirecting to your profile...
           </div>
-        )}
+        )} */}
       </main>
     </div>
   );

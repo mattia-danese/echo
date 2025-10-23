@@ -3,21 +3,27 @@
 import { Menu } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { deleteUserSessionCookies } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 
-export default function NavBar() {
-  function handleLogout() {
-    // Placeholder for logout action
-    // Integrate with your auth sign-out when available
-    console.log("logout clicked");
+export default function NavBar({ userId }: { userId: number }) {
+  const router = useRouter();
+  async function handleLogout() {
+    try {
+      await deleteUserSessionCookies(userId);
+    } catch (error) {
+      console.error("Error in handleLogout:", error);
+    } finally {
+      router.replace("/");
+    }
   }
 
   return (

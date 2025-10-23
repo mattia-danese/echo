@@ -2,7 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { deleteUser, deleteUserProfilePicture } from "@/app/actions";
+import {
+  deleteUser,
+  deleteUserProfilePicture,
+  deleteUserSessionCookies,
+} from "@/app/actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -148,6 +152,17 @@ export default function SettingsPanel({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Button
+        variant="outline"
+        className="rounded-full text-white bg-black hover:bg-gray-900"
+        onClick={async () => {
+          await deleteUserSessionCookies(userId);
+          router.replace("/");
+        }}
+      >
+        log out
+      </Button>
     </div>
   );
 }

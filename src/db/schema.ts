@@ -310,3 +310,27 @@ export const songLinkCacheMappings = pgTable(
     ),
   ],
 );
+
+export const authSessions = pgTable(
+  "auth_sessions",
+  {
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    userId: integer("user_id").notNull(),
+    tokenHash: varchar("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+    createdAt: timestamps.createdAt,
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "auth_sessions_user_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    unique("auth_sessions_token_hash_key").on(table.tokenHash),
+  ],
+);

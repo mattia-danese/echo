@@ -97,7 +97,7 @@ export default function ProfilePage({
 
   return (
     <div className="flex-1 bg-black flex flex-col items-center justify-start p-8 min-h-screen">
-      <NavBar />
+      <NavBar userId={userId} />
 
       <main className="flex flex-col items-center gap-8 w-full max-w-6xl h-full">
         {/* Stats and profile area */}

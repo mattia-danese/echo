@@ -14,6 +14,7 @@ import {
   userTrackPlays,
 } from "@/db/schema";
 import { Platform } from "@/db/types";
+import { createSession, deleteAllSessionsForUser } from "@/lib/cookieSession";
 import { songLinkAdmin } from "@/lib/songLinkAdmin";
 import { isNameValid, isPhoneNumberValid } from "@/lib/validation";
 import { SpotifyPlatform } from "@/platforms";
@@ -750,6 +751,47 @@ export async function deleteUser(userId: number) {
     );
 
   await db.delete(userAuth).where(eq(userAuth.userId, userId));
+  await deleteAllSessionsForUser(userId);
+}
+
+export async function logInExistingUser(phoneNumber: string) {
+  "use server";
+
+  try {
+    if (!isPhoneNumberValid(phoneNumber) || !phoneNumber.trim()) {
+      return { ok: false, message: "invalid phone number" };
+    }
+
+    const [user] = await db
+      .select({ id: users.id, isDeleted: users.isDeleted })
+      .from(users)
+      .where(
+        and(eq(users.phoneNumber, phoneNumber), eq(users.isDeleted, false)),
+      )
+      .limit(1);
+
+    if (!user) {
+      return { ok: false, message: "user not found" };
+    }
+
+    await createSession(user.id);
+    return { ok: true };
+  } catch (error) {
+    console.error("Error in logInExistingUser:", error);
+    return { ok: false, message: "login failed" };
+  }
+}
+
+export async function deleteUserSessionCookies(userId: number) {
+  "use server";
+
+  try {
+    await deleteAllSessionsForUser(userId);
+    return { ok: true };
+  } catch (error) {
+    console.error("Error in deleteUserSessionCookies:", error);
+    return { ok: false };
+  }
 }
 
 // handled directly in ourFileRouter (core.ts)
