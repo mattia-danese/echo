@@ -90,6 +90,8 @@ export const friends = pgTable(
   {
     userId: integer("user_id").notNull(),
     friendId: integer("friend_id").notNull(),
+    muted: boolean("muted").default(false).notNull(),
+    active: boolean("active").default(true).notNull(),
     ...timestamps,
   },
   (table) => [

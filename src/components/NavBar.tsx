@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Separator } from "@/components/ui/separator";
 
 export default function NavBar() {
   function handleLogout() {
@@ -63,21 +64,27 @@ export default function NavBar() {
           <div className="md:hidden">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="menu">
-                  <Menu className="size-5 text-zinc-300" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="menu"
+                  className="h-16 w-16"
+                >
+                  <Menu className="size-8 text-zinc-300" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className="min-w-40 bg-black border-white/20"
+                className="bg-black border-white/20 min-w-0 w-fit"
               >
                 <DropdownMenuItem asChild>
                   <Link href="/about-us">about us</Link>
                 </DropdownMenuItem>
+                <Separator className="bg-white/20" />
                 <DropdownMenuItem asChild>
                   <Link href="/contact-us">contact us</Link>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
+                <Separator className="bg-white/20" />
                 <DropdownMenuItem onSelect={handleLogout}>
                   log out
                 </DropdownMenuItem>

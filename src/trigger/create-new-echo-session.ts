@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { logger, schedules } from "@trigger.dev/sdk/v3";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 // import { twilioAdmin } from "@/lib/twilioAdmin";
 import { db } from "@/db";
 import { echoSessions, userEchoSessions, users } from "@/db/schema";
@@ -47,7 +47,9 @@ export const createNewEchoSessionTask = schedules.task({
           platform: users.platform,
         })
         .from(users)
-        .where(eq(users.isOnboardingComplete, true));
+        .where(
+          and(eq(users.isOnboardingComplete, true), eq(users.isDeleted, false)),
+        );
 
       if (fetchedUsers.length === 0) {
         throw new Error("no users found");

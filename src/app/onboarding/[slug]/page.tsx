@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getUserTopSongs } from "@/app/actions";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -27,7 +27,7 @@ export default async function OnboardingPage({ params }: PageProps) {
         platform: users.platform,
       })
       .from(users)
-      .where(eq(users.onboardingToken, token))
+      .where(and(eq(users.onboardingToken, token), eq(users.isDeleted, false)))
       .limit(1);
 
     if (!user) {

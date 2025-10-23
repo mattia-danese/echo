@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -32,7 +32,7 @@ export default async function FriendRequestPage({
     const [user] = await db
       .select({ firstName: users.firstName, platform: users.platform })
       .from(users)
-      .where(eq(users.friendLinkToken, token))
+      .where(and(eq(users.friendLinkToken, token), eq(users.isDeleted, false)))
       .limit(1);
 
     if (!user) {

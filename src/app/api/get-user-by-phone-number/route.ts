@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -18,7 +18,9 @@ export async function POST(request: NextRequest) {
     const [existingUser] = await db
       .select({ id: users.id, platform: users.platform })
       .from(users)
-      .where(eq(users.phoneNumber, phoneNumber))
+      .where(
+        and(eq(users.phoneNumber, phoneNumber), eq(users.isDeleted, false)),
+      )
       .limit(1);
 
     return NextResponse.json({

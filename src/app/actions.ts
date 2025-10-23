@@ -1,7 +1,8 @@
 "use server";
 
 import crypto from "node:crypto";
-import { and, count, desc, eq, gte, inArray } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, or } from "drizzle-orm";
+import { UTApi } from "uploadthing/server";
 import { db } from "@/db";
 import {
   friends,
@@ -55,7 +56,12 @@ export async function createUser(payload: {
     const [existingUser] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.phoneNumber, payload.phoneNumber))
+      .where(
+        and(
+          eq(users.phoneNumber, payload.phoneNumber),
+          eq(users.isDeleted, false),
+        ),
+      )
       .limit(1);
 
     if (existingUser) {
@@ -108,7 +114,7 @@ export async function createUser(payload: {
     // Generate onboarding token
     const onboardingToken = crypto.randomBytes(16).toString("base64url");
 
-    // Create new user
+    // Create or reactivate user (upsert on phone number)
     const [newUser] = await db
       .insert(users)
       .values({
@@ -120,7 +126,31 @@ export async function createUser(payload: {
         isOnboardingComplete: false,
         platform: payload.platform,
       })
+      .onConflictDoUpdate({
+        target: users.phoneNumber,
+        set: {
+          firstName: payload.firstName,
+          lastName: payload.lastName,
+          friendLinkToken: friendLinkToken,
+          onboardingToken: onboardingToken,
+          isOnboardingComplete: false,
+          platform: payload.platform,
+          isDeleted: false,
+          updatedAt: new Date().toISOString(),
+        },
+      })
       .returning({ id: users.id, onboardingToken: users.onboardingToken });
+
+    // Reactivate all prior friends for the user (if any)
+    await db
+      .update(friends)
+      .set({ active: true, muted: false, updatedAt: new Date().toISOString() })
+      .where(
+        and(
+          or(eq(friends.userId, newUser.id), eq(friends.friendId, newUser.id)),
+          eq(friends.active, false),
+        ),
+      );
 
     // Create new user auth record
     await db.insert(userAuth).values({
@@ -258,32 +288,56 @@ export async function createFriendships(payload: {
     const [friend] = await db
       .select({ id: users.id, platform: users.platform })
       .from(users)
-      .where(eq(users.friendLinkToken, payload.referralFriendLinkToken))
+      .where(
+        and(
+          eq(users.friendLinkToken, payload.referralFriendLinkToken),
+          eq(users.isDeleted, false),
+        ),
+      )
       .limit(1);
 
     if (!friend) {
-      throw new Error("Friend not found based on referral token");
+      throw new Error(
+        `Friend not found in createFriendships() based on referral token: ${payload.referralFriendLinkToken}`,
+      );
     }
 
     if (friend.id === payload.userId) {
-      throw new Error("Friend is the same as the user");
+      throw new Error(
+        `Friend is the same as the user in createFriendships(): ${payload.userId}`,
+      );
     }
 
     const now = new Date().toISOString();
 
-    // Create friendship relationship (bidirectional)
-    await db.insert(friends).values([
-      {
-        userId: payload.userId,
-        friendId: friend.id,
-        updatedAt: now,
-      },
-      {
-        userId: friend.id,
-        friendId: payload.userId,
-        updatedAt: now,
-      },
-    ]);
+    // Create or reactivate friendship relationship (bidirectional)
+    await db
+      .insert(friends)
+      .values([
+        {
+          userId: payload.userId,
+          friendId: friend.id,
+          muted: false,
+          active: true,
+          updatedAt: now,
+        },
+        {
+          userId: friend.id,
+          friendId: payload.userId,
+          muted: false,
+          active: true,
+          updatedAt: now,
+        },
+      ])
+      .onConflictDoUpdate({
+        target: [friends.userId, friends.friendId],
+        set: {
+          // Reactivate and reset muted state when re-establishing a friendship
+          active: true,
+          muted: false,
+          updatedAt: now,
+        },
+      });
 
     // Update hasCrossPlatformFriends flag for both users if different platforms
     if (payload.userPlatform !== friend.platform) {
@@ -350,7 +404,7 @@ export async function searchPlatformTracks(platform: string, query: string) {
 
       return { ok: true, tracks: data?.tracks || [], message: error };
     } else if (platform === Platform.APPLE_MUSIC) {
-      const { ok, data, error } = await handleAppleMusicSearch(query);
+      const { ok, error } = await handleAppleMusicSearch(query);
 
       if (!ok) {
         return { ok: false, tracks: [], message: error };
@@ -374,7 +428,7 @@ export async function searchPlatformTracks(platform: string, query: string) {
   }
 }
 
-async function handleAppleMusicSearch(query: string) {
+async function handleAppleMusicSearch(_query: string) {
   return {
     ok: false,
     data: null,
@@ -462,7 +516,9 @@ export async function submitSong(payload: {
       });
 
     if (!ok) {
-      throw new Error(submissionMessage!);
+      throw new Error(
+        submissionMessage || "An error occurred while submitting song",
+      );
     }
 
     return { ok: true, message: "Song submitted successfully" };
@@ -625,5 +681,111 @@ export async function completeOnboarding(payload: { onboardingToken: string }) {
       ok: false,
       message: "An error occurred while completing onboarding",
     };
+  }
+}
+
+export async function muteFriend(userId: number, friendId: number) {
+  "use server";
+  await db
+    .update(friends)
+    .set({ muted: true, updatedAt: new Date().toISOString() })
+    .where(
+      and(
+        eq(friends.userId, userId),
+        eq(friends.friendId, friendId),
+        eq(friends.active, true),
+      ),
+    );
+}
+
+export async function unMuteFriend(userId: number, friendId: number) {
+  "use server";
+  await db
+    .update(friends)
+    .set({ muted: false, updatedAt: new Date().toISOString() })
+    .where(
+      and(
+        eq(friends.userId, userId),
+        eq(friends.friendId, friendId),
+        eq(friends.active, true),
+      ),
+    );
+}
+
+export async function unfriendFriend(userId: number, friendId: number) {
+  "use server";
+  await db
+    .update(friends)
+    .set({ active: false, updatedAt: new Date().toISOString() })
+    .where(
+      and(
+        or(
+          and(eq(friends.userId, userId), eq(friends.friendId, friendId)),
+          and(eq(friends.userId, friendId), eq(friends.friendId, userId)),
+        ),
+
+        eq(friends.active, true),
+      ),
+    );
+}
+
+export async function deleteUser(userId: number) {
+  "use server";
+
+  const now = new Date().toISOString();
+
+  await db
+    .update(users)
+    .set({ isDeleted: true, updatedAt: now })
+    .where(eq(users.id, userId));
+
+  await db
+    .update(friends)
+    .set({ active: false, updatedAt: now })
+    .where(
+      and(
+        eq(friends.active, true),
+        or(eq(friends.userId, userId), eq(friends.friendId, userId)),
+      ),
+    );
+
+  await db.delete(userAuth).where(eq(userAuth.userId, userId));
+}
+
+// handled directly in ourFileRouter (core.ts)
+// export async function uploadUserProfilePicture(
+//   userId: number,
+//   profilePictureUrl: string,
+// ) {}
+
+export async function deleteUserProfilePicture(userId: number) {
+  "use server";
+
+  const previousUrl = await db.transaction(async (tx) => {
+    const [prev] = await tx
+      .select({ url: users.profilePictureUrl })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    await tx
+      .update(users)
+      .set({ profilePictureUrl: null })
+      .where(eq(users.id, userId));
+
+    return prev?.url ?? null;
+  });
+
+  if (previousUrl) {
+    try {
+      const utapi = new UTApi();
+      await utapi.deleteFiles(previousUrl);
+    } catch (err) {
+      // Non-fatal: DB already cleared
+      console.error(
+        `Failed to delete profile picture of ${userId}from UploadThing - ${previousUrl}:`,
+        err,
+      );
+    }
   }
 }
