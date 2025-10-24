@@ -15,7 +15,7 @@ export default function Hero({ showText = true }: HeroProps) {
 
       {/* Tagline */}
       {showText && (
-        <div className="text-white text-3xl">
+        <div className="text-white text-3xl text-center">
           discover music through friends.
         </div>
       )}

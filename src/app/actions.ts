@@ -24,6 +24,7 @@ import {
   onboardingTask,
   welcomeBackTask,
 } from "@/trigger";
+import { notifyNewFriendTask } from "@/trigger/notify-new-friend";
 
 export async function checkRegistrationData(payload: {
   firstName: string;
@@ -174,6 +175,8 @@ export async function createUser(payload: {
         userId: newUser.id,
         referralFriendLinkToken: payload.referralFriendLinkToken,
         userPlatform: payload.platform,
+        userFirstName: payload.firstName,
+        userLastName: payload.lastName,
       });
 
       if (!ok) {
@@ -287,11 +290,17 @@ async function getPlatformAuth(payload: { platform: Platform; code: string }) {
 export async function createFriendships(payload: {
   userId: number;
   userPlatform: Platform;
+  userFirstName: string;
+  userLastName: string;
   referralFriendLinkToken: string;
 }) {
   try {
     const [friend] = await db
-      .select({ id: users.id, platform: users.platform })
+      .select({
+        id: users.id,
+        platform: users.platform,
+        phoneNumber: users.phoneNumber,
+      })
       .from(users)
       .where(
         and(
@@ -353,6 +362,12 @@ export async function createFriendships(payload: {
         })
         .where(inArray(users.id, [payload.userId, friend.id]));
     }
+
+    await notifyNewFriendTask.trigger({
+      userPhoneNumber: friend.phoneNumber,
+      friendFirstName: payload.userFirstName,
+      friendLastName: payload.userLastName,
+    });
 
     return { ok: true, message: "Friendship created successfully" };
   } catch (error: unknown) {

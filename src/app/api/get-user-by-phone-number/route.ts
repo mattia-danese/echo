@@ -16,7 +16,12 @@ export async function POST(request: NextRequest) {
 
     // Check if user exists with this phone number
     const [existingUser] = await db
-      .select({ id: users.id, platform: users.platform })
+      .select({
+        id: users.id,
+        platform: users.platform,
+        firstName: users.firstName,
+        lastName: users.lastName,
+      })
       .from(users)
       .where(
         and(eq(users.phoneNumber, phoneNumber), eq(users.isDeleted, false)),
@@ -27,6 +32,8 @@ export async function POST(request: NextRequest) {
       exists: !!existingUser,
       id: existingUser?.id,
       platform: existingUser?.platform,
+      firstName: existingUser?.firstName,
+      lastName: existingUser?.lastName,
     });
   } catch (error) {
     console.error("Error checking user existence:", error);

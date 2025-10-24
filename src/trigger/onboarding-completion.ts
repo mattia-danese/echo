@@ -164,47 +164,47 @@ const sendMessages = async (payload: {
   friendLinkToken: string;
 }) => {
   logger.log("sending messages", { payload });
-  // const message1 = await client.messages.create({
-  //     body: `perfect :) at the end of the day you'll get a playlist with the songs your friends shared`,
-  //     from: fromNumber,
-  //     to: payload.phoneNumber,
-  // });
+  const message1 = await client.messages.create({
+    body: `perfect :) at the end of the day you'll get a playlist with the songs your friends shared`,
+    from: fromNumber,
+    to: payload.phoneNumber,
+  });
 
-  // logger.log("onboarding completion message #1 sent", { message1 });
+  logger.log("onboarding completion message #1 sent", { message1 });
 
-  // const message2 = await client.messages.create({
-  //     body: `https://open.spotify.com/playlist/${payload.playlistId}`,
-  //     from: fromNumber,
-  //     to: payload.phoneNumber,
-  // });
+  const message2 = await client.messages.create({
+    body: `https://open.spotify.com/playlist/${payload.playlistId}`,
+    from: fromNumber,
+    to: payload.phoneNumber,
+  });
 
-  // logger.log("onboarding completion message #2 sent", { message2 });
+  logger.log("onboarding completion message #2 sent", { message2 });
 
-  // const message3 = await client.messages.create({
-  //     body: `and that's echo :)`,
-  //     from: fromNumber,
-  //     to: payload.phoneNumber,
-  // });
+  const message3 = await client.messages.create({
+    body: `and that's echo :)`,
+    from: fromNumber,
+    to: payload.phoneNumber,
+  });
 
-  // logger.log("onboarding completion message #3 sent", { message3 });
+  logger.log("onboarding completion message #3 sent", { message3 });
 
-  // const message4 = await client.messages.create({
-  //     body: `
-  //     you only have ${payload.numFriends} friends
-  //     here's your unique friend request link. send friends this link to add them and start discovering music together :)`,
-  //     from: fromNumber,
-  //     to: payload.phoneNumber,
-  // });
+  const message4 = await client.messages.create({
+    body: `
+      you only have ${payload.numFriends} friends
+      here's your unique friend request link. send friends this link to add them and start discovering music together :)`,
+    from: fromNumber,
+    to: payload.phoneNumber,
+  });
 
-  // logger.log("onboarding completion message #4 sent", { message4 });
+  logger.log("onboarding completion message #4 sent", { message4 });
 
-  // const message5 = await client.messages.create({
-  //     body: `https://text-echo.com/${payload.friendLinkToken}`,
-  //     from: fromNumber,
-  //     to: payload.phoneNumber,
-  // });
+  const message5 = await client.messages.create({
+    body: `https://text-echo.com/${payload.friendLinkToken}`,
+    from: fromNumber,
+    to: payload.phoneNumber,
+  });
 
-  // logger.log("onboarding completion message #5 sent", { message5 });
+  logger.log("onboarding completion message #5 sent", { message5 });
 };
 
 const createOnboardingPlaylistForUser = async (

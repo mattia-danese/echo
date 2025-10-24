@@ -1,6 +1,6 @@
 "use client";
 
-import { User } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRef, useState } from "react";
@@ -170,7 +170,7 @@ export default function ProfilePage({
                   }}
                 />
                 <div className="absolute inset-0 rounded-full bg-gray-800 flex items-center justify-center pointer-events-none">
-                  <User className="text-gray-400" size={40} />
+                  <UserPlus className="text-gray-400" size={40} />
                 </div>
               </div>
             )}
@@ -241,7 +241,7 @@ export default function ProfilePage({
                         />
                       ) : (
                         <div className="shrink-0 rounded-full bg-gray-800 flex items-center justify-center size-10 md:size-12">
-                          <User className="text-gray-400" size={20} />
+                          <UserPlus className="text-gray-400" size={20} />
                         </div>
                       )}
                       <div className="text-white text-lg">{fullName}</div>

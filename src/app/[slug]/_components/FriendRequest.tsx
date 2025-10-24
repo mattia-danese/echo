@@ -35,10 +35,14 @@ export default function FriendRequest({
   const handleCreateFriendship = async (data: {
     id: number;
     platform: Platform;
+    firstName: string;
+    lastName: string;
   }) => {
     const { ok, message } = await createFriendships({
       userId: data.id,
       userPlatform: data.platform,
+      userFirstName: data.firstName,
+      userLastName: data.lastName,
       referralFriendLinkToken: inviter.link,
     });
 
