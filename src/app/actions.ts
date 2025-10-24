@@ -22,6 +22,7 @@ import {
   getRecentPlaysTask,
   onboardingCompletionTask,
   onboardingTask,
+  welcomeBackTask,
 } from "@/trigger";
 
 export async function checkRegistrationData(payload: {
@@ -134,13 +135,17 @@ export async function createUser(payload: {
           lastName: payload.lastName,
           friendLinkToken: friendLinkToken,
           onboardingToken: onboardingToken,
-          isOnboardingComplete: false,
           platform: payload.platform,
           isDeleted: false,
           updatedAt: new Date().toISOString(),
         },
       })
-      .returning({ id: users.id, onboardingToken: users.onboardingToken });
+      .returning({
+        id: users.id,
+        onboardingToken: users.onboardingToken,
+        updatedAt: users.updatedAt,
+        createdAt: users.createdAt,
+      });
 
     // Reactivate all prior friends for the user (if any)
     await db
@@ -190,8 +195,7 @@ export async function createUser(payload: {
 
     return {
       ok: true,
-      userId: newUser.id.toString(),
-      onboardingToken: newUser.onboardingToken,
+      user: newUser,
       created: true,
       message: "User created successfully with Spotify tokens.",
     };
@@ -378,6 +382,17 @@ export async function sendOnboardingMessage(payload: {
   return {
     ok: true,
     message: `onboarding message sent to ${payload.phoneNumber}`,
+  };
+}
+
+export async function sendWelcomeMessage(payload: { phoneNumber: string }) {
+  console.log("Triggering welcome task... ", payload.phoneNumber);
+  await welcomeBackTask.trigger({
+    phoneNumber: payload.phoneNumber,
+  });
+  return {
+    ok: true,
+    message: `welcome message sent to ${payload.phoneNumber}`,
   };
 }
 

@@ -3,3 +3,4 @@
 export { getRecentPlaysTask } from "./get-recent-plays";
 export { onboardingTask } from "./onboarding";
 export { onboardingCompletionTask } from "./onboarding-completion";
+export { welcomeBackTask } from "./welcome-back";

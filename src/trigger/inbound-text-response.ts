@@ -43,15 +43,31 @@ export const inboundTextResponseTask = task({
         .select({
           id: users.id,
           receivedNoTextAlert: users.receivedNoTextAlert,
+          isDeleted: users.isDeleted,
         })
         .from(users)
         .where(eq(users.phoneNumber, payload.phoneNumber))
         .limit(1);
 
       if (!user) {
-        throw new Error(
-          `user not found for phone number: ${payload.phoneNumber}`,
-        );
+        throw new Error(`received text from user not found for phone number:`, {
+          cause: {
+            phoneNumber: payload.phoneNumber,
+            inboundMessage: payload.inboundMessage,
+          },
+        });
+      }
+
+      if (user.isDeleted) {
+        const message = await client.messages.create({
+          body: `your account has been deleted. Click here to reactivate: https://text-echo.com`,
+          from: fromNumber,
+          to: payload.phoneNumber,
+        });
+
+        return {
+          message: `responded to deleted user message from ${payload.phoneNumber}: ${message}`,
+        };
       }
 
       if (user.receivedNoTextAlert) {

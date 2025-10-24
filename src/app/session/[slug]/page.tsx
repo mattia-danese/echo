@@ -1,7 +1,7 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getUserTopSongs } from "@/app/actions";
 import { db } from "@/db";
-import { echoSessions, userEchoSessions } from "@/db/schema";
+import { echoSessions, userEchoSessions, users } from "@/db/schema";
 import { Platform } from "@/db/types";
 import SessionPageClient, {
   type SessionPageClientProps,
@@ -38,7 +38,8 @@ export default async function SessionPage({ params }: PageProps) {
       })
       .from(userEchoSessions)
       .innerJoin(echoSessions, eq(userEchoSessions.sessionId, echoSessions.id))
-      .where(eq(userEchoSessions.token, token))
+      .innerJoin(users, eq(userEchoSessions.userId, users.id))
+      .where(and(eq(userEchoSessions.token, token), eq(users.isDeleted, false)))
       .limit(1);
 
     if (!userEchoSession) {

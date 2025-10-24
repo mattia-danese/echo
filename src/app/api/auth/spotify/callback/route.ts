@@ -1,7 +1,11 @@
 // app/auth/callback/route.ts  (App Router API route)
 
 import { NextResponse } from "next/server";
-import { createUser, sendOnboardingMessage } from "@/app/actions";
+import {
+  createUser,
+  sendOnboardingMessage,
+  sendWelcomeMessage,
+} from "@/app/actions";
 import type { Platform } from "@/db/types";
 
 type AccountStatus = "created" | "error";
@@ -52,13 +56,27 @@ export async function GET(req: Request) {
       referralFriendLinkToken: formParams.get("friendLinkToken") || "",
     });
 
+    const user = result.user;
+
+    if (!user) {
+      throw new Error("User not returned to auth callback route");
+    }
+
     if (result.ok) {
       if (result.created) {
-        sendOnboardingMessage({
-          phoneNumber: phoneNumber,
-          onboardingToken: result.onboardingToken || "",
-        });
-        // FIXME: should not need to include || "" as onboardingToken is not nullable
+        // TODO: come back to this - this may break if updatedAt is changed in other places
+        // if user was created in the same request, send onboarding message
+        // filters out returning users
+        if (user.updatedAt === user.createdAt) {
+          await sendOnboardingMessage({
+            phoneNumber: phoneNumber,
+            onboardingToken: user.onboardingToken,
+          });
+        } else {
+          await sendWelcomeMessage({
+            phoneNumber: phoneNumber,
+          });
+        }
 
         accountStatus = "created";
       } else {
