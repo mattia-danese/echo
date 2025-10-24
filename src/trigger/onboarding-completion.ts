@@ -1,7 +1,7 @@
 import { logger, task } from "@trigger.dev/sdk/v3";
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
-import { friends, userEchoSessions } from "@/db/schema";
+import { friends, userEchoSessions, users } from "@/db/schema";
 import { Platform } from "@/db/types";
 import { spotifyAdmin } from "@/lib/spotifyAdmin";
 import { twilioAdmin } from "@/lib/twilioAdmin";
@@ -36,6 +36,22 @@ export const onboardingCompletionTask = task({
 
     // FIXME: send just one db request
     try {
+      // FIXME: not sure if needed, adding just in case
+      const [user] = await db
+        .select({
+          id: users.id,
+          isDeleted: users.isDeleted,
+        })
+        .from(users)
+        .where(eq(users.id, payload.user.userId))
+        .limit(1);
+
+      if (user.isDeleted) {
+        return {
+          message: `user ${payload.user.userId} is deleted, skipping onboarding completion`,
+        };
+      }
+
       // get user friends' most recent shared songs (1 song per friend, max 15 friends)
       // First get the user's friends
       const userFriends = await db

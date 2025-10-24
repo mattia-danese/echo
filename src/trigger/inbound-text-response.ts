@@ -22,23 +22,7 @@ export const inboundTextResponseTask = task({
     { ctx },
   ) => {
     logger.log("inbound text response task starting", { payload, ctx });
-
-    if (payload.inboundMessage.trim().toLowerCase() === "help") {
-      const message = await client.messages.create({
-        body: `
-            HELP
-            `,
-        from: fromNumber,
-        to: payload.phoneNumber,
-      });
-
-      return {
-        message: `responded to help message from ${payload.phoneNumber}: ${message}`,
-      };
-    }
-
     try {
-      // check if we already sent no text alert to user
       const [user] = await db
         .select({
           id: users.id,
@@ -70,6 +54,21 @@ export const inboundTextResponseTask = task({
         };
       }
 
+      if (payload.inboundMessage.trim().toLowerCase() === "help") {
+        const message = await client.messages.create({
+          body: `
+            HELP
+            `,
+          from: fromNumber,
+          to: payload.phoneNumber,
+        });
+
+        return {
+          message: `responded to help message from ${payload.phoneNumber}: ${message}`,
+        };
+      }
+
+      // check if we already sent no text alert to user
       if (user.receivedNoTextAlert) {
         return {
           message: `already sent no text alert to ${payload.phoneNumber} - skipping`,

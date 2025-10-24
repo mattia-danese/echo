@@ -327,6 +327,7 @@ const getEchoSessionAndUsers = async () => {
       .where(
         and(
           eq(userEchoSessions.sessionId, echoSession.id),
+          eq(users.isDeleted, false),
           isNotNull(userEchoSessions.trackId),
         ),
       )) as UserSongData[];
