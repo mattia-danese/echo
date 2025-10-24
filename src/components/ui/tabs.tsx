@@ -59,16 +59,25 @@ import * as React from "react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
+const TabsContext = React.createContext<{ hasVerticalSeparators: boolean }>({
+  hasVerticalSeparators: false,
+});
+
 function Tabs({
   className,
+  hasVerticalSeparators = false,
   ...props
-}: React.ComponentProps<typeof TabsPrimitive.Root>) {
+}: React.ComponentProps<typeof TabsPrimitive.Root> & {
+  hasVerticalSeparators?: boolean;
+}) {
   return (
-    <TabsPrimitive.Root
-      data-slot="tabs"
-      className={cn("flex flex-col gap-2", className)}
-      {...props}
-    />
+    <TabsContext.Provider value={{ hasVerticalSeparators }}>
+      <TabsPrimitive.Root
+        data-slot="tabs"
+        className={cn("flex flex-col gap-2", className)}
+        {...props}
+      />
+    </TabsContext.Provider>
   );
 }
 
@@ -77,13 +86,14 @@ function TabsList({
   children,
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.List>) {
+  const { hasVerticalSeparators } = React.useContext(TabsContext);
   const childrenArray = React.Children.toArray(children);
   let separatorCounter = 0;
 
   const interleavedChildren = childrenArray.reduce<React.ReactNode[]>(
     (acc, child, index) => {
       acc.push(child);
-      if (index < childrenArray.length - 1) {
+      if (hasVerticalSeparators && index < childrenArray.length - 1) {
         acc.push(
           <Separator
             key={`separator-${separatorCounter++}`}

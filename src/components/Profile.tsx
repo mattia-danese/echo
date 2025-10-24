@@ -197,19 +197,19 @@ export default function ProfilePage({
         <Tabs defaultValue="friends" className="w-full">
           <TabsList className="w-full max-w-2xl mx-auto">
             <TabsTrigger
-              className="data-[state=active]:bg-[#00BFFF]/10 dark:data-[state=active]:bg-[#00BFFF]/15"
+              className=" data-[state=active]:border data-[state=active]:border-white"
               value="friends"
             >
               friends
             </TabsTrigger>
             <TabsTrigger
-              className="data-[state=active]:bg-[#00BFFF]/10 dark:data-[state=active]:bg-[#00BFFF]/15"
+              className=" data-[state=active]:border data-[state=active]:border-white"
               value="past"
             >
               past echoes
             </TabsTrigger>
             <TabsTrigger
-              className="data-[state=active]:bg-[#00BFFF]/10 dark:data-[state=active]:bg-[#00BFFF]/15"
+              className=" data-[state=active]:border data-[state=active]:border-white"
               value="settings"
             >
               settings
@@ -290,13 +290,13 @@ export default function ProfilePage({
             <Tabs defaultValue="songs" className="w-full">
               <TabsList className="w-full max-w-2xl mx-auto">
                 <TabsTrigger
-                  className="data-[state=active]:bg-[#00BFFF]/10 dark:data-[state=active]:bg-[#00BFFF]/15"
+                  className=" data-[state=active]:border data-[state=active]:border-white"
                   value="songs"
                 >
                   songs you've shared
                 </TabsTrigger>
                 <TabsTrigger
-                  className="data-[state=active]:bg-[#00BFFF]/10 dark:data-[state=active]:bg-[#00BFFF]/15"
+                  className=" data-[state=active]:border data-[state=active]:border-white"
                   value="playlists"
                 >
                   your playlists

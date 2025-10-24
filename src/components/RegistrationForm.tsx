@@ -144,6 +144,7 @@ export default function RegistrationForm({
             onValueChange={(value) =>
               setFormData((prev) => ({ ...prev, platform: value }))
             }
+            hasVerticalSeparators={true}
           >
             <TabsList className="w-full bg-transparent border border-white">
               <TabsTrigger
