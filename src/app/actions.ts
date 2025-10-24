@@ -13,10 +13,10 @@ import {
   users,
   userTrackPlays,
 } from "@/db/schema";
-import { Platform } from "@/db/types";
+import { type Gender, Platform } from "@/db/types";
 import { createSession, deleteAllSessionsForUser } from "@/lib/cookieSession";
 import { songLinkAdmin } from "@/lib/songLinkAdmin";
-import { isNameValid, isPhoneNumberValid } from "@/lib/validation";
+import { isNameValid, isPhoneNumberValid, isValidDate } from "@/lib/validation";
 import { SpotifyPlatform } from "@/platforms";
 import {
   getRecentPlaysTask,
@@ -30,6 +30,7 @@ export async function checkRegistrationData(payload: {
   firstName: string;
   lastName: string;
   phoneNumber: string;
+  dateOfBirth: string;
 }) {
   if (!isPhoneNumberValid(payload.phoneNumber) || !payload.phoneNumber.trim()) {
     return { ok: false, message: "phone number" };
@@ -43,6 +44,10 @@ export async function checkRegistrationData(payload: {
     return { ok: false, message: "last name" };
   }
 
+  if (!isValidDate(payload.dateOfBirth)) {
+    return { ok: false, message: "date of birth" };
+  }
+
   return { ok: true, message: "User is valid" };
 }
 
@@ -50,6 +55,8 @@ export async function createUser(payload: {
   firstName: string;
   lastName: string;
   phoneNumber: string;
+  gender: Gender;
+  dateOfBirth: string;
   spotifyCode: string;
   platform: Platform;
   referralFriendLinkToken: string | null;
@@ -124,6 +131,8 @@ export async function createUser(payload: {
         firstName: payload.firstName,
         lastName: payload.lastName,
         phoneNumber: payload.phoneNumber,
+        gender: payload.gender,
+        dateOfBirth: payload.dateOfBirth,
         friendLinkToken: friendLinkToken,
         onboardingToken: onboardingToken,
         isOnboardingComplete: false,
@@ -134,6 +143,8 @@ export async function createUser(payload: {
         set: {
           firstName: payload.firstName,
           lastName: payload.lastName,
+          gender: payload.gender,
+          dateOfBirth: payload.dateOfBirth,
           friendLinkToken: friendLinkToken,
           onboardingToken: onboardingToken,
           platform: payload.platform,

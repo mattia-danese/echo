@@ -1,4 +1,5 @@
 import { Filter } from "bad-words";
+import { differenceInYears } from "date-fns";
 import { isValidPhoneNumber } from "libphonenumber-js";
 
 const filter = new Filter();
@@ -14,4 +15,9 @@ export const isNameValid = (name: string): boolean => {
     name.length <= 50 &&
     !filter.isProfane(name.toLowerCase())
   );
+};
+
+export const isValidDate = (date: string): boolean => {
+  const age = differenceInYears(new Date(), new Date(date));
+  return age >= 13 && age <= 100;
 };

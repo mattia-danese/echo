@@ -93,7 +93,7 @@ export default function PhoneNumberChecker({
         {isCheckingPhoneNumber ? (
           <Loader2 className="h-5 w-5 animate-spin text-white" />
         ) : phoneNumberChecked ? (
-          <CircleCheck className="h-5 w-5 text-green-600" />
+          <CircleCheck className="h-5 w-5 text-teal-400" />
         ) : (
           <CircleArrowRight
             className={`h-5 w-5 transition-all ${

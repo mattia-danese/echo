@@ -11,7 +11,8 @@
     "lint:check": "biome check .",
     "format": "biome format --write .",
     "generate": "drizzle-kit generate",
-    "migrate": "drizzle-kit migrate"
+    "migrate": "drizzle-kit migrate",
+    "trigger": "dlx trigger.dev@latest dev"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -33,6 +34,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "date-fns": "^4.1.0",
     "drizzle-orm": "^0.44.6",
     "libphonenumber-js": "^1.12.22",
     "lucide-react": "^0.544.0",

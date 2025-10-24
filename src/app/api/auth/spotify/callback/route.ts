@@ -6,7 +6,7 @@ import {
   sendOnboardingMessage,
   sendWelcomeMessage,
 } from "@/app/actions";
-import type { Platform } from "@/db/types";
+import type { Gender, Platform } from "@/db/types";
 
 type AccountStatus = "created" | "error";
 
@@ -30,6 +30,8 @@ export async function GET(req: Request) {
     const platform = decodeURIComponent(
       formParams.get("platform") || "",
     ) as Platform;
+    const gender = decodeURIComponent(formParams.get("gender") || "") as Gender;
+    const dateOfBirth = decodeURIComponent(formParams.get("dateOfBirth") || "");
 
     if (!phoneNumber) {
       throw new Error("Phone number is required");
@@ -54,6 +56,8 @@ export async function GET(req: Request) {
       spotifyCode: code,
       platform: platform,
       referralFriendLinkToken: formParams.get("friendLinkToken") || "",
+      gender: gender,
+      dateOfBirth: dateOfBirth,
     });
 
     const user = result.user;

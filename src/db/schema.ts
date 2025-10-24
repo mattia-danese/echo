@@ -1,5 +1,6 @@
 import {
   boolean,
+  date,
   foreignKey,
   integer,
   jsonb,
@@ -11,9 +12,15 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
-import { Platform } from "./types";
+import { Gender, Platform } from "./types";
 
 const platform = pgEnum("platform", [Platform.SPOTIFY, Platform.APPLE_MUSIC]);
+const gender = pgEnum("gender", [
+  Gender.MALE,
+  Gender.FEMALE,
+  Gender.NON_BINARY,
+  Gender.PREFER_NOT_TO_SAY,
+]);
 
 const timestamps = {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
@@ -31,6 +38,8 @@ export const users = pgTable(
     firstName: varchar("first_name").notNull(),
     lastName: varchar("last_name").notNull(),
     phoneNumber: varchar("phone_number").notNull(),
+    gender: gender("gender").notNull(),
+    dateOfBirth: date("date_of_birth", { mode: "string" }).notNull(),
     friendLinkToken: varchar("friend_link_token").notNull(),
     onboardingToken: varchar("onboarding_token").notNull(),
     isOnboardingComplete: boolean("is_onboarding_complete")
