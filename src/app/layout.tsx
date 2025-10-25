@@ -20,6 +20,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "echo",
   description: "echo",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+    { color: "#000000" },
+  ],
   icons: {
     icon: [
       { url: "/src/app/favicon.ico", sizes: "any" },
