@@ -33,6 +33,11 @@ export const metadata: Metadata = {
   },
 };
 
+// Ensure the viewport uses the full device area, enabling safe-area CSS env vars
+export const viewport = {
+  viewportFit: "cover",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
