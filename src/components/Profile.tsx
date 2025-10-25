@@ -3,7 +3,7 @@
 import { UserPlus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import NavBar from "@/components/NavBar";
 import SettingsPanel from "@/components/SettingsPanel";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,20 @@ export default function ProfilePage({
   const previewUrlRef = useRef<string | null>(null);
   const { data: friendsData } = useFriends(userId, friendsList); // initialData = SSR list
   const { toggleMute, unfriend } = useFriendMutations(userId);
+
+  // Ensure the page loads scrolled to the very top. iOS sometimes restores an offset.
+  useEffect(() => {
+    // Use both scrollTop and window to cover all browsers
+    try {
+      window.scrollTo({
+        top: 0,
+        left: 0,
+        behavior: "instant" as ScrollBehavior,
+      });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    } catch {}
+  }, []);
 
   const getPlaylistImage = (playlistImageUrl: string) => {
     const images = playlistImageUrl.split("|");
