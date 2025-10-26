@@ -12,6 +12,10 @@ const envSchema = z.object({
   SPOTIFY_CLIENT_SECRET: z.string().min(1),
   ONBOARDING_COMPLETION_GENERIC_SPOTIFY_PLAYLIST: z.string().min(1),
 
+  APPLE_PRIVATE_KEY: z.string().min(1),
+  APPLE_TEAM_ID: z.string().min(1),
+  APPLE_KEY_ID: z.string().min(1),
+
   TRIGGER_SECRET_KEY: z.string().min(1),
 
   TWILIO_PHONE_NUMBER: z.string().min(1),
@@ -37,6 +41,10 @@ export const env = envSchema.parse({
   SPOTIFY_CLIENT_SECRET: process.env.SPOTIFY_CLIENT_SECRET,
   ONBOARDING_COMPLETION_GENERIC_SPOTIFY_PLAYLIST:
     process.env.ONBOARDING_COMPLETION_GENERIC_SPOTIFY_PLAYLIST,
+
+  APPLE_PRIVATE_KEY: process.env.APPLE_PRIVATE_KEY,
+  APPLE_TEAM_ID: process.env.APPLE_TEAM_ID,
+  APPLE_KEY_ID: process.env.APPLE_KEY_ID,
 
   TRIGGER_SECRET_KEY: process.env.TRIGGER_SECRET_KEY,
 

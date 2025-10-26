@@ -43,7 +43,6 @@ export interface PlatformStatic {
   getUserId(
     request: GetUserIdRequest,
   ): Promise<{ ok: boolean; data: GetUserIdResponse | null; error: unknown }>;
-  getSongLink(trackId: string): string;
   extractTrackId(url: string): string;
   createPlaylistLink(platformPlaylistId: string): string;
 }

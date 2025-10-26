@@ -53,7 +53,7 @@ export async function GET(req: Request) {
       firstName: firstName,
       lastName: lastName,
       phoneNumber: phoneNumber,
-      spotifyCode: code,
+      auth: code,
       platform: platform,
       referralFriendLinkToken: formParams.get("friendLinkToken") || "",
       gender: gender,

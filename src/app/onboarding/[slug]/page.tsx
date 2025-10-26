@@ -49,6 +49,7 @@ export default async function OnboardingPage({ params }: PageProps) {
       trackId: song.trackId,
       artists: song.artists,
       albumImageUrl: song.albumImageUrl,
+      trackPlatform: song.platform,
     }));
 
     return (

@@ -41,18 +41,18 @@ export const sendMessagesTask = task({
           continue;
         }
 
-        const response = await client.messages.create({
-          body: textMessage,
-          from: fromNumber,
-          to: phoneNumber,
-        });
+        // const response = await client.messages.create({
+        //   body: textMessage,
+        //   from: fromNumber,
+        //   to: phoneNumber,
+        // });
 
-        // check response var
-        await db.insert(messages).values({
-          userId: userId,
-          message: textMessage,
-          messageType: MessageType.OUTBOUND,
-        });
+        // // check response var
+        // await db.insert(messages).values({
+        //   userId: userId,
+        //   message: textMessage,
+        //   messageType: MessageType.OUTBOUND,
+        // });
       }
     }
 

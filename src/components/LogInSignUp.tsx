@@ -1,10 +1,13 @@
 "use client";
 
+import Script from "next/script";
 import { useEffect, useState } from "react";
 import { logInExistingUser } from "@/app/actions";
 import Hero from "@/components/Hero";
 import PhoneNumberChecker from "@/components/PhoneNumberChecker";
 import RegistrationForm from "@/components/RegistrationForm";
+
+// MusicKit is loaded via Next.js Script in the component render
 
 interface LogInSignUpProps {
   accountStatus?: string;
@@ -33,6 +36,38 @@ export default function LogInSignUp({ accountStatus }: LogInSignUpProps) {
   return (
     <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
       <main className="flex flex-col items-center gap-8 max-w-md w-full">
+        <Script
+          src="https://js-cdn.music.apple.com/musickit/v3/musickit.js"
+          strategy="afterInteractive"
+          onLoad={() => {
+            const configure = async () => {
+              try {
+                await MusicKit.configure({
+                  developerToken: "",
+                  app: {
+                    name: "echo",
+                    build: "1.0.0",
+                  },
+                });
+              } catch {
+                // ignore config errors for now
+                console.log("here");
+              }
+            };
+
+            if (typeof window !== "undefined" && "MusicKit" in window) {
+              void configure();
+            } else if (typeof document !== "undefined") {
+              document.addEventListener(
+                "musickitloaded",
+                () => {
+                  void configure();
+                },
+                { once: true },
+              );
+            }
+          }}
+        />
         <Hero />
 
         {/* Account status messages */}

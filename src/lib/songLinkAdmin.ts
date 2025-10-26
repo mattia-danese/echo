@@ -11,24 +11,16 @@ const songLinkPlatformMap = {
 };
 
 const getLinks = async (platform: Platform, trackId: string) => {
-  // TODO: might be easier to just use (platform, type, id)
-  // const songLinkPlatform = songLinkPlatformMap[platform];
-
-  let songLink = "";
-
-  switch (platform) {
-    case Platform.SPOTIFY:
-      songLink = SpotifyPlatform.getSongLink(trackId);
-      break;
-    case Platform.APPLE_MUSIC:
-      songLink = AppleMusicPlatform.getSongLink(trackId);
-      break;
-    default:
-      throw new Error(`Unsupported platform: ${platform}`);
-  }
+  const params = new URLSearchParams({
+    platform: songLinkPlatformMap[platform],
+    type: "song",
+    id: trackId,
+    userCountry: "US",
+    songIfSingle: "true",
+  });
 
   const response = await fetch(
-    `https://api.song.link/v1-alpha.1/links?url=${songLink}&userCountry=US&songIfSingle=true`,
+    `https://api.song.link/v1-alpha.1/links?${params.toString()}`,
   );
 
   if (!response.ok) {

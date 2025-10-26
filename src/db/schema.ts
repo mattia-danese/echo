@@ -75,13 +75,13 @@ export const userAuth = pgTable(
     userId: integer("user_id").notNull(),
 
     platform: platform("platform").notNull(),
-    platformUserId: varchar("platform_user_id").notNull(),
+    platformUserId: varchar("platform_user_id"),
     accessToken: varchar("access_token").notNull(),
-    refreshToken: varchar("refresh_token").notNull(),
+    refreshToken: varchar("refresh_token"),
     tokenExpiresAt: timestamp("token_expires_at", {
       withTimezone: true,
       mode: "string",
-    }).notNull(),
+    }),
     extra: jsonb("extra").default({}).notNull(),
 
     ...timestamps,
@@ -141,7 +141,6 @@ export const userTrackPlays = pgTable(
     artists: varchar("artists").notNull(),
     albumImageUrl: varchar("album_image_url").notNull(),
 
-    // FIXME: might need to change for apple music if we dont get the played at time
     playedAt: timestamp("played_at", {
       withTimezone: true,
       mode: "string",
@@ -367,3 +366,14 @@ export const messages = pgTable(
       .onDelete("cascade"),
   ],
 );
+
+export const appleDevToken = pgTable("apple_dev_token", {
+  id: integer().primaryKey().generatedByDefaultAsIdentity(),
+  token: varchar("token").notNull(),
+  expiresAt: timestamp("expires_at", {
+    withTimezone: true,
+    mode: "string",
+  }).notNull(),
+
+  ...timestamps,
+});

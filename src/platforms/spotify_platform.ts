@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { userAuth } from "@/db/schema";
+import { Platform as PlatformEnum } from "@/db/types";
 import { spotifyAdmin } from "@/lib/spotifyAdmin";
 import { Platform } from "@/platforms/platform";
 import type {
@@ -121,22 +122,22 @@ export class SpotifyPlatform extends Platform {
 
       const responseData = await response.json();
       const spotifyTokenExpiresAt = new Date(
-        Date.now() + responseData.expiresIn * 1000,
+        Date.now() + responseData.expires_in * 1000,
       ).toISOString();
 
       await db
         .update(userAuth)
         .set({
-          accessToken: responseData.accessToken,
-          refreshToken: responseData.refreshToken ?? request.refreshToken,
+          accessToken: responseData.access_token,
+          refreshToken: responseData.refresh_token ?? request.refreshToken,
           tokenExpiresAt: spotifyTokenExpiresAt,
           updatedAt: new Date().toISOString(),
         })
         .where(eq(userAuth.userId, request.userId));
 
       const data = {
-        accessToken: responseData.accessToken,
-        refreshToken: responseData.refreshToken ?? request.refreshToken,
+        accessToken: responseData.access_token,
+        refreshToken: responseData.refresh_token ?? request.refreshToken,
         expiresIn: spotifyTokenExpiresAt,
       } as RefreshTokensResponse;
 
@@ -244,7 +245,7 @@ export class SpotifyPlatform extends Platform {
       const tracks: RecentTrackPlay[] = (data.items || []).map(
         (play: SpotifyRecentTrackPlay) => ({
           userId: request.userId,
-          platform: "spotify",
+          platform: PlatformEnum.SPOTIFY,
           trackId: play.track.id,
           trackName: play.track.name,
           artists: play.track.artists.map((artist) => artist.name).join(", "),
@@ -321,6 +322,7 @@ export class SpotifyPlatform extends Platform {
           trackName: track.name,
           artists: track.artists.map((artist) => artist.name).join(", "),
           albumImageUrl: track.album?.images?.[0]?.url || "",
+          trackPlatform: PlatformEnum.SPOTIFY,
         })) || [];
 
       return { ok: true, data: { tracks }, error: null };
@@ -355,10 +357,6 @@ export class SpotifyPlatform extends Platform {
     } catch (err) {
       return { ok: false, data: null, error: err };
     }
-  }
-
-  static getSongLink(trackId: string): string {
-    return `spotify:track:${trackId}`;
   }
 
   static extractTrackId(url: string): string {

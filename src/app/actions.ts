@@ -17,12 +17,14 @@ import { type Gender, Platform } from "@/db/types";
 import { createSession, deleteAllSessionsForUser } from "@/lib/cookieSession";
 import { songLinkAdmin } from "@/lib/songLinkAdmin";
 import { isNameValid, isPhoneNumberValid, isValidDate } from "@/lib/validation";
-import { SpotifyPlatform } from "@/platforms";
+import { AppleMusicPlatform, SpotifyPlatform } from "@/platforms";
 import {
   getRecentPlaysTask,
   onboardingCompletionTask,
   sendMessagesTask,
 } from "@/trigger";
+
+type UserAuthInsert = typeof userAuth.$inferInsert;
 
 export async function checkRegistrationData(payload: {
   firstName: string;
@@ -55,7 +57,7 @@ export async function createUser(payload: {
   phoneNumber: string;
   gender: Gender;
   dateOfBirth: string;
-  spotifyCode: string;
+  auth: string;
   platform: Platform;
   referralFriendLinkToken: string | null;
 }) {
@@ -83,38 +85,62 @@ export async function createUser(payload: {
       };
     }
 
-    // User doesn't exist, make API call to get tokens from platform
-    const {
-      ok: platformAuthOk,
-      data: platformAuthData,
-      error: platformAuthError,
-    } = await getPlatformAuth({
+    const userAuthData: UserAuthInsert = {
+      userId: 0,
       platform: payload.platform,
-      code: payload.spotifyCode,
-    });
+      platformUserId: null,
+      accessToken: "",
+      refreshToken: null,
+      tokenExpiresAt: null,
+      extra: {},
+    };
 
-    if (!platformAuthOk) {
+    if (payload.platform === Platform.SPOTIFY) {
+      // User doesn't exist, make API call to get tokens from platform
+      const {
+        ok: platformAuthOk,
+        data: platformAuthData,
+        error: platformAuthError,
+      } = await getPlatformAuth({
+        platform: payload.platform,
+        code: payload.auth,
+      });
+
+      if (!platformAuthOk) {
+        return {
+          ok: false,
+          userId: null,
+          onboardingToken: null,
+          created: false,
+          message: platformAuthError,
+        };
+      }
+
+      if (!platformAuthData) {
+        return {
+          ok: false,
+          userId: null,
+          onboardingToken: null,
+          created: false,
+          message: "No data returned from platform auth",
+        };
+      }
+
+      userAuthData.accessToken = platformAuthData.accessToken;
+      userAuthData.refreshToken = platformAuthData.refreshToken;
+      userAuthData.tokenExpiresAt = platformAuthData.expiresAt;
+      userAuthData.platformUserId = platformAuthData.platformUserId;
+    } else if (payload.platform === Platform.APPLE_MUSIC) {
+      userAuthData.accessToken = payload.auth;
+    } else {
       return {
         ok: false,
         userId: null,
         onboardingToken: null,
         created: false,
-        message: platformAuthError,
+        message: "Invalid platform",
       };
     }
-
-    if (!platformAuthData) {
-      return {
-        ok: false,
-        userId: null,
-        onboardingToken: null,
-        created: false,
-        message: "No data returned from platform auth",
-      };
-    }
-
-    const { accessToken, refreshToken, expiresAt, platformUserId } =
-      platformAuthData;
 
     // Generate friend link
     const friendLinkToken = crypto.randomBytes(16).toString("base64url");
@@ -168,16 +194,10 @@ export async function createUser(payload: {
         ),
       );
 
+    userAuthData.userId = newUser.id;
+
     // Create new user auth record
-    await db.insert(userAuth).values({
-      userId: newUser.id,
-      platform: payload.platform,
-      platformUserId: platformUserId,
-      accessToken: accessToken,
-      refreshToken: refreshToken,
-      tokenExpiresAt: expiresAt,
-      extra: {},
-    });
+    await db.insert(userAuth).values(userAuthData);
 
     if (payload.referralFriendLinkToken) {
       const { ok, message } = await createFriendships({
@@ -198,10 +218,10 @@ export async function createUser(payload: {
       user: {
         userId: newUser.id,
         platform: payload.platform,
-        platformUserId: platformUserId,
-        accessToken: accessToken,
-        refreshToken: refreshToken,
-        tokenExpiresAt: expiresAt,
+        platformUserId: userAuthData.platformUserId ?? "",
+        accessToken: userAuthData.accessToken,
+        refreshToken: userAuthData.refreshToken ?? "",
+        tokenExpiresAt: userAuthData.tokenExpiresAt ?? "",
       },
     });
 
@@ -218,7 +238,7 @@ export async function createUser(payload: {
       userId: null,
       onboardingToken: null,
       created: false,
-      message: "An error occurred while creating the user.",
+      message: `An error occurred while creating the user: ${error}`,
     };
   }
 }
@@ -274,15 +294,6 @@ async function getPlatformAuth(payload: { platform: Platform; code: string }) {
       };
 
       return { ok: true, data: data, error: null };
-    }
-
-    // TODO: implement apple music auth
-    if (payload.platform === Platform.APPLE_MUSIC) {
-      return {
-        ok: false,
-        data: null,
-        error: "Apple Music auth not implemented yet",
-      };
     }
 
     return { ok: false, data: null, error: "Invalid platform" };
@@ -448,7 +459,7 @@ export async function sendWelcomeMessage(payload: { phoneNumber: string }) {
   };
 }
 
-export async function searchPlatformTracks(platform: string, query: string) {
+export async function searchPlatformTracks(platform: Platform, query: string) {
   "use server";
 
   try {
@@ -472,13 +483,15 @@ export async function searchPlatformTracks(platform: string, query: string) {
 
       return { ok: true, tracks: data?.tracks || [], message: error };
     } else if (platform === Platform.APPLE_MUSIC) {
-      const { ok, error } = await handleAppleMusicSearch(query);
+      const { ok, data, error } = await AppleMusicPlatform.searchTracks({
+        query,
+      });
 
       if (!ok) {
         return { ok: false, tracks: [], message: error };
       }
 
-      return { ok: true, tracks: [], message: error };
+      return { ok: true, tracks: data?.tracks || [], message: error };
     }
 
     return {
@@ -496,14 +509,6 @@ export async function searchPlatformTracks(platform: string, query: string) {
   }
 }
 
-async function handleAppleMusicSearch(_query: string) {
-  return {
-    ok: false,
-    data: null,
-    error: "Apple Music search not implemented yet",
-  };
-}
-
 export async function getUserTopSongs(payload: {
   userId: number;
   numSongs: number;
@@ -517,6 +522,7 @@ export async function getUserTopSongs(payload: {
         trackName: userTrackPlays.trackName,
         artists: userTrackPlays.artists,
         albumImageUrl: userTrackPlays.albumImageUrl,
+        platform: userTrackPlays.platform,
         playCount: count(),
       })
       .from(userTrackPlays)
@@ -534,6 +540,7 @@ export async function getUserTopSongs(payload: {
         userTrackPlays.trackName,
         userTrackPlays.artists,
         userTrackPlays.albumImageUrl,
+        userTrackPlays.platform,
       )
       .orderBy(desc(count()))
       .limit(payload.numSongs);
@@ -669,14 +676,31 @@ export async function handleCrossPlatformSongSubmission(payload: {
         title: payload.trackName,
         artists: payload.artists,
       })
+      .onConflictDoUpdate({
+        target: [songlinkCache.title, songlinkCache.artists],
+        set: { lastCheckedAt: new Date().toISOString() },
+      })
       .returning({ id: songlinkCache.id });
 
     for (const platformKey of Object.values(Platform)) {
-      const songLinkPlatform = songLinkAdmin.songLinkPlatformMap[platformKey];
-      const trackId = songLinkAdmin.extractTrackId(
-        linksByPlatform[songLinkPlatform].url,
-        platformKey,
-      );
+      let trackId = "";
+
+      // always use the trackId directly from Apple Music when available
+      // (i.e. when song is submitted from Apple Music platform)
+      if (
+        payload.platform === Platform.APPLE_MUSIC &&
+        platformKey === Platform.APPLE_MUSIC
+      ) {
+        console.log("Using trackId directly from Apple Music");
+        trackId = payload.trackId;
+      } else {
+        const songLinkPlatform = songLinkAdmin.songLinkPlatformMap[platformKey];
+
+        trackId = songLinkAdmin.extractTrackId(
+          linksByPlatform[songLinkPlatform].url,
+          platformKey,
+        );
+      }
 
       await db.insert(songLinkCacheMappings).values({
         songlinkCacheId: songlinkCacheRecord.id,
@@ -739,10 +763,10 @@ export async function completeOnboarding(payload: { onboardingToken: string }) {
       user: {
         userId: user.id,
         platform: user.platform,
-        platformUserId: auth.platformUserId,
+        platformUserId: auth.platformUserId ?? "",
         accessToken: auth.accessToken,
-        refreshToken: auth.refreshToken,
-        tokenExpiresAt: auth.tokenExpiresAt,
+        refreshToken: auth.refreshToken ?? "",
+        tokenExpiresAt: auth.tokenExpiresAt ?? "",
         friendLinkToken: user.friendLinkToken,
         firstName: user.firstName,
         phoneNumber: user.phoneNumber,
