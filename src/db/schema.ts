@@ -366,3 +366,14 @@ export const messages = pgTable(
       .onDelete("cascade"),
   ],
 );
+
+export const appleDevToken = pgTable("apple_dev_token", {
+  id: integer().primaryKey().generatedByDefaultAsIdentity(),
+  token: varchar("token").notNull(),
+  expiresAt: timestamp("expires_at", {
+    withTimezone: true,
+    mode: "string",
+  }).notNull(),
+
+  ...timestamps,
+});

@@ -1,3 +1,5 @@
+import { db } from "@/db";
+import { appleDevToken } from "@/db/schema";
 import { Platform as PlatformEnum } from "@/db/types";
 import type {
   CreatePlaylistResponse,
@@ -34,6 +36,12 @@ export class AppleMusicPlatform extends Platform {
     error: unknown;
   }> {
     try {
+      const [developerToken] = await db.select().from(appleDevToken).limit(1);
+
+      if (!developerToken) {
+        throw new Error("Developer token not found");
+      }
+
       const body = {
         attributes: {
           description: request.playlistDescription,
@@ -55,7 +63,7 @@ export class AppleMusicPlatform extends Platform {
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer `,
+            Authorization: `Bearer ${developerToken.token}`,
             "Music-User-Token": request.accessToken,
             "Content-Type": "application/json",
           },
@@ -86,7 +94,11 @@ export class AppleMusicPlatform extends Platform {
     accessToken: string,
   ): Promise<{ ok: boolean; data: GetTracksResponse | null; error: unknown }> {
     try {
-      // Get recent Apple Music tracks
+      const [developerToken] = await db.select().from(appleDevToken).limit(1);
+
+      if (!developerToken) {
+        throw new Error("Developer token not found");
+      }
 
       const params = new URLSearchParams({
         types: "songs",
@@ -96,7 +108,7 @@ export class AppleMusicPlatform extends Platform {
         {
           method: "GET",
           headers: {
-            Authorization: `Bearer `,
+            Authorization: `Bearer ${developerToken.token}`,
             "Music-User-Token": `${accessToken}`,
             "Content-Type": "application/json",
           },
@@ -132,6 +144,12 @@ export class AppleMusicPlatform extends Platform {
     error: unknown;
   }> {
     try {
+      const [developerToken] = await db.select().from(appleDevToken).limit(1);
+
+      if (!developerToken) {
+        throw new Error("Developer token not found");
+      }
+
       const params = new URLSearchParams({
         types: "songs",
         term: request.query,
@@ -142,7 +160,7 @@ export class AppleMusicPlatform extends Platform {
         `https://api.music.apple.com/v1/catalog/us/search?${params.toString()}`,
         {
           headers: {
-            Authorization: `Bearer `,
+            Authorization: `Bearer ${developerToken.token}`,
             "Content-Type": "application/json",
           },
         },

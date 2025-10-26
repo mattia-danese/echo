@@ -683,11 +683,24 @@ export async function handleCrossPlatformSongSubmission(payload: {
       .returning({ id: songlinkCache.id });
 
     for (const platformKey of Object.values(Platform)) {
-      const songLinkPlatform = songLinkAdmin.songLinkPlatformMap[platformKey];
-      const trackId = songLinkAdmin.extractTrackId(
-        linksByPlatform[songLinkPlatform].url,
-        platformKey,
-      );
+      let trackId = "";
+
+      // always use the trackId directly from Apple Music when available
+      // (i.e. when song is submitted from Apple Music platform)
+      if (
+        payload.platform === Platform.APPLE_MUSIC &&
+        platformKey === Platform.APPLE_MUSIC
+      ) {
+        console.log("Using trackId directly from Apple Music");
+        trackId = payload.trackId;
+      } else {
+        const songLinkPlatform = songLinkAdmin.songLinkPlatformMap[platformKey];
+
+        trackId = songLinkAdmin.extractTrackId(
+          linksByPlatform[songLinkPlatform].url,
+          platformKey,
+        );
+      }
 
       await db.insert(songLinkCacheMappings).values({
         songlinkCacheId: songlinkCacheRecord.id,

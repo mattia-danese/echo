@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Platform } from "@/db/types";
-import { AppleMusicPlatform } from "@/platforms/apple_music_platform";
 import type { SearchResultTrack } from "@/types";
 
 export interface SessionPageClientProps {
@@ -36,6 +35,10 @@ export interface SessionPageClientProps {
   token: string;
   isOnboarding: boolean;
   userId: number;
+}
+
+function resolveAppleArtwork(urlTemplate: string, size: number) {
+  return urlTemplate.replace("{w}", String(size)).replace("{h}", String(size));
 }
 
 export default function SessionPageClient({
@@ -261,10 +264,7 @@ export default function SessionPageClient({
               <Image
                 src={
                   selectedSong.trackPlatform === Platform.APPLE_MUSIC
-                    ? AppleMusicPlatform.resolveAppleArtwork(
-                        selectedSong.albumImageUrl,
-                        64,
-                      )
+                    ? resolveAppleArtwork(selectedSong.albumImageUrl, 64)
                     : selectedSong.albumImageUrl
                 }
                 alt={selectedSong.trackName}
@@ -339,10 +339,7 @@ export default function SessionPageClient({
                     <Image
                       src={
                         result.trackPlatform === Platform.APPLE_MUSIC
-                          ? AppleMusicPlatform.resolveAppleArtwork(
-                              result.albumImageUrl,
-                              40,
-                            )
+                          ? resolveAppleArtwork(result.albumImageUrl, 40)
                           : result.albumImageUrl
                       }
                       alt={result.trackName}
@@ -399,10 +396,7 @@ export default function SessionPageClient({
               <Image
                 src={
                   song.trackPlatform === Platform.APPLE_MUSIC
-                    ? AppleMusicPlatform.resolveAppleArtwork(
-                        song.albumImageUrl,
-                        200,
-                      )
+                    ? resolveAppleArtwork(song.albumImageUrl, 200)
                     : song.albumImageUrl
                 }
                 alt={`${song.title} album cover`}

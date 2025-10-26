@@ -1,0 +1,298 @@
+{
+  "entityUniqueId": "ITUNES_SONG::1440750745",
+  "userCountry": "US",
+  "pageUrl": "https://song.link/us/i/1440750745",
+  "entitiesByUniqueId": {
+    "AMAZON_SONG::B004CIXMRO": {
+      "id": "B004CIXMRO",
+      "type": "song",
+      "title": "Empire State Of Mind",
+      "artistName": "Jay-Z, Alicia Keys",
+      "thumbnailUrl": "https://m.media-amazon.com/images/I/51pvdIdhsYL.jpg",
+      "thumbnailWidth": 500,
+      "thumbnailHeight": 500,
+      "apiProvider": "amazon",
+      "platforms": [
+        "amazonMusic",
+        "amazonStore"
+      ]
+    },
+    "AUDIOMACK_SONG::31082862": {
+      "id": "31082862",
+      "type": "song",
+      "title": "Empire State Of Mind",
+      "artistName": "JAY-Z, Alicia Keys",
+      "thumbnailUrl": "https://i.audiomack.com/jay-z/4302945-14.webp?width=500&height=500&max=true",
+      "thumbnailWidth": 500,
+      "thumbnailHeight": 500,
+      "apiProvider": "audiomack",
+      "platforms": [
+        "audiomack"
+      ]
+    },
+    "AUDIUS_SONG::E79No": {
+      "id": "E79No",
+      "type": "song",
+      "title": "Jay Z ft Alicia Keys - Empire State of Mind",
+      "artistName": "MUSIK🅱️🅾️❎",
+      "thumbnailUrl": "https://creatornode.audius.co/ipfs/QmdbtnyQh7z4T8gdH5UTND66tR5Eh92gzT4NJcFCzWCuMH/480x480.jpg",
+      "thumbnailWidth": 480,
+      "thumbnailHeight": 480,
+      "apiProvider": "audius",
+      "platforms": [
+        "audius"
+      ]
+    },
+    "ANGHAMI_SONG::79595244": {
+      "id": "79595244",
+      "type": "song",
+      "title": "Empire State Of Mind (feat. Alicia Keys)",
+      "artistName": "JAY-Z",
+      "thumbnailUrl": "https://artwork.anghcdn.co/cover/126379400/320",
+      "thumbnailWidth": 1024,
+      "thumbnailHeight": 1024,
+      "apiProvider": "anghami",
+      "platforms": [
+        "anghami"
+      ]
+    },
+    "BOOMPLAY_SONG::2060140": {
+      "id": "2060140",
+      "type": "song",
+      "title": "Empire State Of Mind ft. Alicia Keys",
+      "artistName": "JAY-Z",
+      "thumbnailUrl": "https://source.boomplaymusic.com/group10/M00/7E/77/80f9e1d4642543319108de329b626321_464_464.jpg",
+      "thumbnailWidth": 464,
+      "thumbnailHeight": 464,
+      "apiProvider": "boomplay",
+      "platforms": [
+        "boomplay"
+      ]
+    },
+    "DEEZER_SONG::90533119": {
+      "id": "90533119",
+      "type": "song",
+      "title": "Empire State Of Mind",
+      "artistName": "Jay-Z, Alicia Keys",
+      "thumbnailUrl": "https://cdns-images.dzcdn.net/images/cover/e0edb930ad843bb002c04956a81ce7de/500x500-000000-80-0-0.jpg",
+      "thumbnailWidth": 500,
+      "thumbnailHeight": 500,
+      "apiProvider": "deezer",
+      "platforms": [
+        "deezer"
+      ]
+    },
+    "ITUNES_SONG::1440932750": {
+      "id": "1440932750",
+      "type": "song",
+      "title": "Empire State Of Mind (feat. Alicia Keys)",
+      "artistName": "JAY-Z",
+      "thumbnailUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/ef/b7/81/efb781fb-e3e7-e571-696e-5b9ac4a78057/00858786005463.rgb.jpg/512x512bb.jpg",
+      "thumbnailWidth": 512,
+      "thumbnailHeight": 512,
+      "apiProvider": "itunes",
+      "platforms": [
+        "appleMusic",
+        "itunes"
+      ]
+    },
+    "NAPSTER_SONG::tra.167867130": {
+      "id": "tra.167867130",
+      "type": "song",
+      "title": "Empire State Of Mind",
+      "artistName": "Jay-Z",
+      "thumbnailUrl": "https://direct.rhapsody.com/imageserver/images/alb.167867123/385x385.jpeg",
+      "thumbnailWidth": 385,
+      "thumbnailHeight": 385,
+      "apiProvider": "napster",
+      "platforms": [
+        "napster"
+      ]
+    },
+    "PANDORA_SONG::TR:1410675": {
+      "id": "TR:1410675",
+      "type": "song",
+      "title": "Empire State Of Mind (feat. Alicia Keys)",
+      "artistName": "JAY Z",
+      "thumbnailUrl": "https://content-images.p-cdn.com/images/a8/c4/00/df/208a46a8a85151b7d42b03fb/_500W_500H.jpg",
+      "thumbnailWidth": 500,
+      "thumbnailHeight": 500,
+      "apiProvider": "pandora",
+      "platforms": [
+        "pandora"
+      ]
+    },
+    "SOUNDCLOUD_SONG::279766910": {
+      "id": "279766910",
+      "type": "song",
+      "title": "Empire State Of Mind (feat. Alicia Keys)",
+      "artistName": "JAY-Z",
+      "thumbnailUrl": "https://i1.sndcdn.com/artworks-T9ixfgxDimdK-0-t500x500.jpg",
+      "thumbnailWidth": 500,
+      "thumbnailHeight": 500,
+      "apiProvider": "soundcloud",
+      "platforms": [
+        "soundcloud"
+      ]
+    },
+    "SPOTIFY_SONG::2igwFfvr1OAGX9SKDCPBwO": {
+      "id": "2igwFfvr1OAGX9SKDCPBwO",
+      "type": "song",
+      "title": "Empire State Of Mind",
+      "artistName": "JAY-Z, Alicia Keys",
+      "thumbnailUrl": "https://i.scdn.co/image/ab67616d0000b273fec1b815bb3c50a64a90fd10",
+      "thumbnailWidth": 640,
+      "thumbnailHeight": 640,
+      "apiProvider": "spotify",
+      "platforms": [
+        "spotify"
+      ]
+    },
+    "TIDAL_SONG::37704290": {
+      "id": "37704290",
+      "type": "song",
+      "title": "Empire State Of Mind",
+      "artistName": "JAY Z, Alicia Keys",
+      "thumbnailUrl": "https://resources.tidal.com/images/3a27a423/42ed/4539/aff8/d8b78d8b0a0c/640x640.jpg",
+      "thumbnailWidth": 640,
+      "thumbnailHeight": 640,
+      "apiProvider": "tidal",
+      "platforms": [
+        "tidal"
+      ]
+    },
+    "YANDEX_SONG::417474": {
+      "id": "417474",
+      "type": "song",
+      "title": "Empire State Of Mind [Jay-Z + Alicia Keys]",
+      "artistName": "Jay-Z, Alicia Keys",
+      "thumbnailUrl": "https://avatars.yandex.net/get-music-content/2808981/bc0843fe.a.2363962-2/600x600",
+      "thumbnailWidth": 600,
+      "thumbnailHeight": 600,
+      "apiProvider": "yandex",
+      "platforms": [
+        "yandex"
+      ]
+    },
+    "YOUTUBE_VIDEO::vk6014HuxcE": {
+      "id": "vk6014HuxcE",
+      "type": "song",
+      "title": "JAY-Z - Empire State Of Mind ft. Alicia Keys",
+      "artistName": "JayZVEVO",
+      "thumbnailUrl": "https://i.ytimg.com/vi/vk6014HuxcE/hqdefault.jpg",
+      "thumbnailWidth": 480,
+      "thumbnailHeight": 360,
+      "apiProvider": "youtube",
+      "platforms": [
+        "youtube",
+        "youtubeMusic"
+      ]
+    },
+    "ITUNES_SONG::1440750745": {
+      "id": "1440750745",
+      "type": "song",
+      "title": "Empire State of Mind (feat. Alicia Keys)",
+      "artistName": "JAY-Z",
+      "thumbnailUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/42/c2/72/42c272bd-70cf-0603-f5ff-d750a73690e6/00602527579436.rgb.jpg/512x512bb.jpg",
+      "thumbnailWidth": 512,
+      "thumbnailHeight": 512,
+      "apiProvider": "itunes",
+      "platforms": [
+        "appleMusic",
+        "itunes"
+      ]
+    }
+  },
+  "linksByPlatform": {
+    "amazonMusic": {
+      "country": "US",
+      "url": "https://music.amazon.com/albums/B004CIXLVG?trackAsin=B004CIXMRO",
+      "entityUniqueId": "AMAZON_SONG::B004CIXMRO"
+    },
+    "amazonStore": {
+      "country": "US",
+      "url": "https://amazon.com/dp/B004CIXMRO",
+      "entityUniqueId": "AMAZON_SONG::B004CIXMRO"
+    },
+    "audiomack": {
+      "country": "US",
+      "url": "https://audiomack.com/song/jay-z/empire-state-of-mind",
+      "entityUniqueId": "AUDIOMACK_SONG::31082862"
+    },
+    "audius": {
+      "country": "US",
+      "url": "https://audius.co/tracks/E79No",
+      "entityUniqueId": "AUDIUS_SONG::E79No"
+    },
+    "anghami": {
+      "country": "US",
+      "url": "https://play.anghami.com/song/79595244?refer=linktree",
+      "entityUniqueId": "ANGHAMI_SONG::79595244"
+    },
+    "boomplay": {
+      "country": "US",
+      "url": "https://www.boomplay.com/songs/2060140",
+      "entityUniqueId": "BOOMPLAY_SONG::2060140"
+    },
+    "deezer": {
+      "country": "US",
+      "url": "https://www.deezer.com/track/90533119",
+      "entityUniqueId": "DEEZER_SONG::90533119"
+    },
+    "napster": {
+      "country": "US",
+      "url": "https://play.napster.com/track/tra.167867130",
+      "entityUniqueId": "NAPSTER_SONG::tra.167867130"
+    },
+    "pandora": {
+      "country": "US",
+      "url": "https://www.pandora.com/TR:1410675",
+      "entityUniqueId": "PANDORA_SONG::TR:1410675"
+    },
+    "soundcloud": {
+      "country": "US",
+      "url": "https://soundcloud.com/jay-z-official/empire-state-of-mind-1?utm_medium=api&utm_campaign=social_sharing&utm_source=id_314547",
+      "entityUniqueId": "SOUNDCLOUD_SONG::279766910"
+    },
+    "spotify": {
+      "country": "US",
+      "url": "https://open.spotify.com/track/2igwFfvr1OAGX9SKDCPBwO",
+      "nativeAppUriDesktop": "spotify:track:2igwFfvr1OAGX9SKDCPBwO",
+      "entityUniqueId": "SPOTIFY_SONG::2igwFfvr1OAGX9SKDCPBwO"
+    },
+    "tidal": {
+      "country": "US",
+      "url": "https://listen.tidal.com/track/37704290",
+      "entityUniqueId": "TIDAL_SONG::37704290"
+    },
+    "yandex": {
+      "country": "RU",
+      "url": "https://music.yandex.ru/track/417474",
+      "entityUniqueId": "YANDEX_SONG::417474"
+    },
+    "youtube": {
+      "country": "US",
+      "url": "https://www.youtube.com/watch?v=vk6014HuxcE",
+      "entityUniqueId": "YOUTUBE_VIDEO::vk6014HuxcE"
+    },
+    "youtubeMusic": {
+      "country": "US",
+      "url": "https://music.youtube.com/watch?v=vk6014HuxcE",
+      "entityUniqueId": "YOUTUBE_VIDEO::vk6014HuxcE"
+    },
+    "appleMusic": {
+      "country": "US",
+      "url": "https://geo.music.apple.com/us/album/_/1440932327?i=1440932750&mt=1&app=music&ls=1&at=1000lHKX&ct=api_http&itscg=30200&itsct=odsl_m",
+      "nativeAppUriMobile": "music://itunes.apple.com/us/album/_/1440932327?i=1440932750&mt=1&app=music&ls=1&at=1000lHKX&ct=api_uri_m&itscg=30200&itsct=odsl_m",
+      "nativeAppUriDesktop": "itmss://itunes.apple.com/us/album/_/1440932327?i=1440932750&mt=1&app=music&ls=1&at=1000lHKX&ct=api_uri_d&itscg=30200&itsct=odsl_m",
+      "entityUniqueId": "ITUNES_SONG::1440932750"
+    },
+    "itunes": {
+      "country": "US",
+      "url": "https://geo.music.apple.com/us/album/_/1440932327?i=1440932750&mt=1&app=itunes&ls=1&at=1000lHKX&ct=api_http&itscg=30200&itsct=odsl_m",
+      "nativeAppUriMobile": "itmss://itunes.apple.com/us/album/_/1440932327?i=1440932750&mt=1&app=itunes&ls=1&at=1000lHKX&ct=api_uri_m&itscg=30200&itsct=odsl_m",
+      "nativeAppUriDesktop": "itmss://itunes.apple.com/us/album/_/1440932327?i=1440932750&mt=1&app=itunes&ls=1&at=1000lHKX&ct=api_uri_d&itscg=30200&itsct=odsl_m",
+      "entityUniqueId": "ITUNES_SONG::1440932750"
+    }
+  }
+}
