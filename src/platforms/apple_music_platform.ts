@@ -154,10 +154,6 @@ export class AppleMusicPlatform extends Platform {
     };
   }
 
-  static getSongLink(trackId: string): string {
-    return `https://api.apple.com/v1/tracks/${trackId}`;
-  }
-
   static extractTrackId(url: string): string {
     const match = url.match(/i=(\w+)/);
     if (match) {

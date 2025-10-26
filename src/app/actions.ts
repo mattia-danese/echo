@@ -685,6 +685,10 @@ export async function handleCrossPlatformSongSubmission(payload: {
         title: payload.trackName,
         artists: payload.artists,
       })
+      .onConflictDoUpdate({
+        target: [songlinkCache.title, songlinkCache.artists],
+        set: { lastCheckedAt: new Date().toISOString() },
+      })
       .returning({ id: songlinkCache.id });
 
     for (const platformKey of Object.values(Platform)) {
