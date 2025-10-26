@@ -11,9 +11,13 @@ import RegistrationForm from "@/components/RegistrationForm";
 
 interface LogInSignUpProps {
   accountStatus?: string;
+  appleDeveloperToken: string;
 }
 
-export default function LogInSignUp({ accountStatus }: LogInSignUpProps) {
+export default function LogInSignUp({
+  accountStatus,
+  appleDeveloperToken,
+}: LogInSignUpProps) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [phoneNumberChecked, setPhoneNumberChecked] = useState(false);
   const [showRegistration, setShowRegistration] = useState(false);
@@ -42,8 +46,12 @@ export default function LogInSignUp({ accountStatus }: LogInSignUpProps) {
           onLoad={() => {
             const configure = async () => {
               try {
+                if (appleDeveloperToken === "") {
+                  return;
+                }
+
                 await MusicKit.configure({
-                  developerToken: "",
+                  developerToken: appleDeveloperToken,
                   app: {
                     name: "echo",
                     build: "1.0.0",
@@ -101,6 +109,7 @@ export default function LogInSignUp({ accountStatus }: LogInSignUpProps) {
           <RegistrationForm
             phoneNumber={phoneNumber}
             phoneNumberChecked={phoneNumberChecked}
+            disableAppleMusic={!appleDeveloperToken}
           />
         )}
 

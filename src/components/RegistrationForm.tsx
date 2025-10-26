@@ -23,6 +23,7 @@ interface RegistrationFormProps {
     firstName: string;
     link: string;
   };
+  disableAppleMusic: boolean;
 }
 
 type FormData = {
@@ -38,6 +39,7 @@ export default function RegistrationForm({
   phoneNumber,
   phoneNumberChecked,
   inviter,
+  disableAppleMusic,
 }: RegistrationFormProps) {
   const [formData, setFormData] = useState<FormData>({
     firstName: "",
@@ -102,8 +104,7 @@ export default function RegistrationForm({
         const instance = MusicKit.getInstance?.();
         await instance?.authorize();
         const musicUserToken = instance?.musicUserToken;
-
-        await fetch("/api/auth/apple/callback", {
+        const resp = await fetch("/api/auth/apple/callback", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -118,6 +119,10 @@ export default function RegistrationForm({
             musicUserToken,
           }),
         });
+        if (resp.ok) {
+          const data: { redirect?: string } = await resp.json();
+          if (data.redirect) window.location.href = data.redirect;
+        }
         break;
       }
       default:
@@ -208,7 +213,7 @@ export default function RegistrationForm({
                 <TabsTrigger
                   value={Platform.APPLE_MUSIC}
                   className="flex-1 data-[state=active]:bg-white data-[state=active]:text-black text-white"
-                  // disabled
+                  disabled={disableAppleMusic}
                 >
                   <span className="flex items-center gap-1">
                     <svg

@@ -113,5 +113,5 @@ export async function POST(req: Request) {
     : new URL("/", req.url);
   redirectUrl.searchParams.set("accountStatus", accountStatus);
 
-  return NextResponse.redirect(redirectUrl);
+  return NextResponse.json({ redirect: redirectUrl.toString() });
 }
