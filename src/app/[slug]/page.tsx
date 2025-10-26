@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { appleDevToken, users } from "@/db/schema";
 import FriendRequest from "./_components/FriendRequest";
 
 interface PageProps {
@@ -44,7 +44,17 @@ export default async function FriendRequestPage({
       link: token,
     };
 
-    return <FriendRequest inviter={inviter} accountStatus={accountStatus} />;
+    // Fetch Apple developer token to pass to client when needed (MusicKit config)
+    const [dev] = await db.select().from(appleDevToken).limit(1);
+    const appleDeveloperToken = dev?.token ?? "";
+
+    return (
+      <FriendRequest
+        inviter={inviter}
+        accountStatus={accountStatus}
+        appleDeveloperToken={appleDeveloperToken}
+      />
+    );
   } catch (error: unknown) {
     console.error("Error in FriendRequestPage:", error);
     redirect("/");

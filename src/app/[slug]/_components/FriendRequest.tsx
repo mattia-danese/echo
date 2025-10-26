@@ -1,5 +1,6 @@
 "use client";
 
+import Script from "next/script";
 import { useEffect, useState } from "react";
 import { createFriendships } from "@/app/actions";
 import Hero from "@/components/Hero";
@@ -15,11 +16,13 @@ interface FriendRequestProps {
     link: string;
   };
   accountStatus?: string;
+  appleDeveloperToken: string;
 }
 
 export default function FriendRequest({
   inviter,
   accountStatus,
+  appleDeveloperToken,
 }: FriendRequestProps) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [phoneNumberChecked, setPhoneNumberChecked] = useState(false);
@@ -60,6 +63,41 @@ export default function FriendRequest({
   return (
     <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
       <main className="flex flex-col items-center gap-8 max-w-md w-full">
+        <Script
+          src="https://js-cdn.music.apple.com/musickit/v3/musickit.js"
+          strategy="afterInteractive"
+          onLoad={() => {
+            const configure = async () => {
+              try {
+                const token = appleDeveloperToken;
+                if (!token) return;
+
+                await MusicKit.configure({
+                  developerToken: token,
+                  app: {
+                    name: "echo",
+                    build: "1.0.0",
+                  },
+                });
+              } catch {
+                // ignore config errors for now
+                console.log("here");
+              }
+            };
+
+            if (typeof window !== "undefined" && "MusicKit" in window) {
+              void configure();
+            } else if (typeof document !== "undefined") {
+              document.addEventListener(
+                "musickitloaded",
+                () => {
+                  void configure();
+                },
+                { once: true },
+              );
+            }
+          }}
+        />
         <Hero />
 
         {/* Invitation message */}
@@ -100,6 +138,7 @@ export default function FriendRequest({
             phoneNumber={phoneNumber}
             phoneNumberChecked={phoneNumberChecked}
             inviter={inviter}
+            disableAppleMusic={!appleDeveloperToken}
           />
         )}
 

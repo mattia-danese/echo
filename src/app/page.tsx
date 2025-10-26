@@ -1,11 +1,11 @@
 "use server";
 
 import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
-
 import LogInSignUp from "@/components/LogInSignUp";
 import Profile from "@/components/Profile";
 import { db } from "@/db";
 import {
+  appleDevToken,
   friends,
   playlistSongs,
   playlists,
@@ -27,9 +27,18 @@ export default async function RootPage({ searchParams }: PageProps) {
   const resolvedSearchParams = await searchParams;
   const accountStatus = resolvedSearchParams.accountStatus;
 
+  // Fetch Apple developer token to pass to client when needed (MusicKit config)
+  const [dev] = await db.select().from(appleDevToken).limit(1);
+  const appleDeveloperToken = dev?.token ?? "";
+
   const user = await getCurrentUser();
   if (!user) {
-    return <LogInSignUp accountStatus={accountStatus} />;
+    return (
+      <LogInSignUp
+        accountStatus={accountStatus}
+        appleDeveloperToken={appleDeveloperToken}
+      />
+    );
   }
 
   /*
