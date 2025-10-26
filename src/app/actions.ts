@@ -24,6 +24,8 @@ import {
   sendMessagesTask,
 } from "@/trigger";
 
+type UserAuthInsert = typeof userAuth.$inferInsert;
+
 export async function checkRegistrationData(payload: {
   firstName: string;
   lastName: string;
@@ -55,7 +57,7 @@ export async function createUser(payload: {
   phoneNumber: string;
   gender: Gender;
   dateOfBirth: string;
-  spotifyCode: string;
+  auth: string;
   platform: Platform;
   referralFriendLinkToken: string | null;
 }) {
@@ -83,38 +85,62 @@ export async function createUser(payload: {
       };
     }
 
-    // User doesn't exist, make API call to get tokens from platform
-    const {
-      ok: platformAuthOk,
-      data: platformAuthData,
-      error: platformAuthError,
-    } = await getPlatformAuth({
+    const userAuthData: UserAuthInsert = {
+      userId: 0,
       platform: payload.platform,
-      code: payload.spotifyCode,
-    });
+      platformUserId: null,
+      accessToken: "",
+      refreshToken: null,
+      tokenExpiresAt: null,
+      extra: {},
+    };
 
-    if (!platformAuthOk) {
+    if (payload.platform === Platform.SPOTIFY) {
+      // User doesn't exist, make API call to get tokens from platform
+      const {
+        ok: platformAuthOk,
+        data: platformAuthData,
+        error: platformAuthError,
+      } = await getPlatformAuth({
+        platform: payload.platform,
+        code: payload.auth,
+      });
+
+      if (!platformAuthOk) {
+        return {
+          ok: false,
+          userId: null,
+          onboardingToken: null,
+          created: false,
+          message: platformAuthError,
+        };
+      }
+
+      if (!platformAuthData) {
+        return {
+          ok: false,
+          userId: null,
+          onboardingToken: null,
+          created: false,
+          message: "No data returned from platform auth",
+        };
+      }
+
+      userAuthData.accessToken = platformAuthData.accessToken;
+      userAuthData.refreshToken = platformAuthData.refreshToken;
+      userAuthData.tokenExpiresAt = platformAuthData.expiresAt;
+      userAuthData.platformUserId = platformAuthData.platformUserId;
+    } else if (payload.platform === Platform.APPLE_MUSIC) {
+      userAuthData.accessToken = payload.auth;
+    } else {
       return {
         ok: false,
         userId: null,
         onboardingToken: null,
         created: false,
-        message: platformAuthError,
+        message: "Invalid platform",
       };
     }
-
-    if (!platformAuthData) {
-      return {
-        ok: false,
-        userId: null,
-        onboardingToken: null,
-        created: false,
-        message: "No data returned from platform auth",
-      };
-    }
-
-    const { accessToken, refreshToken, expiresAt, platformUserId } =
-      platformAuthData;
 
     // Generate friend link
     const friendLinkToken = crypto.randomBytes(16).toString("base64url");
@@ -168,16 +194,10 @@ export async function createUser(payload: {
         ),
       );
 
+    userAuthData.userId = newUser.id;
+
     // Create new user auth record
-    await db.insert(userAuth).values({
-      userId: newUser.id,
-      platform: payload.platform,
-      platformUserId: platformUserId,
-      accessToken: accessToken,
-      refreshToken: refreshToken,
-      tokenExpiresAt: expiresAt,
-      extra: {},
-    });
+    await db.insert(userAuth).values(userAuthData);
 
     if (payload.referralFriendLinkToken) {
       const { ok, message } = await createFriendships({
@@ -198,10 +218,10 @@ export async function createUser(payload: {
       user: {
         userId: newUser.id,
         platform: payload.platform,
-        platformUserId: platformUserId,
-        accessToken: accessToken,
-        refreshToken: refreshToken,
-        tokenExpiresAt: expiresAt,
+        platformUserId: userAuthData.platformUserId ?? "",
+        accessToken: userAuthData.accessToken,
+        refreshToken: userAuthData.refreshToken ?? "",
+        tokenExpiresAt: userAuthData.tokenExpiresAt ?? "",
       },
     });
 
@@ -218,7 +238,7 @@ export async function createUser(payload: {
       userId: null,
       onboardingToken: null,
       created: false,
-      message: "An error occurred while creating the user.",
+      message: `An error occurred while creating the user: ${error}`,
     };
   }
 }
@@ -739,10 +759,10 @@ export async function completeOnboarding(payload: { onboardingToken: string }) {
       user: {
         userId: user.id,
         platform: user.platform,
-        platformUserId: auth.platformUserId,
+        platformUserId: auth.platformUserId ?? "",
         accessToken: auth.accessToken,
-        refreshToken: auth.refreshToken,
-        tokenExpiresAt: auth.tokenExpiresAt,
+        refreshToken: auth.refreshToken ?? "",
+        tokenExpiresAt: auth.tokenExpiresAt ?? "",
         friendLinkToken: user.friendLinkToken,
         firstName: user.firstName,
         phoneNumber: user.phoneNumber,

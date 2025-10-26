@@ -29,7 +29,6 @@ type FormData = {
   firstName: string;
   lastName: string;
   phoneNumber: string;
-  spotifyCode: string;
   platform: string;
   gender: string;
   dateOfBirth: Date | null;
@@ -44,7 +43,6 @@ export default function RegistrationForm({
     firstName: "",
     lastName: "",
     phoneNumber: phoneNumber,
-    spotifyCode: "",
     platform: "",
     gender: "",
     dateOfBirth: null,
@@ -99,13 +97,36 @@ export default function RegistrationForm({
       case Platform.SPOTIFY:
         authUrl = `https://accounts.spotify.com/authorize?client_id=${process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI}&scope=user-top-read%20user-read-recently-played%20user-read-private%20playlist-modify-public%20playlist-modify-private&show_dialog=true&state=${encodeURIComponent(params.toString())}`;
         break;
-      case Platform.APPLE_MUSIC:
+      case Platform.APPLE_MUSIC: {
+        console.log("apple music");
+        const instance = MusicKit.getInstance?.();
+        await instance?.authorize();
+        const musicUserToken = instance?.musicUserToken;
+
+        await fetch("/api/auth/apple/callback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            phoneNumber: formData.phoneNumber,
+            friendLinkToken: inviter?.link || "",
+            platform: formData.platform,
+            gender: formData.gender,
+            dateOfBirth:
+              formData.dateOfBirth?.toISOString().split("T")[0] ?? "",
+            musicUserToken,
+          }),
+        });
         break;
+      }
       default:
         break;
     }
 
-    window.location.href = authUrl;
+    if (authUrl) {
+      window.location.href = authUrl;
+    }
   };
 
   return (
@@ -179,15 +200,15 @@ export default function RegistrationForm({
             >
               <TabsList className="w-full bg-transparent border border-white">
                 <TabsTrigger
-                  value="spotify"
+                  value={Platform.SPOTIFY}
                   className="flex-1 data-[state=active]:bg-white data-[state=active]:text-black text-white"
                 >
                   Spotify
                 </TabsTrigger>
                 <TabsTrigger
-                  value="apple-music"
+                  value={Platform.APPLE_MUSIC}
                   className="flex-1 data-[state=active]:bg-white data-[state=active]:text-black text-white"
-                  disabled
+                  // disabled
                 >
                   <span className="flex items-center gap-1">
                     <svg
@@ -200,7 +221,7 @@ export default function RegistrationForm({
                     >
                       <path d="M15.67 10.13c-.01-2.06 1.68-3.04 1.76-3.09-0.96-1.41-2.45-1.6-2.97-1.62-1.26-.13-2.46.74-3.1.74-.64 0-1.63-.72-2.68-.7-1.38.02-2.66.8-3.37 2.03-1.44 2.5-.37 6.2 1.03 8.23.68.98 1.49 2.08 2.56 2.04 1.03-.04 1.42-.66 2.67-.66 1.25 0 1.6.66 2.68.64 1.11-.02 1.81-.99 2.48-1.97.78-1.13 1.1-2.23 1.12-2.29-.02-.01-2.14-.82-2.16-3.25zm-2.54-5.93c.58-.7.97-1.68.86-2.66-.83.03-1.84.55-2.44 1.25-.54.62-1.01 1.62-.83 2.57.88.07 1.79-.45 2.41-1.16z" />
                     </svg>
-                    Music (soon)
+                    Music
                   </span>
                 </TabsTrigger>
               </TabsList>

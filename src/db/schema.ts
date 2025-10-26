@@ -75,13 +75,13 @@ export const userAuth = pgTable(
     userId: integer("user_id").notNull(),
 
     platform: platform("platform").notNull(),
-    platformUserId: varchar("platform_user_id").notNull(),
+    platformUserId: varchar("platform_user_id"),
     accessToken: varchar("access_token").notNull(),
-    refreshToken: varchar("refresh_token").notNull(),
+    refreshToken: varchar("refresh_token"),
     tokenExpiresAt: timestamp("token_expires_at", {
       withTimezone: true,
       mode: "string",
-    }).notNull(),
+    }),
     extra: jsonb("extra").default({}).notNull(),
 
     ...timestamps,

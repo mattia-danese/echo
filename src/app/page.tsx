@@ -1,6 +1,7 @@
 "use server";
 
 import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import * as jose from "jose";
 import LogInSignUp from "@/components/LogInSignUp";
 import Profile from "@/components/Profile";
 import { db } from "@/db";
@@ -13,6 +14,7 @@ import {
 } from "@/db/schema";
 import { Platform } from "@/db/types";
 import { getCurrentUser } from "@/lib/cookieSession";
+import { env } from "@/lib/env";
 import { AppleMusicPlatform } from "@/platforms/apple_music_platform";
 import { SpotifyPlatform } from "@/platforms/spotify_platform";
 
@@ -21,6 +23,21 @@ interface PageProps {
     accountStatus?: string;
   }>;
 }
+
+// const applePrivateKey = await jose.importPKCS8(
+//   env.APPLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+//   "ES256",
+// );
+
+// const developerToken = await new jose.SignJWT({
+//   iss: env.APPLE_TEAM_ID,
+//   iat: Math.floor(Date.now() / 1000),
+//   exp: Math.floor(Date.now() / 1000) + 60 * 60 * 12, // 12h typical
+// })
+//   .setProtectedHeader({ alg: "ES256", kid: env.APPLE_KEY_ID })
+//   .sign(applePrivateKey);
+
+// console.log(developerToken);
 
 export default async function RootPage({ searchParams }: PageProps) {
   const resolvedSearchParams = await searchParams;

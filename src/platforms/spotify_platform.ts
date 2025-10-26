@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { userAuth } from "@/db/schema";
+import { Platform as PlatformEnum } from "@/db/types";
 import { spotifyAdmin } from "@/lib/spotifyAdmin";
 import { Platform } from "@/platforms/platform";
 import type {
@@ -244,7 +245,7 @@ export class SpotifyPlatform extends Platform {
       const tracks: RecentTrackPlay[] = (data.items || []).map(
         (play: SpotifyRecentTrackPlay) => ({
           userId: request.userId,
-          platform: "spotify",
+          platform: PlatformEnum.SPOTIFY,
           trackId: play.track.id,
           trackName: play.track.name,
           artists: play.track.artists.map((artist) => artist.name).join(", "),
