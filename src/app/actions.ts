@@ -17,7 +17,7 @@ import { type Gender, Platform } from "@/db/types";
 import { createSession, deleteAllSessionsForUser } from "@/lib/cookieSession";
 import { songLinkAdmin } from "@/lib/songLinkAdmin";
 import { isNameValid, isPhoneNumberValid, isValidDate } from "@/lib/validation";
-import { SpotifyPlatform } from "@/platforms";
+import { AppleMusicPlatform, SpotifyPlatform } from "@/platforms";
 import {
   getRecentPlaysTask,
   onboardingCompletionTask,
@@ -468,7 +468,7 @@ export async function sendWelcomeMessage(payload: { phoneNumber: string }) {
   };
 }
 
-export async function searchPlatformTracks(platform: string, query: string) {
+export async function searchPlatformTracks(platform: Platform, query: string) {
   "use server";
 
   try {
@@ -492,13 +492,15 @@ export async function searchPlatformTracks(platform: string, query: string) {
 
       return { ok: true, tracks: data?.tracks || [], message: error };
     } else if (platform === Platform.APPLE_MUSIC) {
-      const { ok, error } = await handleAppleMusicSearch(query);
+      const { ok, data, error } = await AppleMusicPlatform.searchTracks({
+        query,
+      });
 
       if (!ok) {
         return { ok: false, tracks: [], message: error };
       }
 
-      return { ok: true, tracks: [], message: error };
+      return { ok: true, tracks: data?.tracks || [], message: error };
     }
 
     return {
@@ -516,14 +518,6 @@ export async function searchPlatformTracks(platform: string, query: string) {
   }
 }
 
-async function handleAppleMusicSearch(_query: string) {
-  return {
-    ok: false,
-    data: null,
-    error: "Apple Music search not implemented yet",
-  };
-}
-
 export async function getUserTopSongs(payload: {
   userId: number;
   numSongs: number;
@@ -537,6 +531,7 @@ export async function getUserTopSongs(payload: {
         trackName: userTrackPlays.trackName,
         artists: userTrackPlays.artists,
         albumImageUrl: userTrackPlays.albumImageUrl,
+        platform: userTrackPlays.platform,
         playCount: count(),
       })
       .from(userTrackPlays)
@@ -554,6 +549,7 @@ export async function getUserTopSongs(payload: {
         userTrackPlays.trackName,
         userTrackPlays.artists,
         userTrackPlays.albumImageUrl,
+        userTrackPlays.platform,
       )
       .orderBy(desc(count()))
       .limit(payload.numSongs);

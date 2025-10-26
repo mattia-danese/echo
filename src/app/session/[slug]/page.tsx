@@ -66,6 +66,7 @@ export default async function SessionPage({ params }: PageProps) {
       trackId: song.trackId,
       artists: song.artists,
       albumImageUrl: song.albumImageUrl,
+      trackPlatform: song.platform,
     }));
 
     return <SessionPageClient {...props} />;

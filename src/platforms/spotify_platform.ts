@@ -322,6 +322,7 @@ export class SpotifyPlatform extends Platform {
           trackName: track.name,
           artists: track.artists.map((artist) => artist.name).join(", "),
           albumImageUrl: track.album?.images?.[0]?.url || "",
+          trackPlatform: PlatformEnum.SPOTIFY,
         })) || [];
 
       return { ok: true, data: { tracks }, error: null };

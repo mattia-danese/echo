@@ -84,10 +84,10 @@ export async function POST(req: Request) {
         // if user was created in the same request, send onboarding message
         // filters out returning users
         if (user.updatedAt === user.createdAt) {
-          // await sendOnboardingMessage({
-          //   phoneNumber: phoneNumber,
-          //   onboardingToken: user.onboardingToken,
-          // });
+          await sendOnboardingMessage({
+            phoneNumber: phoneNumber,
+            onboardingToken: user.onboardingToken,
+          });
         } else {
           await sendWelcomeMessage({
             phoneNumber: phoneNumber,

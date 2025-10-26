@@ -2,7 +2,13 @@
 
 import Image from "next/image";
 import { useEffect, useId, useState } from "react";
+import {
+  completeOnboarding,
+  searchPlatformTracks,
+  submitSong,
+} from "@/app/actions";
 import { useDebounce } from "@/components/Debounce";
+import Hero from "@/components/Hero";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,14 +17,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Platform } from "@/db/types";
+import { Platform } from "@/db/types";
+import { AppleMusicPlatform } from "@/platforms/apple_music_platform";
 import type { SearchResultTrack } from "@/types";
-import Hero from "../../../../components/Hero";
-import {
-  completeOnboarding,
-  searchPlatformTracks,
-  submitSong,
-} from "../../../actions";
 
 export interface SessionPageClientProps {
   error: boolean;
@@ -27,6 +28,7 @@ export interface SessionPageClientProps {
     trackId: string;
     albumImageUrl: string;
     artists: string;
+    trackPlatform: Platform;
   }[];
   platform: Platform;
   sessionEndsAt: string;
@@ -46,11 +48,11 @@ export default function SessionPageClient({
   isOnboarding,
   userId,
 }: SessionPageClientProps) {
-  const [spotifySearch, setSpotifySearch] = useState("");
+  const [search, setSearch] = useState("");
   const [selectedSong, setSelectedSong] = useState<SearchResultTrack | null>(
     null,
   );
-  const spotifySearchId = useId();
+  const searchId = useId();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResultTrack[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -59,7 +61,7 @@ export default function SessionPageClient({
   const [submitError, setSubmitError] = useState(false);
 
   // Debounce the search input
-  const debouncedSearch = useDebounce(spotifySearch, 500);
+  const debouncedSearch = useDebounce(search, 500);
 
   const sessionActive = new Date() < new Date(sessionEndsAt);
 
@@ -88,7 +90,7 @@ export default function SessionPageClient({
     const result = await submitSong({
       userId: userId,
       token: token,
-      platform: platform,
+      platform: selectedSong.trackPlatform,
       trackId: selectedSong.trackId,
       trackName: selectedSong.trackName,
       artists: selectedSong.artists,
@@ -108,8 +110,15 @@ export default function SessionPageClient({
     trackName: string,
     artists: string,
     albumImageUrl: string,
+    trackPlatform: Platform,
   ) => {
-    setSelectedSong({ trackId, trackName, artists, albumImageUrl });
+    setSelectedSong({
+      trackId,
+      trackName,
+      artists,
+      albumImageUrl,
+      trackPlatform,
+    });
     setIsPopoverOpen(false); // Close popover when song is selected
   };
 
@@ -250,7 +259,14 @@ export default function SessionPageClient({
           {selectedSong ? (
             <>
               <Image
-                src={selectedSong.albumImageUrl}
+                src={
+                  selectedSong.trackPlatform === Platform.APPLE_MUSIC
+                    ? AppleMusicPlatform.resolveAppleArtwork(
+                        selectedSong.albumImageUrl,
+                        64,
+                      )
+                    : selectedSong.albumImageUrl
+                }
                 alt={selectedSong.trackName}
                 width={64}
                 height={64}
@@ -276,7 +292,7 @@ export default function SessionPageClient({
           )}
         </div>
 
-        {/* Spotify search input */}
+        {/* Search input */}
         <div className="w-full relative">
           <Popover
             open={isPopoverOpen && searchResults.length > 0}
@@ -284,11 +300,11 @@ export default function SessionPageClient({
           >
             <PopoverTrigger asChild>
               <Input
-                id={spotifySearchId}
+                id={searchId}
                 type="text"
                 placeholder={isSearching ? "searching..." : "search a song ..."}
-                value={spotifySearch}
-                onChange={(e) => setSpotifySearch(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="border-0 border-b border-white bg-transparent text-white placeholder-gray-500 focus:border-white focus:ring-0 rounded-none w-full"
               />
             </PopoverTrigger>
@@ -305,6 +321,7 @@ export default function SessionPageClient({
                         result.trackName,
                         result.artists,
                         result.albumImageUrl,
+                        platform,
                       )
                     }
                     // onKeyDown={(e) => {
@@ -320,7 +337,14 @@ export default function SessionPageClient({
                     // }}
                   >
                     <Image
-                      src={result.albumImageUrl}
+                      src={
+                        result.trackPlatform === Platform.APPLE_MUSIC
+                          ? AppleMusicPlatform.resolveAppleArtwork(
+                              result.albumImageUrl,
+                              40,
+                            )
+                          : result.albumImageUrl
+                      }
                       alt={result.trackName}
                       width={40}
                       height={40}
@@ -363,6 +387,7 @@ export default function SessionPageClient({
                   song.title,
                   song.artists,
                   song.albumImageUrl,
+                  song.trackPlatform,
                 )
               }
               className={`flex flex-col items-center gap-1.5 p-1.5 rounded-lg transition-all ${
@@ -372,7 +397,14 @@ export default function SessionPageClient({
               }`}
             >
               <Image
-                src={song.albumImageUrl}
+                src={
+                  song.trackPlatform === Platform.APPLE_MUSIC
+                    ? AppleMusicPlatform.resolveAppleArtwork(
+                        song.albumImageUrl,
+                        200,
+                      )
+                    : song.albumImageUrl
+                }
                 alt={`${song.title} album cover`}
                 width={200}
                 height={200}

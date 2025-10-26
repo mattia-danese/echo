@@ -79,6 +79,7 @@ export interface SearchResultTrack {
   trackName: string;
   artists: string;
   albumImageUrl: string;
+  trackPlatform: Platform;
 }
 
 // Get User ID

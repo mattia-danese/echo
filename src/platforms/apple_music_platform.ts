@@ -100,11 +100,48 @@ export class AppleMusicPlatform extends Platform {
     data: SearchTracksResponse | null;
     error: unknown;
   }> {
-    return {
-      ok: false,
-      data: null,
-      error: "apple music auth not implemented yet",
-    };
+    try {
+      const params = new URLSearchParams({
+        types: "songs",
+        term: request.query,
+        limit: "10",
+      });
+
+      const searchResponse = await fetch(
+        `https://api.music.apple.com/v1/catalog/us/search?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer `,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      if (!searchResponse.ok) {
+        const errorText = await searchResponse.text();
+        return {
+          ok: false,
+          data: null,
+          error: `Failed to search Apple Music: ${errorText}`,
+        };
+      }
+
+      const searchData = await searchResponse.json();
+
+      // Format tracks to match SearchResultTrack interface
+      const tracks: SearchResultTrack[] =
+        searchData.results?.songs?.data?.map((track: any) => ({
+          trackId: track.id,
+          trackName: track.attributes.name,
+          artists: track.attributes.artistName,
+          albumImageUrl: track.attributes.artwork.url,
+          trackPlatform: PlatformEnum.APPLE_MUSIC,
+        })) || [];
+
+      return { ok: true, data: { tracks }, error: null };
+    } catch (err) {
+      return { ok: false, data: null, error: err };
+    }
   }
 
   static async getUserId(
@@ -131,5 +168,11 @@ export class AppleMusicPlatform extends Platform {
 
   static createPlaylistLink(platformPlaylistId: string) {
     return `https://music.apple.com/playlist/${platformPlaylistId}`;
+  }
+
+  static resolveAppleArtwork(urlTemplate: string, size: number) {
+    return urlTemplate
+      .replace("{w}", String(size))
+      .replace("{h}", String(size));
   }
 }
