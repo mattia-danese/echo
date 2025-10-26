@@ -87,7 +87,7 @@ export default function ProfilePage({
           {images.map((img) => (
             <Image
               key={img}
-              src={img}
+              src={img.replace("{w}", String(20)).replace("{h}", String(20))}
               alt="playlist cover tile"
               width={20}
               height={20}
@@ -100,7 +100,7 @@ export default function ProfilePage({
 
     return (
       <Image
-        src={images[0]}
+        src={images[0].replace("{w}", String(40)).replace("{h}", String(40))}
         alt="playlist cover"
         width={40}
         height={40}
@@ -331,7 +331,9 @@ export default function ProfilePage({
                     >
                       {/* <Skeleton className="size-10 rounded-md bg-gray-800" /> */}
                       <Image
-                        src={row.trackAlbumImageUrl as string}
+                        src={row.trackAlbumImageUrl
+                          .replace("{w}", String(40))
+                          .replace("{h}", String(40))}
                         alt={row.trackName as string}
                         width={40}
                         height={40}

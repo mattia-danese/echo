@@ -122,22 +122,22 @@ export class SpotifyPlatform extends Platform {
 
       const responseData = await response.json();
       const spotifyTokenExpiresAt = new Date(
-        Date.now() + responseData.expiresIn * 1000,
+        Date.now() + responseData.expires_in * 1000,
       ).toISOString();
 
       await db
         .update(userAuth)
         .set({
-          accessToken: responseData.accessToken,
-          refreshToken: responseData.refreshToken ?? request.refreshToken,
+          accessToken: responseData.access_token,
+          refreshToken: responseData.refresh_token ?? request.refreshToken,
           tokenExpiresAt: spotifyTokenExpiresAt,
           updatedAt: new Date().toISOString(),
         })
         .where(eq(userAuth.userId, request.userId));
 
       const data = {
-        accessToken: responseData.accessToken,
-        refreshToken: responseData.refreshToken ?? request.refreshToken,
+        accessToken: responseData.access_token,
+        refreshToken: responseData.refresh_token ?? request.refreshToken,
         expiresIn: spotifyTokenExpiresAt,
       } as RefreshTokensResponse;
 

@@ -141,7 +141,6 @@ export const userTrackPlays = pgTable(
     artists: varchar("artists").notNull(),
     albumImageUrl: varchar("album_image_url").notNull(),
 
-    // FIXME: might need to change for apple music if we dont get the played at time
     playedAt: timestamp("played_at", {
       withTimezone: true,
       mode: "string",

@@ -7,13 +7,15 @@ import {
   friends,
   playlistSongs,
   playlists,
+  songLinkCacheMappings,
   userAuth,
   userEchoSessions,
   users,
 } from "@/db/schema";
-import type { Platform } from "@/db/types";
-import { SpotifyPlatform } from "@/platforms";
+import { Platform } from "@/db/types";
+import { AppleMusicPlatform, SpotifyPlatform } from "@/platforms";
 import { sendMessagesTask } from "./send-messages";
+import { songLinkAdmin } from "@/lib/songLinkAdmin";
 
 type PlaylistRecords = {
   userId: number;
@@ -117,7 +119,6 @@ export const generatePlaylistsTask = schedules.task({
       } = await getUserFriends(user.userId);
 
       if (!ok) {
-        // logger.error("error getting user's friends", { user, error });
         usersThatEncounteredErrors[user.userId] ??= [];
         usersThatEncounteredErrors[user.userId].push(error);
         continue;
@@ -125,7 +126,11 @@ export const generatePlaylistsTask = schedules.task({
 
       logger.log("user's friends fetched", { userFriendData });
 
-      playlists[user.userId] = await compilePlaylistSongs(
+      const {
+        ok: compilePlaylistSongsOk,
+        data: compiledPlaylistSongs,
+        errors: compilePlaylistSongsErrors,
+      } = await compilePlaylistSongs(
         user.platform,
         userFriendData,
         userSongLookup,
@@ -133,11 +138,20 @@ export const generatePlaylistsTask = schedules.task({
         NUM_SONGS_PER_PLAYLIST,
       );
 
-      if (playlists[user.userId].length === 0) {
-        // logger.error("no songs to add to playlist for user", { user });
+      if (!compilePlaylistSongsOk || compilePlaylistSongsErrors.length > 0) {
         usersThatEncounteredErrors[user.userId] ??= [];
         usersThatEncounteredErrors[user.userId].push(
-          "compileSongs() found 0 songs to add to playlist",
+          ...compilePlaylistSongsErrors,
+        );
+        continue;
+      }
+
+      playlists[user.userId] = compiledPlaylistSongs;
+
+      if (playlists[user.userId].length === 0) {
+        usersThatEncounteredErrors[user.userId] ??= [];
+        usersThatEncounteredErrors[user.userId].push(
+          "compilePlaylistSongs() found 0 songs to add to playlist",
         );
         continue;
       }
@@ -158,20 +172,16 @@ export const generatePlaylistsTask = schedules.task({
         playlistName,
         playlistDescription,
         playlistDate,
+        playlists[user.userId].map((song) => song[1][0]),
       );
 
       if (!createPlaylistOk) {
-        // logger.error("error creating playlist", { user, createPlaylistError });
         usersThatEncounteredErrors[user.userId] ??= [];
         usersThatEncounteredErrors[user.userId].push(createPlaylistError);
         continue;
       }
 
       if (!playlistData) {
-        // logger.error("no data returned from createPlaylist", {
-        //   user,
-        //   playlistData,
-        // });
         usersThatEncounteredErrors[user.userId] ??= [];
         usersThatEncounteredErrors[user.userId].push(
           "no data returned from createPlaylist()",
@@ -179,21 +189,20 @@ export const generatePlaylistsTask = schedules.task({
         continue;
       }
 
-      const { ok: populatePlaylistOk, error: populatePlaylistError } =
-        await populatePlatformPlaylist(
-          user,
-          playlists[user.userId].map((song) => song[1][0]),
-          playlistData.playlistId,
-        );
+      // only doing this for Spotify because Apple Music populates playlist upon creation
+      if (user.platform === Platform.SPOTIFY) {
+        const { ok: populatePlaylistOk, error: populatePlaylistError } =
+          await populatePlatformPlaylist(
+            user,
+            playlists[user.userId].map((song) => song[1][0]),
+            playlistData.playlistId,
+          );
 
-      if (!populatePlaylistOk) {
-        // logger.error("error populating playlist", {
-        //   user,
-        //   populatePlaylistError,
-        // });
-        usersThatEncounteredErrors[user.userId] ??= [];
-        usersThatEncounteredErrors[user.userId].push(populatePlaylistError);
-        continue;
+        if (!populatePlaylistOk) {
+          usersThatEncounteredErrors[user.userId] ??= [];
+          usersThatEncounteredErrors[user.userId].push(populatePlaylistError);
+          continue;
+        }
       }
 
       /* 
@@ -202,6 +211,8 @@ export const generatePlaylistsTask = schedules.task({
       
       we need to track this ourselves because, once we generate a playlist, we
       do not get back the playlist image url since it's initially empty
+
+      NOTE: Apple Music DOES provide playlist image url, but it is boring 
       */
       const playlistImageUrl =
         playlists[user.userId].length >= 4
@@ -285,7 +296,6 @@ const getEchoSessionAndUsers = async () => {
     );
 
     // get all users that submitted a song in the last session (userId, phoneNumber, trackId)
-    // FIXME: fix shape of selected data
     const userSongData = (await db
       .select({
         userId: userEchoSessions.userId,
@@ -301,16 +311,6 @@ const getEchoSessionAndUsers = async () => {
         platformOfEchoSession: userEchoSessions.platform,
         trackId: userEchoSessions.trackId,
         trackAlbumImageUrl: userEchoSessions.trackAlbumImageUrl,
-
-        // users: {
-        //   platform: users.platform,
-        //   firstName: users.firstName,
-        //   phoneNumber: users.phoneNumber,
-        //   platformUserId: userAuth.platformUserId,
-        //   accessToken: userAuth.accessToken,
-        //   refreshToken: userAuth.refreshToken,
-        //   tokenExpiresAt: userAuth.tokenExpiresAt,
-        // },
       })
       .from(userEchoSessions)
       .innerJoin(users, eq(userEchoSessions.userId, users.id))
@@ -365,35 +365,59 @@ const compilePlaylistSongs = async (
   userToPlatformOfEchoSessionLookup: Record<number, Platform>,
   numSongsPerPlaylist: number,
 ) => {
-  const playlist: Array<[number, [string, string]]> = []; // [friendId, [trackId, trackAlbumImageUrl]]
+  try {
+    const playlist: Array<[number, [string, string]]> = []; // [friendId, [trackId, trackAlbumImageUrl]]
 
-  for (const friendId of userFriendData) {
-    const [friendSongTrackId, friendSongAlbumImageUrl] =
-      userSongLookup[friendId];
-    const friendSongPlatformOfEchoSession =
-      userToPlatformOfEchoSessionLookup[friendId];
+    const errors: (string | unknown)[] = [];
 
-    if (!friendSongTrackId || !friendSongAlbumImageUrl) continue;
+    for (const friendId of userFriendData) {
+      if (playlist.length === numSongsPerPlaylist) break;
 
-    // FIXME: use set instead of array
-    if (playlist.map((p) => p[1][0]).includes(friendSongTrackId)) continue;
+      const [friendSongTrackId, friendSongAlbumImageUrl] =
+        userSongLookup[friendId];
+      const friendSongPlatformOfEchoSession =
+        userToPlatformOfEchoSessionLookup[friendId];
 
-    if (playlist.length === numSongsPerPlaylist) break;
+      if (!friendSongTrackId || !friendSongAlbumImageUrl) continue;
 
-    playlist.push([
-      friendId,
-      [
-        await matchFriendSongToUserPlatform(
-          userPlatform,
-          friendSongPlatformOfEchoSession,
-          friendSongTrackId,
-        ),
-        friendSongAlbumImageUrl,
-      ],
-    ]);
+      if (playlist.map((p) => p[1][0]).includes(friendSongTrackId))
+        // FIXME: use set instead of array
+        continue;
+
+      const {
+        ok: matchFriendSongToUserPlatformOk,
+        trackId: matchedTrackId,
+        error: matchFriendSongToUserPlatformError,
+      } = await matchFriendSongToUserPlatform(
+        userPlatform,
+        friendSongPlatformOfEchoSession,
+        friendSongTrackId,
+      );
+
+      // FIXME: handle error better
+      if (!matchFriendSongToUserPlatformOk) {
+        errors.push(matchFriendSongToUserPlatformError);
+        continue;
+      }
+
+      if (!matchedTrackId) {
+        errors.push(
+          `No track returned from matchFriendSongToUserPlatform() for friend ${friendId} when converting track to ${userPlatform}`,
+        );
+        continue;
+      }
+
+      playlist.push([friendId, [matchedTrackId, friendSongAlbumImageUrl]]);
+    }
+
+    return {
+      ok: true,
+      data: playlist,
+      errors: errors,
+    };
+  } catch (error) {
+    return { ok: false, data: [], errors: [error] };
   }
-
-  return playlist;
 };
 
 const createPlaylistOnPlatformForUser = async (
@@ -401,19 +425,22 @@ const createPlaylistOnPlatformForUser = async (
   playlistName: string,
   playlistDescription: string,
   playlistDate: string,
+  songs: string[],
 ) => {
-  if (user.platform === "spotify") {
+  if (user.platform === Platform.SPOTIFY) {
     return await createSpotifyPlaylistForUser(
       user,
       playlistName,
       playlistDescription,
       playlistDate,
     );
-  } else if (user.platform === "apple-music") {
+  } else if (user.platform === Platform.APPLE_MUSIC) {
     return await createAppleMusicPlaylistForUser(
       user,
       playlistName,
       playlistDescription,
+      playlistDate,
+      songs,
     );
   }
 
@@ -443,10 +470,6 @@ const createSpotifyPlaylistForUser = async (
     });
 
     if (!refreshTokensOk) {
-      // logger.error("error refreshing spotify token", {
-      //   user,
-      //   refreshTokensError,
-      // });
       return { ok: false, data: null, error: refreshTokensError };
     }
 
@@ -484,7 +507,6 @@ const createSpotifyPlaylistForUser = async (
   });
 
   if (!createPlaylistOk) {
-    // logger.error("error creating playlist", { user, createPlaylistError });
     return { ok: false, data: null, error: createPlaylistError };
   }
 
@@ -495,8 +517,28 @@ const createAppleMusicPlaylistForUser = async (
   user: UserSongData,
   playlistName: string,
   playlistDescription: string,
+  playlistDate: string,
+  songs: string[],
 ) => {
-  return { ok: true, data: null, error: null };
+  logger.log("creating apple music playlist for user", { user });
+
+  const {
+    ok: createPlaylistOk,
+    data: createPlaylistData,
+    error: createPlaylistError,
+  } = await AppleMusicPlatform.createAndPopulatePlaylist({
+    accessToken: user.accessToken,
+    playlistName: playlistName,
+    playlistDescription: playlistDescription,
+    playlistDate: playlistDate,
+    songs: songs,
+  });
+
+  if (!createPlaylistOk) {
+    return { ok: false, data: null, error: createPlaylistError };
+  }
+
+  return { ok: true, data: createPlaylistData, error: null };
 };
 
 const populatePlatformPlaylist = async (
@@ -504,7 +546,7 @@ const populatePlatformPlaylist = async (
   songs: string[],
   playlistId: string,
 ) => {
-  if (user.platform === "spotify") {
+  if (user.platform === Platform.SPOTIFY) {
     const songURIs = songs.map((song) => `spotify:track:${song}`);
 
     return await SpotifyPlatform.populatePlaylist({
@@ -512,12 +554,6 @@ const populatePlatformPlaylist = async (
       trackURIs: songURIs,
       playlistId: playlistId,
     });
-  } else if (user.platform === "apple-music") {
-    return {
-      ok: false,
-      error:
-        "platform apple-music not implemented in populatePlatformPlaylist()",
-    };
   }
 
   return {
@@ -602,11 +638,13 @@ const textUsersPlaylists = async (
     let playlistLink = "";
 
     switch (playlist.platform) {
-      case "spotify":
+      case Platform.SPOTIFY:
         playlistLink = `https://open.spotify.com/playlist/${playlist.platformPlaylistId}`;
         break;
-      case "apple-music":
-        playlistLink = `https://music.apple.com/playlist/${playlist.platformPlaylistId}`;
+      case Platform.APPLE_MUSIC:
+        playlistLink = AppleMusicPlatform.createPlaylistLink(
+          playlist.platformPlaylistId,
+        );
         break;
     }
 
@@ -628,13 +666,52 @@ const matchFriendSongToUserPlatform = async (
   submittedSong: string,
 ) => {
   if (userPlatform === songSubmittedPlatform) {
-    return submittedSong;
+    return { ok: true, trackId: submittedSong, error: null };
   }
 
-  return convertSong(submittedSong, userPlatform);
+  return await convertTrack(submittedSong, userPlatform);
 };
 
-// TODO: use SongLink API to convert song to target user platform
-const convertSong = async (song: string, platform: Platform) => {
-  throw new Error(`Not implemented: convertSong for ${platform}`);
+const convertTrack = async (trackId: string, platform: Platform) => {
+  try {
+    const [submittedTrack] = await db
+      .select({ songlinkCacheId: songLinkCacheMappings.songlinkCacheId })
+      .from(songLinkCacheMappings)
+      .where(eq(songLinkCacheMappings.trackId, trackId))
+      .limit(1);
+
+    if (!submittedTrack) {
+      return {
+        ok: false,
+        trackId: null,
+        error: `TrackId ${trackId} not found in songlink_cache_mappings when converting track to ${platform}`,
+      };
+    }
+
+    const [convertedTrack] = await db
+      .select({ trackId: songLinkCacheMappings.trackId })
+      .from(songLinkCacheMappings)
+      .where(
+        and(
+          eq(
+            songLinkCacheMappings.songlinkCacheId,
+            submittedTrack.songlinkCacheId,
+          ),
+          eq(songLinkCacheMappings.platform, platform),
+        ),
+      )
+      .limit(1);
+
+    if (!convertedTrack) {
+      return {
+        ok: false,
+        trackId: null,
+        error: `Track with songlinkCacheId ${submittedTrack.songlinkCacheId} not found in songlink_cache_mappings when converting track to ${platform}`,
+      };
+    }
+
+    return { ok: true, trackId: convertedTrack.trackId, error: null };
+  } catch (error) {
+    return { ok: false, trackId: null, error: error };
+  }
 };

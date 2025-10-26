@@ -1,24 +1,19 @@
 import { Platform as PlatformEnum } from "@/db/types";
-import {
-  type CreatePlaylistRequest,
-  type CreatePlaylistResponse,
-  type GetTokensRequest,
-  type GetTokensResponse,
-  type GetTracksRequest,
-  type GetTracksResponse,
-  type GetUserIdRequest,
-  type GetUserIdResponse,
-  type PopulatePlaylistRequest,
+import type {
+  CreatePlaylistResponse,
+  createAndPopulatePlaylistRequest,
+  GetTracksResponse,
   RecentTrackPlay,
-  type RefreshTokensRequest,
-  type RefreshTokensResponse,
+  RefreshTokensRequest,
+  RefreshTokensResponse,
   SearchResultTrack,
-  type SearchTracksRequest,
-  type SearchTracksResponse,
+  SearchTracksRequest,
+  SearchTracksResponse,
 } from "@/types";
 import { Platform } from "./platform";
 
 export class AppleMusicPlatform extends Platform {
+  // TODO: Implement refresh tokens (look at docs, access token expires yearly)
   static async refreshTokens(request: RefreshTokensRequest): Promise<{
     ok: boolean;
     data: RefreshTokensResponse | null;
@@ -31,22 +26,59 @@ export class AppleMusicPlatform extends Platform {
     };
   }
 
-  static async createPlaylist(request: CreatePlaylistRequest): Promise<{
+  static async createAndPopulatePlaylist(
+    request: createAndPopulatePlaylistRequest,
+  ): Promise<{
     ok: boolean;
     data: CreatePlaylistResponse | null;
     error: unknown;
   }> {
-    return {
-      ok: false,
-      data: null,
-      error: "apple music auth not implemented yet",
-    };
-  }
+    try {
+      const body = {
+        attributes: {
+          description: request.playlistDescription,
+          name: request.playlistName,
+          // isPublic: true,
+        },
+        relationships: {
+          tracks: {
+            data: request.songs.map((song) => ({
+              id: song,
+              type: "songs",
+            })),
+          },
+        },
+      };
 
-  static async populatePlaylist(
-    request: PopulatePlaylistRequest,
-  ): Promise<{ ok: boolean; error: unknown }> {
-    return { ok: false, error: "apple music auth not implemented yet" };
+      const response = await fetch(
+        `https://api.music.apple.com/v1/me/library/playlists`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer `,
+            "Music-User-Token": request.accessToken,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return {
+          ok: false,
+          data: null,
+          error: `Failed to create AppleMusic playlist: ${errorText}`,
+        };
+      }
+
+      const data = await response.json();
+      const playlistId = data.data[0].id;
+
+      return { ok: true, data: { playlistId }, error: null };
+    } catch (err) {
+      return { ok: false, data: null, error: err };
+    }
   }
 
   static async getRecentTracks(
@@ -84,7 +116,6 @@ export class AppleMusicPlatform extends Platform {
         platform: PlatformEnum.APPLE_MUSIC,
         trackId: track.id,
         trackName: track.attributes.name,
-        // artists: track.artists.map((artist: any) => artist.name).join(", "),
         artists: track.attributes.artistName,
         albumImageUrl: track.attributes.artwork.url,
         playedAt: now.toISOString(),
@@ -144,16 +175,6 @@ export class AppleMusicPlatform extends Platform {
     }
   }
 
-  static async getUserId(
-    request: GetUserIdRequest,
-  ): Promise<{ ok: boolean; data: GetUserIdResponse | null; error: unknown }> {
-    return {
-      ok: false,
-      data: null,
-      error: "apple music auth not implemented yet",
-    };
-  }
-
   static extractTrackId(url: string): string {
     const match = url.match(/i=(\w+)/);
     if (match) {
@@ -163,7 +184,7 @@ export class AppleMusicPlatform extends Platform {
   }
 
   static createPlaylistLink(platformPlaylistId: string) {
-    return `https://music.apple.com/playlist/${platformPlaylistId}`;
+    return `https://music.apple.com/library/playlist/${platformPlaylistId}`;
   }
 
   static resolveAppleArtwork(urlTemplate: string, size: number) {

@@ -296,15 +296,6 @@ async function getPlatformAuth(payload: { platform: Platform; code: string }) {
       return { ok: true, data: data, error: null };
     }
 
-    // TODO: implement apple music auth
-    if (payload.platform === Platform.APPLE_MUSIC) {
-      return {
-        ok: false,
-        data: null,
-        error: "Apple Music auth not implemented yet",
-      };
-    }
-
     return { ok: false, data: null, error: "Invalid platform" };
   } catch (error: unknown) {
     console.error("Error in getPlatformAuth:", error);

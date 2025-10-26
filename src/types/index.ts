@@ -42,7 +42,13 @@ export interface PopulatePlaylistRequest {
   trackURIs: string[];
 }
 
-// export interface PopulatePlaylistResponse {}
+export interface createAndPopulatePlaylistRequest {
+  accessToken: string;
+  playlistName: string;
+  playlistDescription: string;
+  playlistDate: string;
+  songs: string[];
+}
 
 // Get Tracks
 export interface GetTracksRequest {
