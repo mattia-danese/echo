@@ -21,10 +21,8 @@ import { SpotifyPlatform } from "@/platforms";
 import {
   getRecentPlaysTask,
   onboardingCompletionTask,
-  onboardingTask,
-  welcomeBackTask,
+  sendMessagesTask,
 } from "@/trigger";
-import { notifyNewFriendTask } from "@/trigger/notify-new-friend";
 
 export async function checkRegistrationData(payload: {
   firstName: string;
@@ -374,10 +372,15 @@ export async function createFriendships(payload: {
         .where(inArray(users.id, [payload.userId, friend.id]));
     }
 
-    await notifyNewFriendTask.trigger({
-      userPhoneNumber: friend.phoneNumber,
-      friendFirstName: payload.userFirstName,
-      friendLastName: payload.userLastName,
+    await sendMessagesTask.trigger({
+      data: new Map([
+        [
+          friend.phoneNumber,
+          [
+            `you’re now friends with ${payload.userFirstName} ${payload.userLastName} :)`,
+          ],
+        ],
+      ]),
     });
 
     return { ok: true, message: "Friendship created successfully" };
@@ -400,25 +403,48 @@ export async function sendOnboardingMessage(payload: {
   phoneNumber: string;
   onboardingToken: string;
 }) {
-  console.log("Triggering onboarding task... ", payload.phoneNumber);
-  await onboardingTask.trigger({
-    phoneNumber: payload.phoneNumber,
-    onboardingToken: payload.onboardingToken,
+  console.log("Sending onboarding messages to... ", payload.phoneNumber);
+
+  await sendMessagesTask.trigger({
+    data: new Map([
+      [
+        payload.phoneNumber,
+        [
+          `
+          welcome to echo - thanks for signing up :)
+          here is how it works:
+
+          1. we'll text you every 3 days to share a song
+          2. submit your song
+          3. at the end of the day, we'll text you the songs your friends shared`,
+          "let's walk through a live example. click on the link below to share your first song",
+          `https://text-echo.com/onboarding/${payload.onboardingToken}`,
+        ],
+      ],
+    ]),
   });
   return {
     ok: true,
-    message: `onboarding message sent to ${payload.phoneNumber}`,
+    message: `onboarding messages sent to ${payload.phoneNumber}`,
   };
 }
 
 export async function sendWelcomeMessage(payload: { phoneNumber: string }) {
-  console.log("Triggering welcome task... ", payload.phoneNumber);
-  await welcomeBackTask.trigger({
-    phoneNumber: payload.phoneNumber,
+  console.log("Sending welcome message to... ", payload.phoneNumber);
+  await sendMessagesTask.trigger({
+    data: new Map([
+      [
+        payload.phoneNumber,
+        [
+          "welcome back :) you'll get your first echo soon and can start discovering music with friends",
+        ],
+      ],
+    ]),
   });
+
   return {
     ok: true,
-    message: `welcome message sent to ${payload.phoneNumber}`,
+    message: `welcome back message sent to ${payload.phoneNumber}`,
   };
 }
 
@@ -678,11 +704,18 @@ export async function completeOnboarding(payload: { onboardingToken: string }) {
       .set({
         isOnboardingComplete: true,
       })
-      .where(eq(users.onboardingToken, payload.onboardingToken))
+      .where(
+        and(
+          eq(users.onboardingToken, payload.onboardingToken),
+          eq(users.isDeleted, false),
+        ),
+      )
       .returning();
 
     if (!user) {
-      throw new Error("User not found");
+      throw new Error(
+        `User not found with onboarding token ${payload.onboardingToken}`,
+      );
     }
 
     const [auth] = await db

@@ -1,17 +1,9 @@
 import { logger, task } from "@trigger.dev/sdk/v3";
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const twilio = require("twilio");
-
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { users } from "@/db/schema";
-import { twilioAdmin } from "@/lib/twilioAdmin";
-
-const accountSid = twilioAdmin.accountSid;
-const authToken = twilioAdmin.authToken;
-const fromNumber = twilioAdmin.phoneNumber;
-const client = twilio(accountSid, authToken);
+import { messages, users } from "@/db/schema";
+import { MessageType } from "@/db/types";
+import { sendMessagesTask } from "./send-messages";
 
 export const inboundTextResponseTask = task({
   id: "inbound-text-response",
@@ -22,6 +14,9 @@ export const inboundTextResponseTask = task({
     { ctx },
   ) => {
     logger.log("inbound text response task starting", { payload, ctx });
+
+    const data = new Map<string, Array<string>>([[payload.phoneNumber, []]]);
+
     try {
       const [user] = await db
         .select({
@@ -42,29 +37,35 @@ export const inboundTextResponseTask = task({
         });
       }
 
+      await db.insert(messages).values({
+        userId: user.id,
+        message: payload.inboundMessage,
+        messageType: MessageType.INBOUND,
+      });
+
       if (user.isDeleted) {
-        const message = await client.messages.create({
-          body: `your account has been deleted. Click here to reactivate: https://text-echo.com`,
-          from: fromNumber,
-          to: payload.phoneNumber,
+        data.set(payload.phoneNumber, [
+          `your account has been deleted. Click here to reactivate: https://text-echo.com`,
+        ]);
+
+        await sendMessagesTask.trigger({
+          data: data,
         });
 
         return {
-          message: `responded to deleted user message from ${payload.phoneNumber}: ${message}`,
+          message: `responded to deleted user message from ${payload.phoneNumber}:'${payload.inboundMessage}'`,
         };
       }
 
       if (payload.inboundMessage.trim().toLowerCase() === "help") {
-        const message = await client.messages.create({
-          body: `
-            HELP
-            `,
-          from: fromNumber,
-          to: payload.phoneNumber,
+        data.set(payload.phoneNumber, ["RESPONDING TO HELP MESSAGE"]);
+
+        await sendMessagesTask.trigger({
+          data: data,
         });
 
         return {
-          message: `responded to help message from ${payload.phoneNumber}: ${message}`,
+          message: `responded to help message from ${payload.phoneNumber}: '${payload.inboundMessage}'`,
         };
       }
 
@@ -75,21 +76,21 @@ export const inboundTextResponseTask = task({
         };
       }
 
-      const message = await client.messages.create({
-        body: `
-        thanks for the message - we don’t respond to texts, but text "help" if you need support
-        `,
-        from: fromNumber,
-        to: payload.phoneNumber,
-      });
-
       await db
         .update(users)
         .set({ receivedNoTextAlert: true })
         .where(eq(users.id, user.id));
 
+      data.set(payload.phoneNumber, [
+        'thanks for the message - we don\'t respond to texts, but text "help" if you need support',
+      ]);
+
+      await sendMessagesTask.trigger({
+        data: data,
+      });
+
       return {
-        message: `no text alert sent to ${payload.phoneNumber}: ${message}`,
+        message: `sent no text alert to ${payload.phoneNumber}: '${payload.inboundMessage}'`,
       };
     } catch (error) {
       logger.error("error sending no text alert", { error });

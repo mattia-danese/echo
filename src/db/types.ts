@@ -9,3 +9,8 @@ export enum Gender {
   NON_BINARY = "non binary",
   PREFER_NOT_TO_SAY = "prefer not to say",
 }
+
+export enum MessageType {
+  INBOUND = "inbound",
+  OUTBOUND = "outbound",
+}

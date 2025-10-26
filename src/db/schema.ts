@@ -12,7 +12,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
-import { Gender, Platform } from "./types";
+import { Gender, MessageType, Platform } from "./types";
 
 const platform = pgEnum("platform", [Platform.SPOTIFY, Platform.APPLE_MUSIC]);
 const gender = pgEnum("gender", [
@@ -20,6 +20,10 @@ const gender = pgEnum("gender", [
   Gender.FEMALE,
   Gender.NON_BINARY,
   Gender.PREFER_NOT_TO_SAY,
+]);
+const messageType = pgEnum("message_type", [
+  MessageType.INBOUND,
+  MessageType.OUTBOUND,
 ]);
 
 const timestamps = {
@@ -341,5 +345,25 @@ export const authSessions = pgTable(
       .onUpdate("cascade")
       .onDelete("cascade"),
     unique("auth_sessions_token_hash_key").on(table.tokenHash),
+  ],
+);
+
+export const messages = pgTable(
+  "messages",
+  {
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    userId: integer("user_id").notNull(),
+    messageType: messageType("message_type").notNull(),
+    message: varchar("message").notNull(),
+    createdAt: timestamps.createdAt,
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "messages_user_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
   ],
 );

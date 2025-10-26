@@ -1,6 +1,6 @@
 import { logger, task } from "@trigger.dev/sdk/v3";
 import { db } from "@/db";
-import { userAuth, users, userTrackPlays } from "@/db/schema";
+import { userAuth, userTrackPlays } from "@/db/schema";
 import { Platform } from "@/db/types";
 import { SpotifyPlatform } from "@/platforms";
 import type { RecentTrackPlay, User } from "@/types";

@@ -1,17 +1,9 @@
 import crypto from "node:crypto";
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { and, eq } from "drizzle-orm";
-// import { twilioAdmin } from "@/lib/twilioAdmin";
 import { db } from "@/db";
 import { echoSessions, userEchoSessions, users } from "@/db/schema";
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-// const twilio = require("twilio");
-
-// const accountSid = twilioAdmin.accountSid;
-// const authToken = twilioAdmin.authToken;
-// const fromNumber = twilioAdmin.phoneNumber;
-// const client = twilio(accountSid, authToken);
+import { sendMessagesTask } from "./send-messages";
 
 export const createNewEchoSessionTask = schedules.task({
   id: "create-new-echo-session",
@@ -59,6 +51,7 @@ export const createNewEchoSessionTask = schedules.task({
 
       // for each user, create echo session token
       const userEchoSessionData = [];
+      const userIdToPhoneNumberLookup = new Map<number, string>();
 
       for (const user of fetchedUsers) {
         const token = crypto.randomBytes(16).toString("base64url");
@@ -69,6 +62,8 @@ export const createNewEchoSessionTask = schedules.task({
           token: token,
           platform: user.platform,
         });
+
+        userIdToPhoneNumberLookup.set(user.id, user.phoneNumber);
       }
 
       logger.log("compiling user echo session data done", {
@@ -80,29 +75,33 @@ export const createNewEchoSessionTask = schedules.task({
 
       logger.log("user echo sessions written to database");
 
-      // send text to each user with their echo session link
-      // for (const userEchoSession of userEchoSessionData) {
-      //   const startEchoMessage = await client.messages.create({
-      //     body: `
-      //     start the echo :)
+      for (const userEchoSession of userEchoSessionData) {
+        const phoneNumber = userIdToPhoneNumberLookup.get(
+          userEchoSession.userId,
+        );
 
-      //     click here to share what you've been listening to by 9pm tonight`,
-      //     from: fromNumber,
-      //     to: userEchoSession.phoneNumber,
-      //   });
+        if (!phoneNumber) {
+          logger.error("phone number not found for user", {
+            userId: userEchoSession.userId,
+          });
+          continue;
+        }
 
-      //   const userEchoSessionLinkMessage = await client.messages.create({
-      //     body: `
-      //     https://text-echo.com/session/${userEchoSession.token}`,
-      //     from: fromNumber,
-      //     to: userEchoSession.phoneNumber,
-      //   });
-
-      //   logger.log("started echo to", { userEchoSession, startEchoMessage, userEchoSessionLinkMessage });
-      // }
+        await sendMessagesTask.trigger({
+          data: new Map([
+            [
+              phoneNumber,
+              [
+                "start the echo :) click here to share what you've been listening to by 9pm tonight",
+                `https://text-echo.com/session/${userEchoSession.token}`,
+              ],
+            ],
+          ]),
+        });
+      }
 
       return {
-        message: `create new echo session task completed`,
+        message: `sent echo session links to ${userEchoSessionData.length} users`,
       };
     } catch (error: unknown) {
       logger.error("error creating new echo session", { error });

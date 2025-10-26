@@ -1,7 +1,5 @@
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 
-// import { twilioAdmin } from "@/lib/twilioAdmin";
-
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -15,14 +13,7 @@ import {
 } from "@/db/schema";
 import type { Platform } from "@/db/types";
 import { SpotifyPlatform } from "@/platforms";
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-// const twilio = require("twilio");
-
-// const accountSid = twilioAdmin.accountSid;
-// const authToken = twilioAdmin.authToken;
-// const fromNumber = twilioAdmin.phoneNumber;
-// const client = twilio(accountSid, authToken);
+import { sendMessagesTask } from "./send-messages";
 
 type PlaylistRecords = {
   userId: number;
@@ -589,6 +580,8 @@ const textUsersPlaylists = async (
   userSongData: UserSongData[],
   usersThatEncounteredErrors: Record<number, (string | unknown)[]>,
 ) => {
+  const data = new Map<string, Array<string>>();
+
   for (const playlist of playlists) {
     if (usersThatEncounteredErrors[playlist.userId]) {
       continue;
@@ -599,10 +592,6 @@ const textUsersPlaylists = async (
     )?.phoneNumber;
 
     if (!userPhoneNumber) {
-      // logger.error("phone number not found for user", {
-      //   playlist,
-      //   userSongData,
-      // });
       usersThatEncounteredErrors[playlist.userId] ??= [];
       usersThatEncounteredErrors[playlist.userId].push(
         "NO TEXT send to user because phone number not found",
@@ -621,22 +610,16 @@ const textUsersPlaylists = async (
         break;
     }
 
-    // const message = await client.messages.create({
-    //   body: `
-    //   ${playlistLink}
-    //   `,
-    //   from: fromNumber,
-    //   to: userPhoneNumber,
-    // });
-
-    const message = "";
-
-    logger.log("texted user their playlist", {
-      userId: playlist.userId,
-      playlistLink,
-      message,
-    });
+    data.set(userPhoneNumber, [playlistLink]);
   }
+
+  await sendMessagesTask.trigger({
+    data: data,
+  });
+
+  return {
+    message: `sent playlists to ${data.size} users`,
+  };
 };
 
 const matchFriendSongToUserPlatform = async (
