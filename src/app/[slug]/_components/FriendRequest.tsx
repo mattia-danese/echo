@@ -110,7 +110,7 @@ export default function FriendRequest({
         {accountStatus === "created" && (
           <div className="text-white text-center">
             your account has been created and you should be getting a text from
-            us shortly!
+            us shortly
           </div>
         )}
 
