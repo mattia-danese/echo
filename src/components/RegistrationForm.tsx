@@ -265,8 +265,8 @@ export default function RegistrationForm({
               <SelectTrigger className="w-full text-white bg-black border-b border-white">
                 <SelectValue placeholder="select gender" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectGroup className="bg-black text-white">
+              <SelectContent className="bg-black text-white border-white">
+                <SelectGroup>
                   {Object.values(Gender).map((gender) => (
                     <SelectItem key={gender} value={gender.toLowerCase()}>
                       {gender}
