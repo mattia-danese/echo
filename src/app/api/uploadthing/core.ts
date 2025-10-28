@@ -24,7 +24,8 @@ export const ourFileRouter = {
   })
     .input(z.object({ userId: z.number() }))
     // Set permissions and file types for this FileRoute
-    .middleware(async ({ req, input }) => {
+    // Note: can also req param in line below
+    .middleware(async ({ input }) => {
       // // This code runs on your server before upload
       // const user = await auth(req);
 

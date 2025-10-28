@@ -6,7 +6,6 @@ import { spotifyAdmin } from "@/lib/spotifyAdmin";
 import { Platform } from "@/platforms/platform";
 import type {
   CreatePlaylistRequest,
-  CreatePlaylistResponse,
   GetTokensRequest,
   GetTokensResponse,
   GetTracksRequest,

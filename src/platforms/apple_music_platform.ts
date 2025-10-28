@@ -6,7 +6,6 @@ import type {
   createAndPopulatePlaylistRequest,
   GetTracksResponse,
   RecentTrackPlay,
-  RefreshTokensRequest,
   RefreshTokensResponse,
   SearchResultTrack,
   SearchTracksRequest,
@@ -16,7 +15,7 @@ import { Platform } from "./platform";
 
 export class AppleMusicPlatform extends Platform {
   // TODO: Implement refresh tokens (look at docs, access token expires yearly)
-  static async refreshTokens(request: RefreshTokensRequest): Promise<{
+  static async refreshTokens(): Promise<{
     ok: boolean;
     data: RefreshTokensResponse | null;
     error: unknown;
