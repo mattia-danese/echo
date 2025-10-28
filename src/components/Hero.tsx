@@ -13,7 +13,8 @@ export default function Hero({ showText = true }: HeroProps) {
         className="h-32 w-auto"
         width={128}
         height={128}
-        sizes="128px"
+        style={{ width: "auto", height: "auto" }}
+        priority
       />
 
       {/* Tagline */}

@@ -20,10 +20,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "echo",
   description: "echo",
-  themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#000000" },
-    { color: "#000000" },
-  ],
   icons: {
     icon: [
       { url: "/src/app/favicon.ico", sizes: "any" },
@@ -36,6 +32,10 @@ export const metadata: Metadata = {
 // Ensure the viewport uses the full device area, enabling safe-area CSS env vars
 export const viewport = {
   viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+    { color: "#000000" },
+  ],
 };
 
 export default function RootLayout({
