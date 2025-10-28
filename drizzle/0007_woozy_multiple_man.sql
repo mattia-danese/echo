@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "sent_get_link" boolean DEFAULT false NOT NULL;

@@ -61,3 +61,10 @@ export const sendMessagesTask = task({
     };
   },
 });
+
+// const response = await client.messages.create({
+//   // body: textMessage,
+//   contentSid: "HX895c63bb90e5cddc0a116f0eb7bb6e0b",
+//   from: `whatsapp:${fromNumber}`,
+//   to: `whatsapp:+447542096081`,
+// });

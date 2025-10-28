@@ -23,6 +23,8 @@ export const inboundTextResponseTask = task({
           id: users.id,
           receivedNoTextAlert: users.receivedNoTextAlert,
           isDeleted: users.isDeleted,
+          friendLinkToken: users.friendLinkToken,
+          sentGetLink: users.sentGetLink,
         })
         .from(users)
         .where(eq(users.phoneNumber, payload.phoneNumber))
@@ -66,6 +68,32 @@ export const inboundTextResponseTask = task({
 
         return {
           message: `responded to help message from ${payload.phoneNumber}: '${payload.inboundMessage}'`,
+        };
+      }
+
+      if (payload.inboundMessage.trim().toLowerCase() === "get link") {
+        data.set(payload.phoneNumber, [
+          `https://text-echo.com/${user.friendLinkToken}`,
+        ]);
+
+        if (!user.sentGetLink) {
+          await db
+            .update(users)
+            .set({ sentGetLink: true })
+            .where(eq(users.id, user.id));
+
+          data.get(payload.phoneNumber)?.push(
+            `send this link now to add friends and start discovering music together. 
+            if you ever forget your link, just text us "get link" and we'll send it to you`,
+          );
+        }
+
+        await sendMessagesTask.trigger({
+          data: data,
+        });
+
+        return {
+          message: `responded to get link message from ${payload.phoneNumber}: '${payload.inboundMessage}'`,
         };
       }
 

@@ -60,7 +60,6 @@ export const onboardingCompletionTask = task({
           phoneNumber: payload.user.phoneNumber,
           playlistId: spotifyAdmin.genericPlaylistId,
           numFriends: 0,
-          friendLinkToken: payload.user.friendLinkToken,
         });
 
         return {
@@ -98,7 +97,6 @@ export const onboardingCompletionTask = task({
           phoneNumber: payload.user.phoneNumber,
           playlistId: spotifyAdmin.genericPlaylistId,
           numFriends: numFriends,
-          friendLinkToken: payload.user.friendLinkToken,
         });
 
         return {
@@ -136,7 +134,6 @@ export const onboardingCompletionTask = task({
         phoneNumber: payload.user.phoneNumber,
         playlistId: data.playlistId,
         numFriends: numFriends,
-        friendLinkToken: payload.user.friendLinkToken,
       });
 
       return {
@@ -153,15 +150,13 @@ const sendMessages = async (payload: {
   phoneNumber: string;
   playlistId: string;
   numFriends: number;
-  friendLinkToken: string;
 }) => {
   const messages = [
     `perfect :) at the end of the day you'll get a playlist with the songs your friends shared`,
     `https://open.spotify.com/playlist/${payload.playlistId}`,
     `and that's echo :)`,
-    `you have ${payload.numFriends} friend${payload.numFriends === 1 ? "" : "s"}
-    here's your unique friend request link. send friends this link to add them and start discovering music together :)`,
-    `https://text-echo.com/${payload.friendLinkToken}`,
+    `you have ${payload.numFriends} friend${payload.numFriends === 1 ? "" : "s"} :(
+    text us "get link" to get your unique friend request link`,
   ];
 
   await sendMessagesTask.trigger({

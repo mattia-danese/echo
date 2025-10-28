@@ -58,6 +58,7 @@ export const users = pgTable(
       .notNull(),
     profilePictureUrl: varchar("profile_picture_url"), //nullable
     isDeleted: boolean("is_deleted").default(false).notNull(),
+    sentGetLink: boolean("sent_get_link").default(false).notNull(),
 
     ...timestamps,
   },
