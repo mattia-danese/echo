@@ -67,6 +67,48 @@ export default function RegistrationForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // IMPORTANT: For Apple Music, call authorize immediately (no awaits before)
+    if (formData.platform === Platform.APPLE_MUSIC) {
+      const instance = MusicKit.getInstance?.();
+      await instance?.authorize();
+      const musicUserToken = instance?.musicUserToken;
+
+      const { ok, message } = await checkRegistrationData({
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        phoneNumber: formData.phoneNumber,
+        dateOfBirth: formData.dateOfBirth
+          ? formData.dateOfBirth.toISOString().split("T")[0]
+          : "",
+      });
+
+      if (!ok) {
+        setFormDataError(message);
+        return;
+      }
+
+      const resp = await fetch("/api/auth/apple/callback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          phoneNumber: formData.phoneNumber,
+          friendLinkToken: inviter?.link || "",
+          platform: formData.platform,
+          gender: formData.gender,
+          dateOfBirth: formData.dateOfBirth?.toISOString().split("T")[0] ?? "",
+          musicUserToken,
+        }),
+      });
+      if (resp.ok) {
+        const data: { redirect?: string } = await resp.json();
+        if (data.redirect) window.location.href = data.redirect;
+      }
+      return;
+    }
+
+    // Default (e.g. Spotify): validate first, then build redirect
     const { ok, message } = await checkRegistrationData({
       firstName: formData.firstName,
       lastName: formData.lastName,
@@ -94,39 +136,10 @@ export default function RegistrationForm({
     });
 
     let authUrl = "";
-
-    switch (formData.platform) {
-      case Platform.SPOTIFY:
-        authUrl = `https://accounts.spotify.com/authorize?client_id=${process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI}&scope=user-top-read%20user-read-recently-played%20user-read-private%20playlist-modify-public%20playlist-modify-private&show_dialog=true&state=${encodeURIComponent(params.toString())}`;
-        break;
-      case Platform.APPLE_MUSIC: {
-        console.log("apple music");
-        const instance = MusicKit.getInstance?.();
-        await instance?.authorize();
-        const musicUserToken = instance?.musicUserToken;
-        const resp = await fetch("/api/auth/apple/callback", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-            phoneNumber: formData.phoneNumber,
-            friendLinkToken: inviter?.link || "",
-            platform: formData.platform,
-            gender: formData.gender,
-            dateOfBirth:
-              formData.dateOfBirth?.toISOString().split("T")[0] ?? "",
-            musicUserToken,
-          }),
-        });
-        if (resp.ok) {
-          const data: { redirect?: string } = await resp.json();
-          if (data.redirect) window.location.href = data.redirect;
-        }
-        break;
-      }
-      default:
-        break;
+    if (formData.platform === Platform.SPOTIFY) {
+      authUrl = `https://accounts.spotify.com/authorize?client_id=${process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI}&scope=user-top-read%20user-read-recently-played%20user-read-private%20playlist-modify-public%20playlist-modify-private&show_dialog=true&state=${encodeURIComponent(
+        params.toString(),
+      )}`;
     }
 
     if (authUrl) {
