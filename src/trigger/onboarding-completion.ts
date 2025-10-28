@@ -1,10 +1,15 @@
 import { logger, task } from "@trigger.dev/sdk/v3";
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
-import { friends, userEchoSessions, users } from "@/db/schema";
+import {
+  friends,
+  songLinkCacheMappings,
+  userEchoSessions,
+  users,
+} from "@/db/schema";
 import { Platform } from "@/db/types";
 import { spotifyAdmin } from "@/lib/spotifyAdmin";
-import { SpotifyPlatform } from "@/platforms";
+import { AppleMusicPlatform, SpotifyPlatform } from "@/platforms";
 import { sendMessagesTask } from "./send-messages";
 
 type UserData = {
@@ -19,6 +24,8 @@ type UserData = {
   platform: Platform;
 };
 
+const NUM_SONGS_PER_PLAYLIST = 10;
+
 export const onboardingCompletionTask = task({
   id: "onboarding-completion",
   // Set an optional maxDuration to prevent tasks from running indefinitely
@@ -26,12 +33,12 @@ export const onboardingCompletionTask = task({
   run: async (payload: { user: UserData }, { ctx }) => {
     logger.log("onboarding task starting", { payload, ctx });
 
-    // FIXME: send just one db request
+    // FIXME: send just one db request to get friends + echo sessions of friends
     try {
       // FIXME: not sure if needed, adding just in case
       const [user] = await db
         .select({
-          id: users.id,
+          userId: users.id,
           isDeleted: users.isDeleted,
         })
         .from(users)
@@ -45,20 +52,28 @@ export const onboardingCompletionTask = task({
       }
 
       // get user friends' most recent shared songs (1 song per friend, max 15 friends)
+
       // First get the user's friends
       const userFriends = await db
-        .select({ friendId: friends.friendId })
+        .select({ friendId: friends.friendId, isDeleted: users.isDeleted })
         .from(friends)
-        .where(eq(friends.userId, payload.user.userId));
+        .innerJoin(users, eq(friends.friendId, users.id))
+        .where(
+          and(
+            eq(friends.userId, payload.user.userId),
+            eq(users.isDeleted, false),
+          ),
+        );
 
       if (userFriends.length === 0) {
         logger.log(
           `no friends found for user ${payload.user.userId}, sending generic playlist instead`,
         );
 
+        // FIXME: need to send Apple Music playlist if user is on Apple Music
         await sendMessages({
           phoneNumber: payload.user.phoneNumber,
-          playlistId: spotifyAdmin.genericPlaylistId,
+          playlistLink: spotifyAdmin.genericPlaylistLink,
           numFriends: 0,
         });
 
@@ -70,11 +85,12 @@ export const onboardingCompletionTask = task({
       const numFriends = userFriends.length;
 
       // Then get echo sessions for those friends
-      const friendsData = await db
+      const friendSubmissions = await db
         .select({
+          userId: userEchoSessions.userId,
+          platform: userEchoSessions.platform,
           trackId: userEchoSessions.trackId,
           createdAt: userEchoSessions.createdAt,
-          userId: userEchoSessions.userId,
         })
         .from(userEchoSessions)
         .where(
@@ -87,15 +103,17 @@ export const onboardingCompletionTask = task({
           ),
         )
         .orderBy(desc(userEchoSessions.createdAt))
-        .limit(15);
-      if (friendsData.length === 0) {
+        .limit(NUM_SONGS_PER_PLAYLIST);
+
+      if (friendSubmissions.length === 0) {
         logger.log(
           `no echo sessions found for friends of user ${payload.user.userId}, sending generic playlist instead`,
         );
 
+        // FIXME: need to send Apple Music playlist if user is on Apple Music
         await sendMessages({
           phoneNumber: payload.user.phoneNumber,
-          playlistId: spotifyAdmin.genericPlaylistId,
+          playlistLink: spotifyAdmin.genericPlaylistLink,
           numFriends: numFriends,
         });
 
@@ -104,35 +122,83 @@ export const onboardingCompletionTask = task({
         };
       }
 
-      // FIXME: dont use type cast on friendsData
+      // Create list of songs for playlist from friendsData
+      const playlistSongs: string[] = [];
+
+      for (const friendSubmission of friendSubmissions) {
+        if (payload.user.platform === friendSubmission.platform) {
+          playlistSongs.push(friendSubmission.trackId as string);
+        } else {
+          const { ok: convertTrackOk, trackId: convertedTrackId } =
+            await convertTrack(
+              friendSubmission.trackId as string,
+              payload.user.platform,
+            );
+
+          if (!convertTrackOk || !convertedTrackId) continue;
+
+          playlistSongs.push(convertedTrackId);
+        }
+      }
+
+      if (playlistSongs.length === 0) {
+        logger.log(
+          `no songs added to playlist for user ${payload.user.userId}, sending generic playlist instead`,
+        );
+
+        // FIXME: need to send Apple Music playlist if user is on Apple Music
+        await sendMessages({
+          phoneNumber: payload.user.phoneNumber,
+          playlistLink: spotifyAdmin.genericPlaylistLink,
+          numFriends: numFriends,
+        });
+
+        return {
+          message: `sent generic playlist to ${payload.user.userId} at ${payload.user.phoneNumber}`,
+        };
+      }
+
+      const playlistDate = new Date().toLocaleDateString("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+      });
+      const playlistNameAbbreviation = payload.user.firstName.endsWith("s")
+        ? "'s"
+        : "'s";
+
+      // Create playlist on user's platform
       const { ok, data, error } = await createOnboardingPlaylistForUser(
         payload.user,
-        friendsData as {
-          trackId: string;
-          createdAt: string;
-          userId: number;
-        }[],
+        playlistSongs,
+        playlistDate,
+        playlistNameAbbreviation,
       );
 
-      if (!ok) {
-        throw new Error("error creating onboarding playlist", {
-          cause: { user: payload.user, error },
-        });
-      }
-
-      if (!data) {
-        throw new Error(
-          "no data returned from createOnboardingPlaylistForUser",
+      if (!ok || !data || error) {
+        logger.error(
+          "error creating onboarding playlist - sending generic playlist instead",
           {
-            cause: { user: payload.user, data },
+            user: payload.user,
+            error,
           },
         );
+
+        // FIXME: need to send Apple Music playlist if user is on Apple Music
+        await sendMessages({
+          phoneNumber: payload.user.phoneNumber,
+          playlistLink: spotifyAdmin.genericPlaylistLink,
+          numFriends: numFriends,
+        });
+
+        return {
+          message: `sent generic playlist to ${payload.user.userId} at ${payload.user.phoneNumber}`,
+        };
       }
 
-      // send messages to user
+      // send playlist link to user
       await sendMessages({
         phoneNumber: payload.user.phoneNumber,
-        playlistId: data.playlistId,
+        playlistLink: data,
         numFriends: numFriends,
       });
 
@@ -148,12 +214,12 @@ export const onboardingCompletionTask = task({
 
 const sendMessages = async (payload: {
   phoneNumber: string;
-  playlistId: string;
+  playlistLink: string;
   numFriends: number;
 }) => {
   const messages = [
     `perfect :) at the end of the day you'll get a playlist with the songs your friends shared`,
-    `https://open.spotify.com/playlist/${payload.playlistId}`,
+    payload.playlistLink,
     `and that's echo :)`,
     `you have ${payload.numFriends} friend${payload.numFriends === 1 ? "" : "s"} :(
     text us "get link" to get your unique friend request link`,
@@ -170,13 +236,24 @@ const sendMessages = async (payload: {
 
 const createOnboardingPlaylistForUser = async (
   user: UserData,
-  friendsData: { trackId: string; createdAt: string; userId: number }[],
+  playlistSongs: string[],
+  playlistDate: string,
+  playlistNameAbbreviation: string,
 ) => {
   if (user.platform === Platform.SPOTIFY) {
-    return await handleSpotifyUser(user, friendsData);
+    return handleSpotifyUser(
+      user,
+      playlistSongs,
+      playlistDate,
+      playlistNameAbbreviation,
+    );
   } else if (user.platform === Platform.APPLE_MUSIC) {
-    // return await handleAppleMusicUser(user, friendsData);
-    return { ok: false, data: null, error: `apple music not implemented yet` };
+    return handleAppleMusicUser(
+      user,
+      playlistSongs,
+      playlistDate,
+      playlistNameAbbreviation,
+    );
   }
 
   return { ok: false, data: null, error: `invalid platform ${user.platform}` };
@@ -184,7 +261,9 @@ const createOnboardingPlaylistForUser = async (
 
 const handleSpotifyUser = async (
   user: UserData,
-  friendsData: { trackId: string; createdAt: string; userId: number }[],
+  playlistSongs: string[],
+  playlistDate: string,
+  playlistNameAbbreviation: string,
 ) => {
   // refresh spotify access token if it's expired
   if (new Date(user.tokenExpiresAt) < new Date()) {
@@ -230,14 +309,7 @@ const handleSpotifyUser = async (
     user: user,
   });
 
-  const playlistDate = new Date().toLocaleDateString("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const playlistNameAbbreviation = user.firstName.endsWith("s") ? "'s" : "'s";
-
-  // generate spotify playlist of last songs shared by friends
-
+  // create spotify playlist
   const {
     ok: createPlaylistOk,
     data: createPlaylistData,
@@ -246,6 +318,7 @@ const handleSpotifyUser = async (
     userId: user.platformUserId,
     accessToken: user.accessToken,
     playlistName: `${user.firstName}${playlistNameAbbreviation} echo ${playlistDate}`,
+    // TODO: possibly change description?
     playlistDescription: `here are the songs your friends shared for the ${playlistDate} echo`,
     playlistDate: playlistDate,
   });
@@ -269,9 +342,7 @@ const handleSpotifyUser = async (
 
   logger.log("playlist created", { createPlaylistData });
 
-  const songURIs = friendsData.map(
-    (friend) => `spotify:track:${friend.trackId}`,
-  );
+  const songURIs = playlistSongs.map((song) => `spotify:track:${song}`);
   const { ok: addSongsToPlaylistOk, error: addSongsToPlaylistError } =
     await SpotifyPlatform.populatePlaylist({
       accessToken: user.accessToken,
@@ -289,12 +360,80 @@ const handleSpotifyUser = async (
 
   logger.log("adding songs to playlist done");
 
-  return { ok: true, data: createPlaylistData, error: null };
+  return {
+    ok: true,
+    data: SpotifyPlatform.createPlaylistLink(createPlaylistData.playlistId),
+    error: null,
+  };
 };
 
 const handleAppleMusicUser = async (
   user: UserData,
-  friendsData: { trackId: string; createdAt: string; userId: number }[],
+  playlistSongs: string[],
+  playlistDate: string,
+  playlistNameAbbreviation: string,
 ) => {
-  return { ok: false, data: null, error: `apple music not implemented yet` };
+  const { ok, data, error } =
+    await AppleMusicPlatform.createAndPopulatePlaylist({
+      accessToken: user.accessToken,
+      playlistName: `${user.firstName}${playlistNameAbbreviation} echo ${playlistDate}`,
+      playlistDescription: `here are the songs your friends shared for the ${playlistDate} echo`,
+      playlistDate: playlistDate,
+      songs: playlistSongs,
+    });
+
+  if (!ok || !data || error) {
+    logger.error("error creating apple music playlist", { user, error });
+    return { ok: false, data: null, error: error };
+  }
+
+  return {
+    ok: true,
+    data: AppleMusicPlatform.createPlaylistLink(data.playlistId),
+    error: null,
+  };
+};
+
+const convertTrack = async (trackId: string, platform: Platform) => {
+  try {
+    const [submittedTrack] = await db
+      .select({ songlinkCacheId: songLinkCacheMappings.songlinkCacheId })
+      .from(songLinkCacheMappings)
+      .where(eq(songLinkCacheMappings.trackId, trackId))
+      .limit(1);
+
+    if (!submittedTrack) {
+      return {
+        ok: false,
+        trackId: null,
+        error: `TrackId ${trackId} not found in songlink_cache_mappings when converting track to ${platform}`,
+      };
+    }
+
+    const [convertedTrack] = await db
+      .select({ trackId: songLinkCacheMappings.trackId })
+      .from(songLinkCacheMappings)
+      .where(
+        and(
+          eq(
+            songLinkCacheMappings.songlinkCacheId,
+            submittedTrack.songlinkCacheId,
+          ),
+          eq(songLinkCacheMappings.platform, platform),
+        ),
+      )
+      .limit(1);
+
+    if (!convertedTrack) {
+      return {
+        ok: false,
+        trackId: null,
+        error: `Track with songlinkCacheId ${submittedTrack.songlinkCacheId} not found in songlink_cache_mappings when converting track to ${platform}`,
+      };
+    }
+
+    return { ok: true, trackId: convertedTrack.trackId, error: null };
+  } catch (error) {
+    return { ok: false, trackId: null, error: error };
+  }
 };
