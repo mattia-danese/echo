@@ -16,6 +16,7 @@ import {
 import { type Gender, Platform } from "@/db/types";
 import { createSession, deleteAllSessionsForUser } from "@/lib/cookieSession";
 import { songLinkAdmin } from "@/lib/songLinkAdmin";
+import { twilioAdmin } from "@/lib/twilioAdmin";
 import { isNameValid, isPhoneNumberValid, isValidDate } from "@/lib/validation";
 import { AppleMusicPlatform, SpotifyPlatform } from "@/platforms";
 import {
@@ -23,7 +24,7 @@ import {
   onboardingCompletionTask,
   sendMessagesTask,
 } from "@/trigger";
-import { twilioAdmin } from "@/lib/twilioAdmin";
+
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const twilio = require("twilio");
 
