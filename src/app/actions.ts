@@ -23,6 +23,13 @@ import {
   onboardingCompletionTask,
   sendMessagesTask,
 } from "@/trigger";
+import { twilioAdmin } from "@/lib/twilioAdmin";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const twilio = require("twilio");
+
+const accountSid = twilioAdmin.accountSid;
+const authToken = twilioAdmin.authToken;
+const client = twilio(accountSid, authToken);
 
 type UserAuthInsert = typeof userAuth.$inferInsert;
 
@@ -928,5 +935,69 @@ export async function deleteUserProfilePicture(userId: number) {
         err,
       );
     }
+  }
+}
+
+export async function sendOTP(phoneNumber: string) {
+  "use server";
+  try {
+    const verification = await client.verify.v2
+      .services(twilioAdmin.verifyServiceSid)
+      .verifications.create({
+        to: phoneNumber,
+        channel: "sms",
+      });
+
+    if (!verification.status || !verification.sid) {
+      throw new Error("Failed to send OTP");
+    }
+
+    return {
+      ok: true,
+      data: {
+        status: verification.status,
+        sid: verification.sid,
+      },
+      message: "OTP sent successfully",
+    };
+  } catch (error) {
+    console.error(
+      `Error in sendOTPToPhoneNumber for phone number ${phoneNumber}:`,
+      error,
+    );
+    return { ok: false, message: "Failed to send OTP" };
+  }
+}
+
+export async function verifyOTP(phoneNumber: string, code: string) {
+  "use server";
+  try {
+    const verification = await client.verify.v2
+      .services(twilioAdmin.verifyServiceSid)
+      .verificationChecks.create({
+        to: phoneNumber,
+        code: code,
+      });
+
+    // if (!verification.ok || !verification.status || !verification.sid) {
+    //   throw new Error(`Failed to verify OTP - ${verification.error?.message}`);
+    // }
+
+    if (verification.status === "approved") {
+      return {
+        ok: true,
+        data: { verified: true },
+        message: "OTP verified successfully",
+      };
+    }
+
+    return { ok: true, data: { verified: false }, message: "Invalid OTP" };
+  } catch (error) {
+    console.error(`Error in verifyOTP for phone number ${phoneNumber}:`, error);
+    return {
+      ok: false,
+      data: { verified: false },
+      message: "Failed to verify OTP",
+    };
   }
 }

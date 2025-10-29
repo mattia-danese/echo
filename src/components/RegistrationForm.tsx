@@ -1,10 +1,24 @@
 import { CircleCheck } from "lucide-react";
 import { useEffect, useId, useState } from "react";
-import { checkRegistrationData } from "@/app/actions";
+import { checkRegistrationData, sendOTP, verifyOTP } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
 import {
   Select,
   SelectContent,
@@ -51,6 +65,11 @@ export default function RegistrationForm({
   });
   const [consentChecked, setConsentChecked] = useState(false);
   const [formDataError, setFormDataError] = useState("");
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [otpValue, setOtpValue] = useState("");
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpError, setOtpError] = useState("");
 
   const consentCheckboxId = useId();
   const firstNameInputId = useId();
@@ -64,28 +83,12 @@ export default function RegistrationForm({
     setFormDataError(formDataError === "phone number" ? "" : formDataError);
   }, [phoneNumberChecked]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // IMPORTANT: For Apple Music, call authorize immediately (no awaits before)
+  const continueRegistrationAfterOTP = async () => {
+    // Apple Music path: authorize and then complete
     if (formData.platform === Platform.APPLE_MUSIC) {
       const instance = MusicKit.getInstance?.();
       await instance?.authorize();
       const musicUserToken = instance?.musicUserToken;
-
-      const { ok, message } = await checkRegistrationData({
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        phoneNumber: formData.phoneNumber,
-        dateOfBirth: formData.dateOfBirth
-          ? formData.dateOfBirth.toISOString().split("T")[0]
-          : "",
-      });
-
-      if (!ok) {
-        setFormDataError(message);
-        return;
-      }
 
       const resp = await fetch("/api/auth/apple/callback", {
         method: "POST",
@@ -108,7 +111,30 @@ export default function RegistrationForm({
       return;
     }
 
-    // Default (e.g. Spotify): validate first, then build redirect
+    // Spotify path: build auth URL and redirect
+    const params = new URLSearchParams({
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      phoneNumber: encodeURIComponent(formData.phoneNumber),
+      friendLinkToken: inviter?.link || "",
+      platform: formData.platform,
+      gender: formData.gender,
+      dateOfBirth: formData.dateOfBirth
+        ? formData.dateOfBirth.toISOString().split("T")[0]
+        : "",
+    });
+
+    const authUrl = `https://accounts.spotify.com/authorize?client_id=${process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI}&scope=user-top-read%20user-read-recently-played%20user-read-private%20playlist-modify-public%20playlist-modify-private&show_dialog=true&state=${encodeURIComponent(
+      params.toString(),
+    )}`;
+
+    window.location.href = authUrl;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOtpError("");
+
     const { ok, message } = await checkRegistrationData({
       firstName: formData.firstName,
       lastName: formData.lastName,
@@ -123,27 +149,37 @@ export default function RegistrationForm({
       return;
     }
 
-    const params = new URLSearchParams({
-      firstName: formData.firstName,
-      lastName: formData.lastName,
-      phoneNumber: encodeURIComponent(formData.phoneNumber),
-      friendLinkToken: inviter?.link || "",
-      platform: formData.platform,
-      gender: formData.gender,
-      dateOfBirth: formData.dateOfBirth
-        ? formData.dateOfBirth.toISOString().split("T")[0]
-        : "",
-    });
-
-    let authUrl = "";
-    if (formData.platform === Platform.SPOTIFY) {
-      authUrl = `https://accounts.spotify.com/authorize?client_id=${process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI}&scope=user-top-read%20user-read-recently-played%20user-read-private%20playlist-modify-public%20playlist-modify-private&show_dialog=true&state=${encodeURIComponent(
-        params.toString(),
-      )}`;
+    setOtpOpen(true);
+    setOtpValue("");
+    setOtpSending(true);
+    try {
+      const resp = await sendOTP(formData.phoneNumber);
+      if (!resp.ok) {
+        setOtpError("Failed to send code. Please try again.");
+      }
+    } catch {
+      setOtpError("Failed to send code. Please try again.");
+    } finally {
+      setOtpSending(false);
     }
+  };
 
-    if (authUrl) {
-      window.location.href = authUrl;
+  const handleVerifyOTP = async () => {
+    setOtpError("");
+    setOtpVerifying(true);
+    try {
+      const resp = await verifyOTP(formData.phoneNumber, otpValue);
+      if (!resp.ok || !resp.data?.verified) {
+        setOtpError("Invalid code. Please try again.");
+        return;
+      }
+
+      setOtpOpen(false);
+      await continueRegistrationAfterOTP();
+    } catch {
+      setOtpError("Verification failed. Please try again.");
+    } finally {
+      setOtpVerifying(false);
     }
   };
 
@@ -353,6 +389,50 @@ export default function RegistrationForm({
           {inviter ? "register & accept" : "register"}
         </Button>
       </div>
+
+      {/* OTP Dialog */}
+      <AlertDialog open={otpOpen} onOpenChange={setOtpOpen}>
+        <AlertDialogContent className="bg-black text-white border-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle>verify your phone number</AlertDialogTitle>
+            <AlertDialogDescription>
+              we sent a 6-digit code to {formData.phoneNumber}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="flex flex-col items-center gap-4 py-2">
+            <InputOTP
+              maxLength={6}
+              value={otpValue}
+              onChange={(value) => setOtpValue(value)}
+              containerClassName="justify-center"
+            >
+              <InputOTPGroup>
+                <InputOTPSlot index={0} />
+                <InputOTPSlot index={1} />
+                <InputOTPSlot index={2} />
+                <InputOTPSlot index={3} />
+                <InputOTPSlot index={4} />
+                <InputOTPSlot index={5} />
+              </InputOTPGroup>
+            </InputOTP>
+            {otpError && <div className="text-red-500 text-sm">{otpError}</div>}
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={otpVerifying}>
+              cancel
+            </AlertDialogCancel>
+            <Button
+              onClick={handleVerifyOTP}
+              disabled={otpValue.length !== 6 || otpVerifying || otpSending}
+              className="bg-white text-black hover:bg-gray-100"
+            >
+              {otpVerifying ? "verifying..." : "verify"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </form>
   );
 }
