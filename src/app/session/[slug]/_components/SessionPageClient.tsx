@@ -137,6 +137,7 @@ export default function SessionPageClient({
 
           if (result.ok) {
             setSearchResults(result.tracks);
+            setIsPopoverOpen(true);
           } else {
             console.error("Search failed:", result.message);
             setSearchResults([]);
@@ -285,10 +286,7 @@ export default function SessionPageClient({
 
         {/* Search input */}
         <div className="w-full relative">
-          <Popover
-            open={isPopoverOpen && searchResults.length > 0}
-            onOpenChange={setIsPopoverOpen}
-          >
+          <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
             <PopoverTrigger asChild>
               <Input
                 id={searchId}
