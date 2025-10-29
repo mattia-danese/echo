@@ -221,8 +221,10 @@ const sendMessages = async (payload: {
     `perfect :) at the end of the day you'll get a playlist with the songs your friends shared`,
     payload.playlistLink,
     `and that's echo :)`,
-    `you have ${payload.numFriends} friend${payload.numFriends === 1 ? "" : "s"} :(
-    text us "get link" to get your unique friend request link`,
+    [
+      `you have ${payload.numFriends} friend${payload.numFriends === 1 ? "" : "s"} :(`,
+      'text us "get link" to get your unique friend request link',
+    ].join("\n"),
   ];
 
   await sendMessagesTask.trigger({

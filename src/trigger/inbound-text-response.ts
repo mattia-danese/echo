@@ -110,7 +110,7 @@ export const inboundTextResponseTask = task({
         .where(eq(users.id, user.id));
 
       data.set(payload.phoneNumber, [
-        'thanks for the message - we don\'t respond to texts, but text "help" if you need support',
+        `thanks for the message - we don't respond to texts, but text "help" if you need support`,
       ]);
 
       await sendMessagesTask.trigger({

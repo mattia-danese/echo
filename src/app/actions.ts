@@ -421,13 +421,14 @@ export async function sendOnboardingMessage(payload: {
       [
         payload.phoneNumber,
         [
-          `
-          welcome to echo - thanks for signing up :)
-          here is how it works:
-
-          1. we'll text you every 3 days to share a song
-          2. submit your song
-          3. at the end of the day, we'll text you the songs your friends shared`,
+          [
+            "welcome to echo - thanks for signing up :)",
+            "here is how it works:",
+            "",
+            "1. we'll text you every 3 days to share a song",
+            "2. submit your song",
+            "3. at the end of the day, we'll text you the songs your friends shared",
+          ].join("\n"),
           "let's walk through a live example. click on the link below to share your first song",
           `https://text-echo.com/onboarding/${payload.onboardingToken}`,
         ],

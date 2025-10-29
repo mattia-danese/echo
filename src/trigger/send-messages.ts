@@ -13,6 +13,8 @@ const authToken = twilioAdmin.authToken;
 const fromNumber = twilioAdmin.phoneNumber;
 const client = twilio(accountSid, authToken);
 
+const INTER_MESSAGE_DELAY_MS = 1000;
+
 export const sendMessagesTask = task({
   id: "send-messages",
   // Set an optional maxDuration to prevent tasks from running indefinitely
@@ -41,30 +43,28 @@ export const sendMessagesTask = task({
           continue;
         }
 
-        // const response = await client.messages.create({
-        //   body: textMessage,
-        //   from: fromNumber,
-        //   to: phoneNumber,
-        // });
+        const response = await client.messages.create({
+          body: textMessage,
+          from: fromNumber,
+          to: phoneNumber,
+        });
 
-        // // check response var
-        // await db.insert(messages).values({
-        //   userId: userId,
-        //   message: textMessage,
-        //   messageType: MessageType.OUTBOUND,
-        // });
+        logger.log("message sent", { response });
+
+        // check response var
+        await db.insert(messages).values({
+          userId: userId,
+          message: textMessage,
+          messageType: MessageType.OUTBOUND,
+        });
       }
     }
+
+    // wait for 1 second between messages to help preserve ordering
+    await new Promise((resolve) => setTimeout(resolve, INTER_MESSAGE_DELAY_MS));
 
     return {
       message: `send messages task completed`,
     };
   },
 });
-
-// const response = await client.messages.create({
-//   // body: textMessage,
-//   contentSid: "HX895c63bb90e5cddc0a116f0eb7bb6e0b",
-//   from: `whatsapp:${fromNumber}`,
-//   to: `whatsapp:+447542096081`,
-// });
