@@ -8,12 +8,11 @@ export default function Hero({ showText = true }: HeroProps) {
     <div className="flex flex-col items-center justify-center">
       {/* Logo */}
       <Image
-        src="/name.svg"
+        src="/name.png"
         alt="Echo"
         className="h-32 w-auto"
         width={128}
         height={128}
-        style={{ width: "auto", height: "auto" }}
         priority
       />
 
