@@ -16,7 +16,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Platform } from "@/db/types";
 import type { SearchResultTrack } from "@/types";
 
@@ -258,8 +257,8 @@ export default function SessionPageClient({
         </div>
 
         {/* Selected song display or skeleton */}
-        <div className="w-full flex items-center gap-4 px-4 py-3">
-          {selectedSong ? (
+        <div className="w-full flex items-center gap-4 px-4 py-3 h-16">
+          {selectedSong && (
             <>
               <Image
                 src={
@@ -279,14 +278,6 @@ export default function SessionPageClient({
                 <div className="truncate text-sm text-gray-400">
                   {selectedSong.artists}
                 </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <Skeleton className="h-16 w-16 rounded-lg bg-gray-800" />
-              <div className="min-w-0 flex-1 space-y-2">
-                <Skeleton className="h-5 w-3/4 bg-gray-800" />
-                <Skeleton className="h-4 w-1/2 bg-gray-800" />
               </div>
             </>
           )}
