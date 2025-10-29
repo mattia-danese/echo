@@ -57,8 +57,8 @@ export async function POST(request: Request) {
 
   const params = parseFormUrlEncoded(rawBody);
 
-  const inboundMessage = (params["Body"] || "").toString();
-  const fromPhoneNumber = (params["From"] || "").toString();
+  const inboundMessage = (params.Body || "").toString();
+  const fromPhoneNumber = (params.From || "").toString();
 
   if (!fromPhoneNumber) {
     return new Response("missing sender", { status: 400 });
