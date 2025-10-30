@@ -159,7 +159,7 @@ export default function SessionPageClient({
 
   if (error) {
     return (
-      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
+      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8 min-h-screen">
         <main className="flex flex-col items-center gap-8 max-w-md w-full">
           <Hero />
           <div className="text-white text-center">
@@ -173,7 +173,7 @@ export default function SessionPageClient({
 
   if (submitError) {
     return (
-      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
+      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8 min-h-screen">
         <main className="flex flex-col items-center gap-8 max-w-md w-full">
           <Hero />
           <div className="text-white text-center">
@@ -187,7 +187,7 @@ export default function SessionPageClient({
 
   if (!sessionActive && !isOnboarding) {
     return (
-      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
+      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8 min-h-screen">
         <main className="flex flex-col items-center gap-8 max-w-md w-full">
           <Hero />
           <div className="text-white text-center">
@@ -211,7 +211,7 @@ export default function SessionPageClient({
 
   if (alreadySubmitted) {
     return (
-      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
+      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8 min-h-screen">
         <main className="flex flex-col items-center gap-8 max-w-md w-full">
           <Hero />
           <div className="text-white text-center">
@@ -226,7 +226,7 @@ export default function SessionPageClient({
 
   if (isSubmitted) {
     return (
-      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
+      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8 min-h-screen">
         <main className="flex flex-col items-center gap-8 max-w-md w-full">
           <Hero />
           {isOnboarding ? (
@@ -257,7 +257,7 @@ export default function SessionPageClient({
   }
 
   return (
-    <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
+    <div className="flex-1 bg-black flex flex-col items-center justify-center p-8 min-h-screen">
       <main className="flex flex-col items-center gap-8 max-w-md w-full">
         <Hero showText={false} />
 

@@ -39,7 +39,7 @@ export default function LogInSignUp({
   }, [phoneNumberChecked, showRegistration]);
 
   return (
-    <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
+    <div className="flex-1 bg-black flex flex-col items-center justify-center p-8 min-h-screen">
       <main className="flex flex-col items-center gap-8 max-w-md w-full">
         <Script
           src="https://js-cdn.music.apple.com/musickit/v3/musickit.js"

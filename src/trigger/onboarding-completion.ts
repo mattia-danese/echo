@@ -8,10 +8,10 @@ import {
   users,
 } from "@/db/schema";
 import { Platform } from "@/db/types";
+import { env } from "@/lib/env";
 import { spotifyAdmin } from "@/lib/spotifyAdmin";
 import { AppleMusicPlatform, SpotifyPlatform } from "@/platforms";
 import { sendMessagesTask } from "./send-messages";
-import { env } from "@/lib/env";
 
 type UserData = {
   userId: number;
