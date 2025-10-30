@@ -59,6 +59,10 @@ export default function RegistrationForm({
   const genderSelectId = useId();
   const dateOfBirthInputId = useId();
 
+  const normalizeName = (name: string) => {
+    return name.replace(/[^a-z'-]/gi, "").toLowerCase();
+  };
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: phoneNumberChecked is a prop and valid dependency
   useEffect(() => {
     setFormDataError(formDataError === "phone number" ? "" : formDataError);
@@ -163,7 +167,8 @@ export default function RegistrationForm({
               placeholder=""
               value={formData.firstName}
               onChange={(e) => {
-                setFormData((prev) => ({ ...prev, firstName: e.target.value }));
+                const normalized = normalizeName(e.target.value);
+                setFormData((prev) => ({ ...prev, firstName: normalized }));
                 setFormDataError(
                   formDataError === "first name" ? "" : formDataError,
                 );
@@ -188,7 +193,8 @@ export default function RegistrationForm({
               placeholder=""
               value={formData.lastName}
               onChange={(e) => {
-                setFormData((prev) => ({ ...prev, lastName: e.target.value }));
+                const normalized = normalizeName(e.target.value);
+                setFormData((prev) => ({ ...prev, lastName: normalized }));
                 setFormDataError(
                   formDataError === "last name" ? "" : formDataError,
                 );
