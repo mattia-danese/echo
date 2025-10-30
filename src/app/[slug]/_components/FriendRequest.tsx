@@ -101,9 +101,9 @@ export default function FriendRequest({
         <Hero />
 
         {/* Invitation message */}
-
-        <div className="text-blue-400 text-4xl text-center">
-          {inviter.firstName} wants to share music with you on echo.
+        <div className="text-4xl text-center bg-gradient-to-r from-teal-400 to-blue-400 bg-clip-text text-transparent">
+          <span className="font-bold">{inviter.firstName}</span> wants to share
+          music with you on echo.
         </div>
 
         {/* Account status messages */}
