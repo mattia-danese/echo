@@ -16,6 +16,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Spinner } from "@/components/ui/spinner";
 import { Platform } from "@/db/types";
 import type { SearchResultTrack } from "@/types";
 
@@ -360,8 +361,8 @@ export default function SessionPageClient({
             </PopoverContent>
           </Popover>
           {isSearching && (
-            <div className="absolute right-0 top-1/2 transform -translate-y-1/2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+              <Spinner className="size-4 text-teal-400" />
             </div>
           )}
           {searchError && (
