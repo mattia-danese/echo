@@ -32,7 +32,11 @@ export async function checkRegistrationData(payload: {
   phoneNumber: string;
   dateOfBirth: string;
 }) {
-  if (!isPhoneNumberValid(payload.phoneNumber) || !payload.phoneNumber.trim()) {
+  if (
+    !payload.phoneNumber.startsWith("+1") ||
+    !isPhoneNumberValid(payload.phoneNumber) ||
+    !payload.phoneNumber.trim()
+  ) {
     return { ok: false, message: "phone number" };
   }
 
