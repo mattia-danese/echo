@@ -11,6 +11,7 @@ import { Platform } from "@/db/types";
 import { spotifyAdmin } from "@/lib/spotifyAdmin";
 import { AppleMusicPlatform, SpotifyPlatform } from "@/platforms";
 import { sendMessagesTask } from "./send-messages";
+import { env } from "@/lib/env";
 
 type UserData = {
   userId: number;
@@ -51,6 +52,11 @@ export const onboardingCompletionTask = task({
         };
       }
 
+      const genericPlaylistLink =
+        payload.user.platform === Platform.SPOTIFY
+          ? spotifyAdmin.genericPlaylistLink
+          : env.ONBOARDING_COMPLETION_GENERIC_APPLE_MUSIC_PLAYLIST;
+
       // get user friends' most recent shared songs (1 song per friend, max 15 friends)
 
       // First get the user's friends
@@ -70,10 +76,9 @@ export const onboardingCompletionTask = task({
           `no friends found for user ${payload.user.userId}, sending generic playlist instead`,
         );
 
-        // FIXME: need to send Apple Music playlist if user is on Apple Music
         await sendMessages({
           phoneNumber: payload.user.phoneNumber,
-          playlistLink: spotifyAdmin.genericPlaylistLink,
+          playlistLink: genericPlaylistLink,
           numFriends: 0,
         });
 
@@ -110,10 +115,9 @@ export const onboardingCompletionTask = task({
           `no echo sessions found for friends of user ${payload.user.userId}, sending generic playlist instead`,
         );
 
-        // FIXME: need to send Apple Music playlist if user is on Apple Music
         await sendMessages({
           phoneNumber: payload.user.phoneNumber,
-          playlistLink: spotifyAdmin.genericPlaylistLink,
+          playlistLink: genericPlaylistLink,
           numFriends: numFriends,
         });
 
@@ -146,10 +150,9 @@ export const onboardingCompletionTask = task({
           `no songs added to playlist for user ${payload.user.userId}, sending generic playlist instead`,
         );
 
-        // FIXME: need to send Apple Music playlist if user is on Apple Music
         await sendMessages({
           phoneNumber: payload.user.phoneNumber,
-          playlistLink: spotifyAdmin.genericPlaylistLink,
+          playlistLink: genericPlaylistLink,
           numFriends: numFriends,
         });
 
@@ -183,10 +186,9 @@ export const onboardingCompletionTask = task({
           },
         );
 
-        // FIXME: need to send Apple Music playlist if user is on Apple Music
         await sendMessages({
           phoneNumber: payload.user.phoneNumber,
-          playlistLink: spotifyAdmin.genericPlaylistLink,
+          playlistLink: genericPlaylistLink,
           numFriends: numFriends,
         });
 

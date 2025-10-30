@@ -15,6 +15,7 @@ const envSchema = z.object({
   APPLE_PRIVATE_KEY: z.string().min(1),
   APPLE_TEAM_ID: z.string().min(1),
   APPLE_KEY_ID: z.string().min(1),
+  ONBOARDING_COMPLETION_GENERIC_APPLE_MUSIC_PLAYLIST: z.string().min(1),
 
   TRIGGER_SECRET_KEY: z.string().min(1),
 
@@ -45,6 +46,8 @@ export const env = envSchema.parse({
   APPLE_PRIVATE_KEY: process.env.APPLE_PRIVATE_KEY,
   APPLE_TEAM_ID: process.env.APPLE_TEAM_ID,
   APPLE_KEY_ID: process.env.APPLE_KEY_ID,
+  ONBOARDING_COMPLETION_GENERIC_APPLE_MUSIC_PLAYLIST:
+    process.env.ONBOARDING_COMPLETION_GENERIC_APPLE_MUSIC_PLAYLIST,
 
   TRIGGER_SECRET_KEY: process.env.TRIGGER_SECRET_KEY,
 
