@@ -202,7 +202,7 @@ export default function SessionPageClient({
                 minute: "2-digit",
                 hour12: false,
               })}`;
-            })()} :(
+            })()}
           </div>
         </main>
       </div>
