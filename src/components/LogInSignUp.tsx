@@ -6,6 +6,7 @@ import { logInExistingUser } from "@/app/actions";
 import Hero from "@/components/Hero";
 import PhoneNumberChecker from "@/components/PhoneNumberChecker";
 import RegistrationForm from "@/components/RegistrationForm";
+import { Button } from "@/components/ui/button";
 
 // MusicKit is loaded via Next.js Script in the component render
 
@@ -80,10 +81,22 @@ export default function LogInSignUp({
 
         {/* Account status messages */}
         {accountStatus === "created" && (
-          <div className="text-white text-center">
-            your account has been created and you should be getting a text from
-            us shortly
-          </div>
+          <>
+            <div className="text-white text-center">
+              your account has been created and you should be getting a text
+              from us shortly
+            </div>
+            <Button
+              className="mt-4 bg-white text-black hover:bg-gray-200"
+              onClick={() => {
+                window.location.href = "sms:";
+              }}
+              type="button"
+              variant="default"
+            >
+              open texts
+            </Button>
+          </>
         )}
 
         {accountStatus === "error" && (

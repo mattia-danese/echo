@@ -229,18 +229,28 @@ export default function SessionPageClient({
       <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
         <main className="flex flex-col items-center gap-8 max-w-md w-full">
           <Hero />
-          <div className="text-white text-2xl text-center">
-            {isOnboarding ? (
-              <>
+          {isOnboarding ? (
+            <>
+              <div className="text-white text-center">
                 thank you for sharing a song.
                 <br />
                 go back to your text messages to see the songs your friends
                 shared :)
-              </>
-            ) : (
-              "thank you for sharing a song :)"
-            )}
-          </div>
+              </div>
+              <Button
+                className="mt-4 bg-white text-black hover:bg-gray-200"
+                onClick={() => {
+                  window.location.href = "sms:";
+                }}
+                type="button"
+                variant="default"
+              >
+                open texts
+              </Button>
+            </>
+          ) : (
+            "thank you for sharing a song :)"
+          )}
         </main>
       </div>
     );
