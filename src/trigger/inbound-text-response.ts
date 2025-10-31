@@ -3,8 +3,8 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { messages, users } from "@/db/schema";
 import { MessageType } from "@/db/types";
-import { sendMessagesTask } from "./send-messages";
 import { env } from "@/lib/env";
+import { sendMessagesTask } from "./send-messages";
 
 export const inboundTextResponseTask = task({
   id: "inbound-text-response",
