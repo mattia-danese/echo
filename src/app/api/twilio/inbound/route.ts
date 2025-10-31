@@ -1,6 +1,7 @@
-import twilio from "twilio";
 import { env } from "@/lib/env";
 import { inboundTextResponseTask } from "@/trigger/inbound-text-response";
+
+const twilio = require("twilio");
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
