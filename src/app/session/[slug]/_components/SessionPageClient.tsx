@@ -217,7 +217,7 @@ export default function SessionPageClient({
           <Hero />
           <div className="text-white text-center">
             {isOnboarding
-              ? "you already completed the onboarding :)"
+              ? "you already completed onboarding :)"
               : "you already submitted a song for this echo session :)"}
           </div>
         </main>
