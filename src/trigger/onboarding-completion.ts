@@ -227,7 +227,9 @@ const sendMessages = async (payload: {
   ];
 
   await sendMessagesTask.trigger({
-    data: new Map([[payload.phoneNumber, messages]]),
+    data: {
+      [payload.phoneNumber]: messages,
+    },
   });
 
   return {

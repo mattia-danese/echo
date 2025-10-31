@@ -10,13 +10,18 @@ export const inboundTextResponseTask = task({
   id: "inbound-text-response",
   // Set an optional maxDuration to prevent tasks from running indefinitely
   maxDuration: 300, // Stop executing after 300 secs (5 mins) of compute
-  run: async (
-    payload: { inboundMessage: string; phoneNumber: string },
-    { ctx },
-  ) => {
-    logger.log("inbound text response task starting", { payload, ctx });
+  run: async (payload: { inboundMessage: string; phoneNumber: string }) => {
+    logger.log("inbound text response task starting", { data: payload });
 
-    const data = new Map<string, Array<string>>([[payload.phoneNumber, []]]);
+    logger.log("THIS IS INBOUND MESSAGE:", {
+      inboundMessage: payload.inboundMessage,
+    });
+    logger.log("THIS IS PHONE NUMBER:", { phoneNumber: payload.phoneNumber });
+
+    // Use a plain object instead of Map for serialization
+    const data: Record<string, Array<string>> = {
+      [payload.phoneNumber]: [],
+    };
 
     try {
       const [user] = await db
@@ -49,9 +54,9 @@ export const inboundTextResponseTask = task({
       });
 
       if (user.isDeleted) {
-        data.set(payload.phoneNumber, [
+        data[payload.phoneNumber] = [
           `your account has been deleted. Click here to reactivate: https://text-echo.com`,
-        ]);
+        ];
 
         await sendMessagesTask.trigger({
           data: data,
@@ -63,13 +68,13 @@ export const inboundTextResponseTask = task({
       }
 
       if (payload.inboundMessage.trim().toLowerCase() === "help") {
-        data.set(payload.phoneNumber, [
+        data[payload.phoneNumber] = [
           "we notified our team about your issue. they will personally reach out shortly",
-        ]);
+        ];
 
-        data.set(env.LUCAS_PHONE_NUMBER, [
+        data[env.LUCAS_PHONE_NUMBER] = [
           `${user.firstName} ${user.lastName} (${payload.phoneNumber}) needs help`,
-        ]);
+        ];
 
         await sendMessagesTask.trigger({
           data: data,
@@ -81,21 +86,21 @@ export const inboundTextResponseTask = task({
       }
 
       if (payload.inboundMessage.trim().toLowerCase() === "get link") {
-        data.set(payload.phoneNumber, [
-          `https://text-echo.com/${user.friendLinkToken}`,
-        ]);
-
         if (!user.sentGetLink) {
           await db
             .update(users)
             .set({ sentGetLink: true })
             .where(eq(users.id, user.id));
-
-          data.get(payload.phoneNumber)?.push(
-            `send this link now to add friends and start discovering music together. 
-            if you ever forget your link, just text us "get link" and we'll send it to you`,
-          );
         }
+
+        data[payload.phoneNumber] = [
+          [
+            "send this link now to add friends and start discovering music together",
+            "",
+            `if you ever forget your link, just text us "get link" and we'll send it to you`,
+          ].join("\n"),
+          `https://text-echo.com/${user.friendLinkToken}`,
+        ];
 
         await sendMessagesTask.trigger({
           data: data,
@@ -118,9 +123,9 @@ export const inboundTextResponseTask = task({
         .set({ receivedNoTextAlert: true })
         .where(eq(users.id, user.id));
 
-      data.set(payload.phoneNumber, [
+      data[payload.phoneNumber] = [
         `thanks for the message - we don't respond to texts, but text "help" if you need support`,
-      ]);
+      ];
 
       await sendMessagesTask.trigger({
         data: data,

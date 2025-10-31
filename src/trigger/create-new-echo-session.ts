@@ -88,15 +88,12 @@ export const createNewEchoSessionTask = schedules.task({
         }
 
         await sendMessagesTask.trigger({
-          data: new Map([
-            [
-              phoneNumber,
-              [
-                "start the echo :) click here to share what you've been listening to by 9pm tonight",
-                `https://text-echo.com/session/${userEchoSession.token}`,
-              ],
+          data: {
+            [phoneNumber]: [
+              "start the echo :) click here to share what you've been listening to by 9pm tonight",
+              `https://text-echo.com/session/${userEchoSession.token}`,
             ],
-          ]),
+          },
         });
       }
 

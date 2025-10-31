@@ -615,7 +615,7 @@ const textUsersPlaylists = async (
   userSongData: UserSongData[],
   usersThatEncounteredErrors: Record<number, (string | unknown)[]>,
 ) => {
-  const data = new Map<string, Array<string>>();
+  const data: Record<string, Array<string>> = {};
 
   for (const playlist of playlists) {
     if (usersThatEncounteredErrors[playlist.userId]) {
@@ -647,7 +647,7 @@ const textUsersPlaylists = async (
         break;
     }
 
-    data.set(userPhoneNumber, [playlistLink]);
+    data[userPhoneNumber] = [playlistLink];
   }
 
   await sendMessagesTask.trigger({
@@ -655,7 +655,7 @@ const textUsersPlaylists = async (
   });
 
   return {
-    message: `sent playlists to ${data.size} users`,
+    message: `sent playlists to ${Object.keys(data).length} users`,
   };
 };
 

@@ -388,14 +388,11 @@ export async function createFriendships(payload: {
     }
 
     await sendMessagesTask.trigger({
-      data: new Map([
-        [
-          friend.phoneNumber,
-          [
-            `you’re now friends with ${payload.userFirstName} ${payload.userLastName} :)`,
-          ],
+      data: {
+        [friend.phoneNumber]: [
+          `you're now friends with ${payload.userFirstName} ${payload.userLastName} :)`,
         ],
-      ]),
+      },
     });
 
     return { ok: true, message: "Friendship created successfully" };
@@ -421,23 +418,20 @@ export async function sendOnboardingMessage(payload: {
   console.log("Sending onboarding messages to... ", payload.phoneNumber);
 
   await sendMessagesTask.trigger({
-    data: new Map([
-      [
-        payload.phoneNumber,
+    data: {
+      [payload.phoneNumber]: [
         [
-          [
-            "welcome to echo - thanks for signing up :) here's how it works:",
-            "",
-            "1. we'll text you every 3 days to share a song",
-            "2. submit your song",
-            "3. at the end of the day, we'll text you the songs your friends shared",
-            "",
-            "let's walk through a live example. click on the link below to share your first song",
-            `https://text-echo.com/onboarding/${payload.onboardingToken}`,
-          ].join("\n"),
-        ],
+          "welcome to echo - thanks for signing up :) here's how it works:",
+          "",
+          "1. we'll text you every 3 days to share a song",
+          "2. submit your song",
+          "3. at the end of the day, we'll text you the songs your friends shared",
+          "",
+          "let's walk through a live example. click on the link below to share your first song",
+          `https://text-echo.com/onboarding/${payload.onboardingToken}`,
+        ].join("\n"),
       ],
-    ]),
+    },
   });
   return {
     ok: true,
@@ -448,14 +442,11 @@ export async function sendOnboardingMessage(payload: {
 export async function sendWelcomeMessage(payload: { phoneNumber: string }) {
   console.log("Sending welcome message to... ", payload.phoneNumber);
   await sendMessagesTask.trigger({
-    data: new Map([
-      [
-        payload.phoneNumber,
-        [
-          "welcome back :) you'll get your first echo soon and can start discovering music with friends",
-        ],
+    data: {
+      [payload.phoneNumber]: [
+        "welcome back :) you'll get your first echo soon and can start discovering music with friends",
       ],
-    ]),
+    },
   });
 
   return {
