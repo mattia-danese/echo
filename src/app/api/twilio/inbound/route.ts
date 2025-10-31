@@ -1,4 +1,4 @@
-import { validateRequest } from "twilio";
+import twilio from "twilio";
 import { env } from "@/lib/env";
 import { inboundTextResponseTask } from "@/trigger/inbound-text-response";
 
@@ -52,7 +52,7 @@ async function verifyTwilioSignature(
   console.log("[Twilio Webhook] Validating signature for URL:", url);
 
   // Use Twilio's official validateRequest function
-  const isValid = validateRequest(
+  const isValid = twilio.validateRequest(
     env.TWILIO_AUTH_TOKEN,
     signature,
     url,
