@@ -89,7 +89,7 @@ export default function LogInSignUp({
             <Button
               className="mt-4 bg-white text-black hover:bg-gray-200"
               onClick={() => {
-                window.location.href = "sms:";
+                window.location.href = `sms:${process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER}`;
               }}
               type="button"
               variant="default"
