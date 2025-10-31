@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { messages, users } from "@/db/schema";
 import { MessageType } from "@/db/types";
 import { sendMessagesTask } from "./send-messages";
+import { env } from "@/lib/env";
 
 export const inboundTextResponseTask = task({
   id: "inbound-text-response",
@@ -21,6 +22,8 @@ export const inboundTextResponseTask = task({
       const [user] = await db
         .select({
           id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
           receivedNoTextAlert: users.receivedNoTextAlert,
           isDeleted: users.isDeleted,
           friendLinkToken: users.friendLinkToken,
@@ -60,7 +63,13 @@ export const inboundTextResponseTask = task({
       }
 
       if (payload.inboundMessage.trim().toLowerCase() === "help") {
-        data.set(payload.phoneNumber, ["RESPONDING TO HELP MESSAGE"]);
+        data.set(payload.phoneNumber, [
+          "we notified our team about your issue. they will personally reach out shortly",
+        ]);
+
+        data.set(env.LUCAS_PHONE_NUMBER, [
+          `${user.firstName} ${user.lastName} (${payload.phoneNumber}) needs help`,
+        ]);
 
         await sendMessagesTask.trigger({
           data: data,
