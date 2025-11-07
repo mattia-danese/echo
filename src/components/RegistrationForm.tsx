@@ -70,6 +70,7 @@ export default function RegistrationForm({
   const [otpSending, setOtpSending] = useState(false);
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [otpError, setOtpError] = useState("");
+  const [musicUserToken, setMusicUserToken] = useState("");
 
   const consentCheckboxId = useId();
   const firstNameInputId = useId();
@@ -86,10 +87,6 @@ export default function RegistrationForm({
   const continueRegistrationAfterOTP = async () => {
     // Apple Music path: authorize and then complete
     if (formData.platform === Platform.APPLE_MUSIC) {
-      const instance = MusicKit.getInstance?.();
-      await instance?.authorize();
-      const musicUserToken = instance?.musicUserToken;
-
       const resp = await fetch("/api/auth/apple/callback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -134,6 +131,13 @@ export default function RegistrationForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setOtpError("");
+
+    if (formData.platform === Platform.APPLE_MUSIC) {
+      const instance = MusicKit.getInstance?.();
+      await instance?.authorize();
+      const musicUserToken = instance?.musicUserToken;
+      setMusicUserToken(musicUserToken);
+    }
 
     const { ok, message } = await checkRegistrationData({
       firstName: formData.firstName,
@@ -404,7 +408,7 @@ export default function RegistrationForm({
             <InputOTP
               maxLength={6}
               value={otpValue}
-              onChange={(value) => setOtpValue(value)}
+              onChange={(value: string) => setOtpValue(value)}
               containerClassName="justify-center"
             >
               <InputOTPGroup>
