@@ -54,7 +54,7 @@ export const generatePlaylistsTask = schedules.task({
   maxDuration: 300, // Stop executing after 300 secs (5 mins) of compute
 
   cron: {
-    // echo sessions are every Tues and Fri at 6:00 PM
+    // echo sessions are every Wed and Sun at 11:00 AM - 6:00 PM EST
     pattern: "30 18 * * 3,7", // run every Wed and Sun at 6:30 PM EST
     timezone: "America/New_York",
     environments: ["DEVELOPMENT"],
