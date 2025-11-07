@@ -67,7 +67,7 @@ export const inboundTextResponseTask = task({
         };
       }
 
-      if (payload.inboundMessage.trim().toLowerCase() === "help") {
+      if (payload.inboundMessage.trim().toLowerCase() === "get help") {
         data[payload.phoneNumber] = [
           "we notified our team about your issue. they will personally reach out shortly",
         ];
@@ -124,7 +124,7 @@ export const inboundTextResponseTask = task({
         .where(eq(users.id, user.id));
 
       data[payload.phoneNumber] = [
-        `thanks for the message - we don't respond to texts, but text "help" if you need support`,
+        `thanks for the message - we don't respond to texts, but text "get help" if you need support`,
       ];
 
       await sendMessagesTask.trigger({
