@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Gender, Platform } from "@/db/types";
 
@@ -71,6 +72,7 @@ export default function RegistrationForm({
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [otpError, setOtpError] = useState("");
   const [musicUserToken, setMusicUserToken] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const consentCheckboxId = useId();
   const firstNameInputId = useId();
@@ -135,6 +137,7 @@ export default function RegistrationForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setOtpError("");
+    setIsSubmitting(true);
 
     if (formData.platform === Platform.APPLE_MUSIC) {
       const instance = MusicKit.getInstance?.();
@@ -154,6 +157,7 @@ export default function RegistrationForm({
 
     if (!ok) {
       setFormDataError(message);
+      setIsSubmitting(false);
       return;
     }
 
@@ -188,6 +192,14 @@ export default function RegistrationForm({
       setOtpError("Verification failed. Please try again.");
     } finally {
       setOtpVerifying(false);
+    }
+  };
+
+  const handleOtpModalChange = (open: boolean) => {
+    setOtpOpen(open);
+    // Reset submitting state if user cancels out of the modal
+    if (!open) {
+      setIsSubmitting(false);
     }
   };
 
@@ -393,15 +405,22 @@ export default function RegistrationForm({
             !consentChecked ||
             !formData.platform ||
             !formData.gender ||
-            !formData.dateOfBirth
+            !formData.dateOfBirth ||
+            isSubmitting
           }
         >
-          {inviter ? "register & accept" : "register"}
+          {isSubmitting ? (
+            <Spinner className="size-5" />
+          ) : inviter ? (
+            "register & accept"
+          ) : (
+            "register"
+          )}
         </Button>
       </div>
 
       {/* OTP Dialog */}
-      <AlertDialog open={otpOpen} onOpenChange={setOtpOpen}>
+      <AlertDialog open={otpOpen} onOpenChange={handleOtpModalChange}>
         <AlertDialogContent className="bg-black text-white border-white">
           <AlertDialogHeader>
             <AlertDialogTitle>verify your phone number</AlertDialogTitle>
