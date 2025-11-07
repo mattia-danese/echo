@@ -1,9 +1,11 @@
-import crypto from "node:crypto";
 import { env } from "@/lib/env";
 import { inboundTextResponseTask } from "@/trigger/inbound-text-response";
 
+const twilio = require("twilio");
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 10; // 10 seconds - Twilio expects response within 15s
 
 function parseFormUrlEncoded(body: string): Record<string, string> {
   const params = new URLSearchParams(body);
@@ -14,69 +16,131 @@ function parseFormUrlEncoded(body: string): Record<string, string> {
   return result;
 }
 
+function getFullUrl(request: Request): string {
+  // Vercel uses SSL termination, so we need to check X-Forwarded-Proto
+  // to get the actual protocol used by the client (https)
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+  const url = new URL(request.url);
+
+  // If behind a proxy/load balancer, use the forwarded protocol
+  if (forwardedProto) {
+    url.protocol = forwardedProto;
+  }
+
+  return url.toString();
+}
+
 async function verifyTwilioSignature(
   request: Request,
   rawBody: string,
 ): Promise<boolean> {
   // Only enforce signature verification in production
-  if (env.NODE_ENV !== "production") return true;
-
-  const signature = request.headers.get("x-twilio-signature") || "";
-  if (!signature) return false;
-
-  const url = request.url; // Absolute URL in Next.js route handlers
-  const params = parseFormUrlEncoded(rawBody);
-
-  // Build the signed payload: URL + concatenated sorted POST params (key + value)
-  const sortedKeys = Object.keys(params).sort();
-  let data = url;
-  for (const key of sortedKeys) {
-    data += key + params[key];
+  if (env.NODE_ENV !== "production") {
+    console.log(
+      "[Twilio Webhook] Skipping signature verification (not production)",
+    );
+    return true;
   }
 
-  const expected = crypto
-    .createHmac("sha1", env.TWILIO_AUTH_TOKEN)
-    .update(data)
-    .digest("base64");
+  const signature = request.headers.get("x-twilio-signature");
+  if (!signature) {
+    console.error("[Twilio Webhook] Missing X-Twilio-Signature header");
+    return false;
+  }
 
-  const sigBuf = Buffer.from(signature);
-  const expBuf = Buffer.from(expected);
-  return (
-    sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf)
+  const url = getFullUrl(request);
+  const params = parseFormUrlEncoded(rawBody);
+
+  console.log("[Twilio Webhook] Validating signature for URL:", url);
+
+  // Use Twilio's official validateRequest function
+  const isValid = twilio.validateRequest(
+    env.TWILIO_AUTH_TOKEN,
+    signature,
+    url,
+    params,
   );
+
+  if (!isValid) {
+    console.error("[Twilio Webhook] Signature validation failed", {
+      url,
+      signature: signature.substring(0, 10) + "...", // Log partial signature for debugging
+      paramsKeys: Object.keys(params),
+    });
+  }
+
+  return isValid;
 }
 
 export async function POST(request: Request) {
-  // Twilio sends application/x-www-form-urlencoded by default for Messaging webhooks
-  const rawBody = await request.text();
+  console.log("[Twilio Webhook] Received POST request");
 
-  const isValid = await verifyTwilioSignature(request, rawBody);
-  if (!isValid) {
-    return new Response("invalid signature", { status: 401 });
+  try {
+    // Twilio sends application/x-www-form-urlencoded by default for Messaging webhooks
+    const rawBody = await request.text();
+    console.log("[Twilio Webhook] Raw body received, length:", rawBody.length);
+
+    const isValid = await verifyTwilioSignature(request, rawBody);
+    if (!isValid) {
+      console.error(
+        "[Twilio Webhook] Signature validation failed - returning 401",
+      );
+      return new Response("invalid signature", { status: 401 });
+    }
+
+    console.log("[Twilio Webhook] Signature validation passed");
+
+    const params = parseFormUrlEncoded(rawBody);
+
+    const inboundMessage = (params.Body || "").toString();
+    const fromPhoneNumber = (params.From || "").toString();
+
+    console.log("[Twilio Webhook] Parsed message", {
+      from: fromPhoneNumber,
+      messageLength: inboundMessage.length,
+    });
+
+    if (!fromPhoneNumber) {
+      console.error("[Twilio Webhook] Missing sender phone number");
+      return new Response("missing sender", { status: 400 });
+    }
+
+    // CRITICAL: Must await in serverless to ensure HTTP request completes
+    // See: https://trigger.dev/docs/troubleshooting
+    console.log("[Twilio Webhook] Triggering inboundTextResponseTask");
+    try {
+      const handle = await inboundTextResponseTask.trigger({
+        inboundMessage: inboundMessage,
+        phoneNumber: fromPhoneNumber,
+      });
+      console.log(
+        "[Twilio Webhook] Task triggered successfully, run ID:",
+        handle.id,
+      );
+    } catch (triggerError) {
+      console.error("[Twilio Webhook] FAILED to trigger task:", triggerError);
+      // Log but still return 200 to Twilio to avoid retries
+      // The error is logged so you can debug in Vercel
+    }
+
+    const twiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
+    return new Response(twiml, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/xml",
+      },
+    });
+  } catch (error) {
+    console.error("[Twilio Webhook] Error processing request:", error);
+    // Still return 200 to Twilio to avoid retries
+    const twiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
+    return new Response(twiml, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/xml",
+      },
+    });
   }
-
-  const params = parseFormUrlEncoded(rawBody);
-
-  const inboundMessage = (params.Body || "").toString();
-  const fromPhoneNumber = (params.From || "").toString();
-
-  if (!fromPhoneNumber) {
-    return new Response("missing sender", { status: 400 });
-  }
-
-  // Fire-and-forget task trigger; Twilio only needs a timely 200 OK response
-  void inboundTextResponseTask.trigger({
-    inboundMessage: inboundMessage,
-    phoneNumber: fromPhoneNumber,
-  });
-
-  const twiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
-  return new Response(twiml, {
-    status: 200,
-    headers: {
-      "Content-Type": "text/xml",
-    },
-  });
 }
 
 export function GET() {

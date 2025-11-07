@@ -19,7 +19,7 @@ export const sendMessagesTask = task({
   id: "send-messages",
   // Set an optional maxDuration to prevent tasks from running indefinitely
   maxDuration: 300, // Stop executing after 300 secs (5 mins) of compute
-  run: async (payload: { data: Map<string, Array<string>> }, { ctx }) => {
+  run: async (payload: { data: Record<string, Array<string>> }, { ctx }) => {
     logger.log("send messages task starting", { payload, ctx });
 
     const userIds = await db
@@ -28,14 +28,14 @@ export const sendMessagesTask = task({
         phoneNumber: users.phoneNumber,
       })
       .from(users)
-      .where(inArray(users.phoneNumber, Array.from(payload.data.keys())));
+      .where(inArray(users.phoneNumber, Object.keys(payload.data)));
 
     const phoneNumberToUserIdLookup = new Map<string, number>();
     for (const user of userIds) {
       phoneNumberToUserIdLookup.set(user.phoneNumber, user.id);
     }
 
-    for (const [phoneNumber, textMessages] of payload.data.entries()) {
+    for (const [phoneNumber, textMessages] of Object.entries(payload.data)) {
       for (const textMessage of textMessages) {
         const userId = phoneNumberToUserIdLookup.get(phoneNumber);
         if (!userId) {

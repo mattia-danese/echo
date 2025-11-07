@@ -6,6 +6,7 @@ import { logInExistingUser } from "@/app/actions";
 import Hero from "@/components/Hero";
 import PhoneNumberChecker from "@/components/PhoneNumberChecker";
 import RegistrationForm from "@/components/RegistrationForm";
+import { Button } from "@/components/ui/button";
 
 // MusicKit is loaded via Next.js Script in the component render
 
@@ -38,7 +39,7 @@ export default function LogInSignUp({
   }, [phoneNumberChecked, showRegistration]);
 
   return (
-    <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
+    <div className="flex-1 bg-black flex flex-col items-center justify-center p-8 min-h-screen">
       <main className="flex flex-col items-center gap-8 max-w-md w-full">
         <Script
           src="https://js-cdn.music.apple.com/musickit/v3/musickit.js"
@@ -80,10 +81,22 @@ export default function LogInSignUp({
 
         {/* Account status messages */}
         {accountStatus === "created" && (
-          <div className="text-white text-center">
-            your account has been created and you should be getting a text from
-            us shortly
-          </div>
+          <>
+            <div className="text-white text-center">
+              your account has been created and you should be getting a text
+              from us shortly
+            </div>
+            <Button
+              className="mt-4 bg-white text-black hover:bg-gray-200"
+              onClick={() => {
+                window.location.href = `sms:${process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER}`;
+              }}
+              type="button"
+              variant="default"
+            >
+              open texts
+            </Button>
+          </>
         )}
 
         {accountStatus === "error" && (

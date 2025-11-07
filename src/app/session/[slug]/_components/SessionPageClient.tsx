@@ -16,6 +16,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Spinner } from "@/components/ui/spinner";
 import { Platform } from "@/db/types";
 import type { SearchResultTrack } from "@/types";
 
@@ -159,7 +160,7 @@ export default function SessionPageClient({
 
   if (error) {
     return (
-      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
+      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8 min-h-screen">
         <main className="flex flex-col items-center gap-8 max-w-md w-full">
           <Hero />
           <div className="text-white text-center">
@@ -173,7 +174,7 @@ export default function SessionPageClient({
 
   if (submitError) {
     return (
-      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
+      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8 min-h-screen">
         <main className="flex flex-col items-center gap-8 max-w-md w-full">
           <Hero />
           <div className="text-white text-center">
@@ -187,7 +188,7 @@ export default function SessionPageClient({
 
   if (!sessionActive && !isOnboarding) {
     return (
-      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
+      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8 min-h-screen">
         <main className="flex flex-col items-center gap-8 max-w-md w-full">
           <Hero />
           <div className="text-white text-center">
@@ -202,7 +203,7 @@ export default function SessionPageClient({
                 minute: "2-digit",
                 hour12: false,
               })}`;
-            })()} :(
+            })()}
           </div>
         </main>
       </div>
@@ -211,12 +212,12 @@ export default function SessionPageClient({
 
   if (alreadySubmitted) {
     return (
-      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
+      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8 min-h-screen">
         <main className="flex flex-col items-center gap-8 max-w-md w-full">
           <Hero />
           <div className="text-white text-center">
             {isOnboarding
-              ? "you already completed the onboarding :)"
+              ? "you already completed onboarding :)"
               : "you already submitted a song for this echo session :)"}
           </div>
         </main>
@@ -226,40 +227,44 @@ export default function SessionPageClient({
 
   if (isSubmitted) {
     return (
-      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
+      <div className="flex-1 bg-black flex flex-col items-center justify-center p-8 min-h-screen">
         <main className="flex flex-col items-center gap-8 max-w-md w-full">
           <Hero />
-          <div className="text-white text-2xl text-center">
-            {isOnboarding ? (
-              <>
+          {isOnboarding ? (
+            <>
+              <div className="text-white text-center">
                 thank you for sharing a song.
                 <br />
                 go back to your text messages to see the songs your friends
                 shared :)
-              </>
-            ) : (
-              "thank you for sharing a song :)"
-            )}
-          </div>
+              </div>
+              <Button
+                className="mt-4 bg-white text-black hover:bg-gray-200"
+                onClick={() => {
+                  window.location.href = `sms:${process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER}`;
+                }}
+                type="button"
+                variant="default"
+              >
+                open texts
+              </Button>
+            </>
+          ) : (
+            "thank you for sharing a song :)"
+          )}
         </main>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 bg-black flex flex-col items-center justify-center p-8">
+    <div className="flex-1 bg-black flex flex-col items-center justify-center p-8 min-h-screen">
       <main className="flex flex-col items-center gap-8 max-w-md w-full">
         <Hero showText={false} />
 
-        <div className="text-white text-2xl text-center">
-          {isOnboarding
-            ? "share your first song to complete your onboarding :)"
-            : "share your song of the moment"}
-        </div>
-
         {/* Selected song display or skeleton */}
         <div className="w-full flex items-center gap-4 px-4 py-3 h-16">
-          {selectedSong && (
+          {selectedSong ? (
             <>
               <Image
                 src={
@@ -281,6 +286,12 @@ export default function SessionPageClient({
                 </div>
               </div>
             </>
+          ) : (
+            <div className="text-white text-2xl text-center">
+              {isOnboarding
+                ? "share your first song to complete your onboarding :)"
+                : "share your song of the moment"}
+            </div>
           )}
         </div>
 
@@ -350,8 +361,8 @@ export default function SessionPageClient({
             </PopoverContent>
           </Popover>
           {isSearching && (
-            <div className="absolute right-0 top-1/2 transform -translate-y-1/2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+              <Spinner className="size-4 text-teal-400" />
             </div>
           )}
           {searchError && (

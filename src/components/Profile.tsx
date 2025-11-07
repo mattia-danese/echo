@@ -110,10 +110,10 @@ export default function ProfilePage({
   };
 
   return (
-    <div className="flex-1 bg-black flex flex-col items-center justify-start p-8 min-h-screen">
+    <div className="flex-1 bg-black flex flex-col items-center justify-start p-8 min-h-screen overflow-x-hidden">
       <NavBar userId={userId} />
 
-      <main className="flex flex-col items-center gap-8 w-full max-w-6xl h-full">
+      <main className="flex flex-col items-center gap-8 w-full max-w-6xl h-full transform-gpu origin-top md:scale-100 scale-[1.06]">
         {/* Stats and profile area */}
         <div className="flex items-center w-full">
           <div className="flex flex-col items-center flex-1">

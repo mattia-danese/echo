@@ -27,8 +27,8 @@ export default function NavBar({ userId }: { userId: number }) {
   }
 
   return (
-    <nav className="w-full bg-black/80 backdrop-blur border-white/10 mb-8 pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav className="w-full bg-black/80 backdrop-blur border-white/10 mb-8 pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] overflow-x-hidden">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 transform-gpu origin-top md:scale-100 scale-[1.06]">
         <div className="h-16 flex items-center justify-between">
           {/* Left: logo */}
           <Link href="/" className="flex items-center gap-2">

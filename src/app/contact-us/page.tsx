@@ -40,14 +40,14 @@ export default function AboutUs() {
                   Support:{" "}
                   <a
                     href="mailto:support@text-echo.com"
-                    className="text-blue-400 hover:text-blue-300 underline"
+                    className="text-white hover:text-gray-300 underline"
                   >
                     support@text-echo.com
                   </a>{" "}
                   ·{" "}
                   <a
                     href="tel:781-518-6434"
-                    className="text-blue-400 hover:text-blue-300 underline"
+                    className="text-white hover:text-gray-300 underline"
                   >
                     781-518-6434
                   </a>
@@ -59,14 +59,14 @@ export default function AboutUs() {
                   Policies:{" "}
                   <Link
                     href="/terms-of-service"
-                    className="text-blue-400 hover:text-blue-300 underline"
+                    className="text-white hover:text-gray-300 underline"
                   >
                     Terms of Service
                   </Link>{" "}
                   &{" "}
                   <Link
                     href="/privacy-policy"
-                    className="text-blue-400 hover:text-blue-300 underline"
+                    className="text-white hover:text-gray-300 underline"
                   >
                     Privacy Policy
                   </Link>
