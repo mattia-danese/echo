@@ -2,11 +2,26 @@
 
 import Script from "next/script";
 import { useEffect, useState } from "react";
-import { logInExistingUser } from "@/app/actions";
+import { logInExistingUser, sendOTP, verifyOTP } from "@/app/actions";
 import Hero from "@/components/Hero";
 import PhoneNumberChecker from "@/components/PhoneNumberChecker";
 import RegistrationForm from "@/components/RegistrationForm";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
+import { Spinner } from "@/components/ui/spinner";
 
 // MusicKit is loaded via Next.js Script in the component render
 
@@ -22,6 +37,11 @@ export default function LogInSignUp({
   const [phoneNumber, setPhoneNumber] = useState("");
   const [phoneNumberChecked, setPhoneNumberChecked] = useState(false);
   const [showRegistration, setShowRegistration] = useState(false);
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [otpValue, setOtpValue] = useState("");
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpError, setOtpError] = useState("");
 
   useEffect(() => {
     const newUrl = window.location.origin + window.location.pathname;
@@ -30,13 +50,60 @@ export default function LogInSignUp({
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: phoneNumber is a valid dependency
   useEffect(() => {
-    async function tryLogin() {
+    async function initiateLogin() {
       if (phoneNumberChecked && !showRegistration) {
-        void logInExistingUser(phoneNumber);
+        setOtpOpen(true);
+        setOtpValue("");
+        setOtpSending(true);
+        setOtpError("");
+
+        try {
+          const resp = await sendOTP(phoneNumber);
+          if (!resp.ok) {
+            setOtpError("Failed to send code. Please try again.");
+          }
+        } catch {
+          setOtpError("Failed to send code. Please try again.");
+        } finally {
+          setOtpSending(false);
+        }
       }
     }
-    void tryLogin();
+    void initiateLogin();
   }, [phoneNumberChecked, showRegistration]);
+
+  const handleVerifyOTP = async () => {
+    setOtpError("");
+    setOtpVerifying(true);
+    try {
+      const resp = await verifyOTP(phoneNumber, otpValue);
+      if (!resp.ok || !resp.data?.verified) {
+        setOtpError("Invalid code. Please try again.");
+        return;
+      }
+
+      // OTP verified, now log in the user
+      const loginResult = await logInExistingUser(phoneNumber);
+      if (loginResult.ok) {
+        setOtpOpen(false);
+        // Redirect will happen automatically via createSession
+      } else {
+        setOtpError("Login failed. Please try again.");
+      }
+    } catch {
+      setOtpError("Verification failed. Please try again.");
+    } finally {
+      setOtpVerifying(false);
+    }
+  };
+
+  const handleOtpModalChange = (open: boolean) => {
+    setOtpOpen(open);
+    // Reset phone number checked state if user cancels out of the modal
+    if (!open) {
+      setPhoneNumberChecked(false);
+    }
+  };
 
   return (
     <div className="flex-1 bg-black flex flex-col items-center justify-center p-8 min-h-screen">
@@ -126,13 +193,57 @@ export default function LogInSignUp({
           />
         )}
 
-        {/* once we hit this condtion, perform OTP --> authenticate user --> show profile page */}
-        {/* {phoneNumberChecked && !showRegistration && (
-          <div className="text-white text-center">
-            an account is already registered with that phone number :)
-            redirecting to your profile...
-          </div>
-        )} */}
+        {/* Login OTP Dialog */}
+        {phoneNumberChecked && !showRegistration && (
+          <AlertDialog open={otpOpen} onOpenChange={handleOtpModalChange}>
+            <AlertDialogContent className="bg-black text-white border-white">
+              <AlertDialogHeader>
+                <AlertDialogTitle>verify your phone number</AlertDialogTitle>
+                <AlertDialogDescription>
+                  we sent a 6-digit code to {phoneNumber}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+
+              <div className="flex flex-col items-center gap-4 py-2">
+                <InputOTP
+                  maxLength={6}
+                  value={otpValue}
+                  onChange={(value: string) => setOtpValue(value)}
+                  containerClassName="justify-center"
+                >
+                  <InputOTPGroup>
+                    <InputOTPSlot index={0} />
+                    <InputOTPSlot index={1} />
+                    <InputOTPSlot index={2} />
+                    <InputOTPSlot index={3} />
+                    <InputOTPSlot index={4} />
+                    <InputOTPSlot index={5} />
+                  </InputOTPGroup>
+                </InputOTP>
+                {otpError && (
+                  <div className="text-red-500 text-sm">{otpError}</div>
+                )}
+              </div>
+
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={otpVerifying}>
+                  cancel
+                </AlertDialogCancel>
+                <Button
+                  onClick={handleVerifyOTP}
+                  disabled={otpValue.length !== 6 || otpVerifying || otpSending}
+                  className="bg-white text-black hover:bg-gray-100"
+                >
+                  {otpVerifying ? (
+                    <Spinner className="size-5" />
+                  ) : (
+                    "verify & log in"
+                  )}
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </main>
     </div>
   );
