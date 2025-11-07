@@ -22,6 +22,7 @@ const envSchema = z.object({
   TWILIO_PHONE_NUMBER: z.string().min(1),
   TWILIO_ACCOUNT_SID: z.string().min(1),
   TWILIO_AUTH_TOKEN: z.string().min(1),
+  TWILIO_VERIFY_SERVICE_SID: z.string().min(1),
 
   LUCAS_PHONE_NUMBER: z.string().min(1),
   DATABASE_URL: z.string().min(1),
@@ -55,6 +56,7 @@ export const env = envSchema.parse({
   TWILIO_PHONE_NUMBER: process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER,
   TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
   TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
+  TWILIO_VERIFY_SERVICE_SID: process.env.TWILIO_VERIFY_SERVICE_SID,
 
   // miscellaneous
   LUCAS_PHONE_NUMBER: process.env.LUCAS_PHONE_NUMBER,
