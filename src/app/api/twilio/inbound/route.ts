@@ -118,10 +118,7 @@ export async function POST(request: Request) {
         handle.id,
       );
     } catch (triggerError) {
-      console.error(
-        "[Twilio Webhook] FAILED to trigger task:",
-        triggerError,
-      );
+      console.error("[Twilio Webhook] FAILED to trigger task:", triggerError);
       // Log but still return 200 to Twilio to avoid retries
       // The error is logged so you can debug in Vercel
     }
