@@ -262,15 +262,9 @@ export default function SessionPageClient({
       <main className="flex flex-col items-center gap-8 max-w-md w-full">
         <Hero showText={false} />
 
-        <div className="text-white text-2xl text-center">
-          {isOnboarding
-            ? "share your first song to complete your onboarding :)"
-            : "share your song of the moment"}
-        </div>
-
         {/* Selected song display or skeleton */}
         <div className="w-full flex items-center gap-4 px-4 py-3 h-16">
-          {selectedSong && (
+          {selectedSong ? (
             <>
               <Image
                 src={
@@ -292,6 +286,12 @@ export default function SessionPageClient({
                 </div>
               </div>
             </>
+          ) : (
+            <div className="text-white text-2xl text-center">
+              {isOnboarding
+                ? "share your first song to complete your onboarding :)"
+                : "share your song of the moment"}
+            </div>
           )}
         </div>
 
