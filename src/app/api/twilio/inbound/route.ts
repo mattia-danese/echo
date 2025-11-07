@@ -5,6 +5,7 @@ const twilio = require("twilio");
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 10; // 10 seconds - Twilio expects response within 15s
 
 function parseFormUrlEncoded(body: string): Record<string, string> {
   const params = new URLSearchParams(body);
@@ -104,13 +105,26 @@ export async function POST(request: Request) {
       return new Response("missing sender", { status: 400 });
     }
 
-    // Fire-and-forget task trigger; Twilio only needs a timely 200 OK response
+    // CRITICAL: Must await in serverless to ensure HTTP request completes
+    // See: https://trigger.dev/docs/troubleshooting
     console.log("[Twilio Webhook] Triggering inboundTextResponseTask");
-    void inboundTextResponseTask.trigger({
-      inboundMessage: inboundMessage,
-      phoneNumber: fromPhoneNumber,
-    });
-    console.log("[Twilio Webhook] Task triggered successfully");
+    try {
+      const handle = await inboundTextResponseTask.trigger({
+        inboundMessage: inboundMessage,
+        phoneNumber: fromPhoneNumber,
+      });
+      console.log(
+        "[Twilio Webhook] Task triggered successfully, run ID:",
+        handle.id,
+      );
+    } catch (triggerError) {
+      console.error(
+        "[Twilio Webhook] FAILED to trigger task:",
+        triggerError,
+      );
+      // Log but still return 200 to Twilio to avoid retries
+      // The error is logged so you can debug in Vercel
+    }
 
     const twiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
     return new Response(twiml, {
