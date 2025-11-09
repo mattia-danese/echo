@@ -62,6 +62,7 @@ export default function SessionPageClient({
   const [searchError, setSearchError] = useState(false);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [submitError, setSubmitError] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Debounce the search input
   const debouncedSearch = useDebounce(search, 500);
@@ -75,36 +76,42 @@ export default function SessionPageClient({
       return;
     }
 
-    if (isOnboarding) {
-      const result = await completeOnboarding({
-        onboardingToken: token,
+    setIsSubmitting(true);
+
+    try {
+      if (isOnboarding) {
+        const result = await completeOnboarding({
+          onboardingToken: token,
+        });
+
+        if (result.ok) {
+          setIsSubmitted(true);
+        } else {
+          console.error("Error completing onboarding:", result.message);
+          setSubmitError(true);
+        }
+
+        return;
+      }
+
+      const result = await submitSong({
+        userId: userId,
+        token: token,
+        platform: selectedSong.trackPlatform,
+        trackId: selectedSong.trackId,
+        trackName: selectedSong.trackName,
+        artists: selectedSong.artists,
+        albumImageUrl: selectedSong.albumImageUrl,
       });
 
       if (result.ok) {
         setIsSubmitted(true);
       } else {
-        console.error("Error completing onboarding:", result.message);
+        console.error("Error submitting song:", result.message);
         setSubmitError(true);
       }
-
-      return;
-    }
-
-    const result = await submitSong({
-      userId: userId,
-      token: token,
-      platform: selectedSong.trackPlatform,
-      trackId: selectedSong.trackId,
-      trackName: selectedSong.trackName,
-      artists: selectedSong.artists,
-      albumImageUrl: selectedSong.albumImageUrl,
-    });
-
-    if (result.ok) {
-      setIsSubmitted(true);
-    } else {
-      console.error("Error submitting song:", result.message);
-      setSubmitError(true);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -414,10 +421,16 @@ export default function SessionPageClient({
         {/* Send button */}
         <Button
           onClick={handleSubmitSongSelection}
-          disabled={!selectedSong}
+          disabled={!selectedSong || isSubmitting}
           className="w-full bg-white text-black hover:bg-gray-100 font-medium mb-8"
         >
-          send
+          {isSubmitting ? (
+            <div className="flex items-center gap-2">
+              <Spinner className="size-4" />
+            </div>
+          ) : (
+            "send"
+          )}
         </Button>
       </main>
     </div>
