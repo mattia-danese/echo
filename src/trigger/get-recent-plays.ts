@@ -28,10 +28,21 @@ export const getRecentPlaysTask = task({
 
     logger.log("processing users", { numUsers: data.length });
 
+    const errors: Array<{
+      userId: number;
+      platform: string;
+      error: unknown;
+      context?: string;
+    }> = [];
+
     for (const user of data) {
       if (user.platform === Platform.SPOTIFY) {
         if (!user.accessToken || !user.refreshToken || !user.tokenExpiresAt) {
-          logger.error("missing spotify tokens", { user });
+          errors.push({
+            userId: user.userId,
+            platform: Platform.SPOTIFY,
+            error: "missing spotify tokens",
+          });
           continue;
         }
 
@@ -44,14 +55,20 @@ export const getRecentPlaysTask = task({
           );
 
         if (!handleSpotifyUserOk) {
-          logger.error("error handling spotify user", {
-            user,
-            handleSpotifyUserError,
+          errors.push({
+            userId: user.userId,
+            platform: Platform.SPOTIFY,
+            error: handleSpotifyUserError,
+            context: "error handling spotify user",
           });
         }
       } else if (user.platform === Platform.APPLE_MUSIC) {
         if (!user.accessToken) {
-          logger.error("missing apple music access token", { user });
+          errors.push({
+            userId: user.userId,
+            platform: Platform.APPLE_MUSIC,
+            error: "missing apple music access token",
+          });
           continue;
         }
 
@@ -59,18 +76,53 @@ export const getRecentPlaysTask = task({
           await handleAppleMusicUser(user.userId, user.accessToken);
 
         if (!handleAppleMusicUserOk) {
-          logger.error("error handling apple music user", {
-            user,
-            handleAppleMusicUserError,
+          errors.push({
+            userId: user.userId,
+            platform: Platform.APPLE_MUSIC,
+            error: handleAppleMusicUserError,
+            context: "error handling apple music user",
           });
         }
       } else {
-        logger.error("invalid platform", { user });
+        errors.push({
+          userId: user.userId,
+          platform: user.platform,
+          error: "invalid platform",
+        });
       }
     }
 
+    // Log all errors at the end for easy debugging
+    if (errors.length > 0) {
+      logger.error("Task completed with errors", {
+        totalUsers: data.length,
+        successfulUsers: data.length - errors.length,
+        failedUsers: errors.length,
+      });
+
+      // Log each error individually for visibility
+      for (const errorEntry of errors) {
+        logger.error(`Failed for user ${errorEntry.userId}`, {
+          userId: errorEntry.userId,
+          platform: errorEntry.platform,
+          context: errorEntry.context,
+          error: errorEntry.error,
+          errorMessage:
+            errorEntry.error instanceof Error
+              ? errorEntry.error.message
+              : String(errorEntry.error),
+        });
+      }
+
+      // Throw to mark run as failed in dashboard
+      throw new Error(
+        `Task failed for ${errors.length} out of ${data.length} user(s). Check logs above for details.`,
+      );
+    }
+
+    logger.log("Task completed successfully", { totalUsers: data.length });
     return {
-      message: `get recent plays task completed`,
+      message: `get recent plays task completed successfully for ${data.length} user(s)`,
     };
   },
 });
@@ -203,49 +255,26 @@ const storeTracks = async (trackPlays: RecentTrackPlay[], userId: number) => {
     logger.log("Attempting to store tracks", {
       userId,
       trackCount: trackPlays.length,
-      sampleTrack: trackPlays[0], // Log first track for debugging
     });
 
-    // Try to insert tracks one by one to identify which one fails
-    for (let i = 0; i < trackPlays.length; i++) {
-      try {
-        await db.insert(userTrackPlays).values([trackPlays[i]]);
-        logger.log(
-          `Successfully inserted track ${i + 1}/${trackPlays.length}`,
-          {
-            trackId: trackPlays[i].trackId,
-            trackName: trackPlays[i].trackName,
-          },
-        );
-      } catch (singleTrackError: unknown) {
-        logger.error(`Failed to insert track ${i + 1}/${trackPlays.length}`, {
-          trackIndex: i,
-          track: trackPlays[i],
-          error: singleTrackError,
-          errorMessage:
-            singleTrackError instanceof Error
-              ? singleTrackError.message
-              : String(singleTrackError),
-          errorStack:
-            singleTrackError instanceof Error
-              ? singleTrackError.stack
-              : undefined,
-        });
-        throw singleTrackError; // Re-throw to maintain original behavior
-      }
-    }
+    // Bulk insert all tracks, skipping duplicates
+    await db.insert(userTrackPlays).values(trackPlays).onConflictDoNothing();
+
+    logger.log("Successfully stored tracks", {
+      userId,
+      trackCount: trackPlays.length,
+    });
 
     return { ok: true, error: null };
   } catch (error: unknown) {
-    // Log detailed error information
+    // Log detailed error information - this should rarely happen
+    // as duplicates are handled by onConflictDoNothing
     logger.error("Database insertion failed", {
       userId,
       trackCount: trackPlays.length,
       error: error,
       errorMessage: error instanceof Error ? error.message : String(error),
       errorStack: error instanceof Error ? error.stack : undefined,
-      sampleTrack: trackPlays[0], // Log first track for debugging
-      allTracks: trackPlays, // Log all tracks for debugging
     });
 
     return { ok: false, error: error };
