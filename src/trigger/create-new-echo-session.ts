@@ -20,6 +20,8 @@ export const createNewEchoSessionTask = schedules.task({
     logger.log("create new echo session task starting ...");
 
     try {
+      const sendMessagesData: Record<string, Array<string>> = {};
+
       // create new echo session in the database
       const [echoSession] = await db
         .insert(echoSessions)
@@ -87,15 +89,15 @@ export const createNewEchoSessionTask = schedules.task({
           continue;
         }
 
-        await sendMessagesTask.trigger({
-          data: {
-            [phoneNumber]: [
-              "start the echo :) click here to share what you've been listening to by 9pm tonight",
-              `https://text-echo.com/session/${userEchoSession.token}`,
-            ],
-          },
-        });
+        sendMessagesData[phoneNumber] = [
+          "start the echo :) click here to share what you've been listening to by 9pm tonight",
+          `https://text-echo.com/session/${userEchoSession.token}`,
+        ];
       }
+
+      await sendMessagesTask.trigger({
+        data: sendMessagesData,
+      });
 
       return {
         message: `sent echo session links to ${userEchoSessionData.length} users`,
