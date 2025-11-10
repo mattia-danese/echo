@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { logger, schedules } from "@trigger.dev/sdk/v3";
+import { fromZonedTime } from "date-fns-tz";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { echoSessions, userEchoSessions, users } from "@/db/schema";
@@ -22,12 +23,24 @@ export const createNewEchoSessionTask = schedules.task({
     try {
       const sendMessagesData: Record<string, Array<string>> = {};
 
+      // Inside the run function:
+      const timezone = "America/New_York";
+      const today = new Date();
+
+      // Create 11 AM EST/EDT
+      const startEST = new Date(today).setHours(11, 0, 0, 0);
+      const startUTC = fromZonedTime(startEST, timezone);
+
+      // Create 6 PM EST/EDT
+      const endEST = new Date(today).setHours(18, 0, 0, 0);
+      const endUTC = fromZonedTime(endEST, timezone);
+
       // create new echo session in the database
       const [echoSession] = await db
         .insert(echoSessions)
         .values({
-          start: new Date(new Date().setHours(11, 0, 0, 0)).toISOString(),
-          end: new Date(new Date().setHours(18, 0, 0, 0)).toISOString(),
+          start: startUTC.toISOString(),
+          end: endUTC.toISOString(),
         })
         .returning({ id: echoSessions.id });
 
