@@ -647,7 +647,10 @@ const textUsersPlaylists = async (
         break;
     }
 
-    data[userPhoneNumber] = [playlistLink];
+    data[userPhoneNumber] = [
+      "you ready? here's the songs your friends shared:",
+      playlistLink,
+    ];
   }
 
   await sendMessagesTask.trigger({
