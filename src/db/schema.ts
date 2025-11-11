@@ -18,7 +18,6 @@ const platform = pgEnum("platform", [Platform.SPOTIFY, Platform.APPLE_MUSIC]);
 const gender = pgEnum("gender", [
   Gender.MALE,
   Gender.FEMALE,
-  Gender.NON_BINARY,
   Gender.PREFER_NOT_TO_SAY,
 ]);
 const messageType = pgEnum("message_type", [
