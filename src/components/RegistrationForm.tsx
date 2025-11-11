@@ -31,17 +31,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Gender, Platform } from "@/db/types";
 
-interface RegistrationFormProps {
-  phoneNumber: string;
-  phoneNumberChecked: boolean;
-  inviter?: {
-    firstName: string;
-    link: string;
-  };
-  disableAppleMusic: boolean;
-}
-
-type FormData = {
+export type FormData = {
   firstName: string;
   lastName: string;
   phoneNumber: string;
@@ -50,21 +40,30 @@ type FormData = {
   dateOfBirth: Date | null;
 };
 
+interface RegistrationFormProps {
+  phoneNumber: string;
+  phoneNumberChecked: boolean;
+  inviter?: {
+    firstName: string;
+    link: string;
+  };
+  disableAppleMusic: boolean;
+  formData: FormData;
+  setFormData: React.Dispatch<React.SetStateAction<FormData>>;
+  consentChecked: boolean;
+  setConsentChecked: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
 export default function RegistrationForm({
   phoneNumber,
   phoneNumberChecked,
   inviter,
   disableAppleMusic,
+  formData,
+  setFormData,
+  consentChecked,
+  setConsentChecked,
 }: RegistrationFormProps) {
-  const [formData, setFormData] = useState<FormData>({
-    firstName: "",
-    lastName: "",
-    phoneNumber: phoneNumber,
-    platform: "",
-    gender: "",
-    dateOfBirth: null,
-  });
-  const [consentChecked, setConsentChecked] = useState(false);
   const [formDataError, setFormDataError] = useState("");
   const [otpOpen, setOtpOpen] = useState(false);
   const [otpValue, setOtpValue] = useState("");
@@ -84,6 +83,11 @@ export default function RegistrationForm({
   const normalizeName = (name: string) => {
     return name.replace(/[^a-z' -]/gi, "").toLowerCase();
   };
+
+  // Keep formData.phoneNumber in sync with phoneNumber prop
+  useEffect(() => {
+    setFormData((prev) => ({ ...prev, phoneNumber }));
+  }, [phoneNumber, setFormData]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: phoneNumberChecked is a prop and valid dependency
   useEffect(() => {

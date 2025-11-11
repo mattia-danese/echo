@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { createFriendships } from "@/app/actions";
 import Hero from "@/components/Hero";
 import PhoneNumberChecker from "@/components/PhoneNumberChecker";
-import RegistrationForm from "@/components/RegistrationForm";
+import RegistrationForm, { type FormData } from "@/components/RegistrationForm";
 import type { Platform } from "@/db/types";
 
 type FriendshipStatus = "created" | "error" | "error-same-user" | null;
@@ -29,6 +29,15 @@ export default function FriendRequest({
   const [showRegistration, setShowRegistration] = useState(false);
   const [friendshipStatus, setFriendshipStatus] =
     useState<FriendshipStatus>(null);
+  const [formData, setFormData] = useState<FormData>({
+    firstName: "",
+    lastName: "",
+    phoneNumber: "",
+    platform: "",
+    gender: "",
+    dateOfBirth: null,
+  });
+  const [consentChecked, setConsentChecked] = useState(false);
 
   useEffect(() => {
     const newUrl = window.location.origin + window.location.pathname;
@@ -139,6 +148,10 @@ export default function FriendRequest({
             phoneNumberChecked={phoneNumberChecked}
             inviter={inviter}
             disableAppleMusic={!appleDeveloperToken}
+            formData={formData}
+            setFormData={setFormData}
+            consentChecked={consentChecked}
+            setConsentChecked={setConsentChecked}
           />
         )}
 

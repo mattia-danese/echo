@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { logInExistingUser, sendOTP, verifyOTP } from "@/app/actions";
 import Hero from "@/components/Hero";
 import PhoneNumberChecker from "@/components/PhoneNumberChecker";
-import RegistrationForm from "@/components/RegistrationForm";
+import RegistrationForm, { type FormData } from "@/components/RegistrationForm";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -42,6 +42,15 @@ export default function LogInSignUp({
   const [otpSending, setOtpSending] = useState(false);
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [otpError, setOtpError] = useState("");
+  const [formData, setFormData] = useState<FormData>({
+    firstName: "",
+    lastName: "",
+    phoneNumber: "",
+    platform: "",
+    gender: "",
+    dateOfBirth: null,
+  });
+  const [consentChecked, setConsentChecked] = useState(false);
 
   useEffect(() => {
     const newUrl = window.location.origin + window.location.pathname;
@@ -190,6 +199,10 @@ export default function LogInSignUp({
             phoneNumber={phoneNumber}
             phoneNumberChecked={phoneNumberChecked}
             disableAppleMusic={!appleDeveloperToken}
+            formData={formData}
+            setFormData={setFormData}
+            consentChecked={consentChecked}
+            setConsentChecked={setConsentChecked}
           />
         )}
 
