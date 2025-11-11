@@ -18,7 +18,6 @@ interface PhoneNumberCheckerProps {
     id: number;
     platform: Platform;
     firstName: string;
-    lastName: string;
   }) => void;
 }
 

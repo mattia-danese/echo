@@ -213,7 +213,6 @@ export async function createUser(payload: {
         referralFriendLinkToken: payload.referralFriendLinkToken,
         userPlatform: payload.platform,
         userFirstName: payload.firstName,
-        userLastName: payload.lastName,
       });
 
       if (!ok) {
@@ -319,7 +318,6 @@ export async function createFriendships(payload: {
   userId: number;
   userPlatform: Platform;
   userFirstName: string;
-  userLastName: string;
   referralFriendLinkToken: string;
 }) {
   try {
@@ -394,7 +392,7 @@ export async function createFriendships(payload: {
     await sendMessagesTask.trigger({
       data: {
         [friend.phoneNumber]: [
-          `you're now friends with ${payload.userFirstName} ${payload.userLastName} :)`,
+          `you're now friends with ${payload.userFirstName} :)`,
         ],
       },
     });
