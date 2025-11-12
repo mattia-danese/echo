@@ -8,11 +8,11 @@ import {
   friends,
   songLinkCacheMappings,
   songlinkCache,
+  spotifyAuth,
   userAuth,
   userEchoSessions,
   users,
   userTrackPlays,
-  spotifyAuth,
 } from "@/db/schema";
 import { type Gender, Platform } from "@/db/types";
 import { createSession, deleteAllSessionsForUser } from "@/lib/cookieSession";
