@@ -131,11 +131,15 @@ export default function RegistrationForm({
         : "",
     });
 
-    const authUrl = `https://accounts.spotify.com/authorize?client_id=${process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI}&scope=user-top-read%20user-read-recently-played%20user-read-private%20playlist-modify-public%20playlist-modify-private&show_dialog=true&state=${encodeURIComponent(
+    // const authUrl = `https://accounts.spotify.com/authorize?client_id=${process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI}&scope=user-top-read%20user-read-recently-played%20user-read-private%20playlist-modify-public%20playlist-modify-private&show_dialog=true&state=${encodeURIComponent(
+    //   params.toString(),
+    // )}`;
+
+    // window.location.href = authUrl;
+
+    window.location.href = `${process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI}?state=${encodeURIComponent(
       params.toString(),
     )}`;
-
-    window.location.href = authUrl;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

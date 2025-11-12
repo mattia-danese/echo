@@ -105,39 +105,36 @@ export async function createUser(payload: {
 
     if (payload.platform === Platform.SPOTIFY) {
       // User doesn't exist, make API call to get tokens from platform
-      const {
-        ok: platformAuthOk,
-        data: platformAuthData,
-        error: platformAuthError,
-      } = await getPlatformAuth({
-        platform: payload.platform,
-        code: payload.auth,
-      });
-
-      if (!platformAuthOk) {
-        return {
-          ok: false,
-          userId: null,
-          onboardingToken: null,
-          created: false,
-          message: platformAuthError,
-        };
-      }
-
-      if (!platformAuthData) {
-        return {
-          ok: false,
-          userId: null,
-          onboardingToken: null,
-          created: false,
-          message: "No data returned from platform auth",
-        };
-      }
-
-      userAuthData.accessToken = platformAuthData.accessToken;
-      userAuthData.refreshToken = platformAuthData.refreshToken;
-      userAuthData.tokenExpiresAt = platformAuthData.expiresAt;
-      userAuthData.platformUserId = platformAuthData.platformUserId;
+      // const {
+      //   ok: platformAuthOk,
+      //   data: platformAuthData,
+      //   error: platformAuthError,
+      // } = await getPlatformAuth({
+      //   platform: payload.platform,
+      //   code: payload.auth,
+      // });
+      // if (!platformAuthOk) {
+      //   return {
+      //     ok: false,
+      //     userId: null,
+      //     onboardingToken: null,
+      //     created: false,
+      //     message: platformAuthError,
+      //   };
+      // }
+      // if (!platformAuthData) {
+      //   return {
+      //     ok: false,
+      //     userId: null,
+      //     onboardingToken: null,
+      //     created: false,
+      //     message: "No data returned from platform auth",
+      //   };
+      // }
+      // userAuthData.accessToken = platformAuthData.accessToken;
+      // userAuthData.refreshToken = platformAuthData.refreshToken;
+      // userAuthData.tokenExpiresAt = platformAuthData.expiresAt;
+      // userAuthData.platformUserId = platformAuthData.platformUserId;
     } else if (payload.platform === Platform.APPLE_MUSIC) {
       userAuthData.accessToken = payload.auth;
     } else {
@@ -205,7 +202,9 @@ export async function createUser(payload: {
     userAuthData.userId = newUser.id;
 
     // Create new user auth record
-    await db.insert(userAuth).values(userAuthData);
+    if (payload.platform !== Platform.SPOTIFY) {
+      await db.insert(userAuth).values(userAuthData);
+    }
 
     if (payload.referralFriendLinkToken) {
       const { ok, message } = await createFriendships({
@@ -221,16 +220,18 @@ export async function createUser(payload: {
     }
 
     // async task to get recent plays of new user
-    await getRecentPlaysTask.trigger({
-      user: {
-        userId: newUser.id,
-        platform: payload.platform,
-        platformUserId: userAuthData.platformUserId ?? "",
-        accessToken: userAuthData.accessToken,
-        refreshToken: userAuthData.refreshToken ?? "",
-        tokenExpiresAt: userAuthData.tokenExpiresAt ?? "",
-      },
-    });
+    if (payload.platform !== Platform.SPOTIFY) {
+      await getRecentPlaysTask.trigger({
+        user: {
+          userId: newUser.id,
+          platform: payload.platform,
+          platformUserId: userAuthData.platformUserId ?? "",
+          accessToken: userAuthData.accessToken,
+          refreshToken: userAuthData.refreshToken ?? "",
+          tokenExpiresAt: userAuthData.tokenExpiresAt ?? "",
+        },
+      });
+    }
 
     return {
       ok: true,
@@ -250,69 +251,69 @@ export async function createUser(payload: {
   }
 }
 
-async function getPlatformAuth(payload: { platform: Platform; code: string }) {
-  try {
-    if (payload.platform === Platform.SPOTIFY) {
-      const {
-        ok: getTokensOk,
-        data: getTokensData,
-        error: getTokensError,
-      } = await SpotifyPlatform.getTokens({ code: payload.code });
+// async function getPlatformAuth(payload: { platform: Platform; code: string }) {
+//   try {
+//     if (payload.platform === Platform.SPOTIFY) {
+//       const {
+//         ok: getTokensOk,
+//         data: getTokensData,
+//         error: getTokensError,
+//       } = await SpotifyPlatform.getTokens({ code: payload.code });
 
-      if (!getTokensOk) {
-        return { ok: false, data: null, error: getTokensError };
-      }
+//       if (!getTokensOk) {
+//         return { ok: false, data: null, error: getTokensError };
+//       }
 
-      if (!getTokensData) {
-        return {
-          ok: false,
-          data: null,
-          error: "No data returned from Spotify getTokens",
-        };
-      }
+//       if (!getTokensData) {
+//         return {
+//           ok: false,
+//           data: null,
+//           error: "No data returned from Spotify getTokens",
+//         };
+//       }
 
-      const { accessToken, refreshToken, expiresAt } = getTokensData;
+//       const { accessToken, refreshToken, expiresAt } = getTokensData;
 
-      const {
-        ok: getUserIdOk,
-        data: getUserIdData,
-        error: getUserIdError,
-      } = await SpotifyPlatform.getUserId({
-        accessToken: accessToken,
-      });
+//       const {
+//         ok: getUserIdOk,
+//         data: getUserIdData,
+//         error: getUserIdError,
+//       } = await SpotifyPlatform.getUserId({
+//         accessToken: accessToken,
+//       });
 
-      if (!getUserIdOk) {
-        return { ok: false, data: null, error: getUserIdError };
-      }
+//       if (!getUserIdOk) {
+//         return { ok: false, data: null, error: getUserIdError };
+//       }
 
-      if (!getUserIdData) {
-        return {
-          ok: false,
-          data: null,
-          error: "No data returned from Spotify getUserId",
-        };
-      }
+//       if (!getUserIdData) {
+//         return {
+//           ok: false,
+//           data: null,
+//           error: "No data returned from Spotify getUserId",
+//         };
+//       }
 
-      const data = {
-        accessToken: accessToken,
-        refreshToken: refreshToken,
-        expiresAt: expiresAt,
-        platformUserId: getUserIdData.spotifyUserId,
-      };
+//       const data = {
+//         accessToken: accessToken,
+//         refreshToken: refreshToken,
+//         expiresAt: expiresAt,
+//         platformUserId: getUserIdData.spotifyUserId,
+//       };
 
-      return { ok: true, data: data, error: null };
-    }
+//       return { ok: true, data: data, error: null };
+//     }
 
-    return { ok: false, data: null, error: "Invalid platform" };
-  } catch (error: unknown) {
-    console.error("Error in getPlatformAuth:", error);
-    return {
-      ok: false,
-      data: null,
-      error: "An error occurred while getting platform auth",
-    };
-  }
-}
+//     return { ok: false, data: null, error: "Invalid platform" };
+//   } catch (error: unknown) {
+//     console.error("Error in getPlatformAuth:", error);
+//     return {
+//       ok: false,
+//       data: null,
+//       error: "An error occurred while getting platform auth",
+//     };
+//   }
+// }
 
 export async function createFriendships(payload: {
   userId: number;

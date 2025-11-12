@@ -14,10 +14,14 @@ export async function GET(req: Request) {
   let accountStatus: AccountStatus;
 
   const url = new URL(req.url);
-  const code = url.searchParams.get("code");
+  // const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
 
-  if (!code || !state) {
+  // if (!code || !state) {
+  //   return NextResponse.redirect(new URL("/", req.url));
+  // }
+
+  if (!state) {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
@@ -53,7 +57,8 @@ export async function GET(req: Request) {
       firstName: firstName,
       lastName: lastName,
       phoneNumber: phoneNumber,
-      auth: code,
+      // auth: code,
+      auth: "",
       platform: platform,
       referralFriendLinkToken: formParams.get("friendLinkToken") || "",
       gender: gender,
