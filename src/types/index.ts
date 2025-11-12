@@ -12,7 +12,7 @@ export interface GetTokensResponse {
 
 // Refresh Tokens
 export interface RefreshTokensRequest {
-  userId: number;
+  userId: string;
   refreshToken: string;
 }
 

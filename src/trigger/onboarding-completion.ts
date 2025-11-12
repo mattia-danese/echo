@@ -277,7 +277,7 @@ const handleSpotifyUser = async (
       data: refreshTokensData,
       error: refreshTokensError,
     } = await SpotifyPlatform.refreshTokens({
-      userId: user.userId,
+      userId: user.platformUserId,
       refreshToken: user.refreshToken,
     });
 

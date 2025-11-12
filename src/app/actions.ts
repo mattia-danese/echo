@@ -12,6 +12,7 @@ import {
   userEchoSessions,
   users,
   userTrackPlays,
+  spotifyAuth,
 } from "@/db/schema";
 import { type Gender, Platform } from "@/db/types";
 import { createSession, deleteAllSessionsForUser } from "@/lib/cookieSession";
@@ -741,16 +742,34 @@ export async function completeOnboarding(payload: { onboardingToken: string }) {
       );
     }
 
-    const [auth] = await db
-      .select({
-        platformUserId: userAuth.platformUserId,
-        accessToken: userAuth.accessToken,
-        refreshToken: userAuth.refreshToken,
-        tokenExpiresAt: userAuth.tokenExpiresAt,
-      })
-      .from(userAuth)
-      .where(eq(userAuth.userId, user.id))
-      .limit(1);
+    let auth = null;
+
+    if (user.platform === Platform.SPOTIFY) {
+      const [authRecord] = await db
+        .select({
+          accessToken: spotifyAuth.accessToken,
+          refreshToken: spotifyAuth.refreshToken,
+          tokenExpiresAt: spotifyAuth.tokenExpiresAt,
+          platformUserId: spotifyAuth.userId,
+        })
+        .from(spotifyAuth)
+        .limit(1);
+
+      auth = authRecord;
+    } else {
+      const [authRecord] = await db
+        .select({
+          platformUserId: userAuth.platformUserId,
+          accessToken: userAuth.accessToken,
+          refreshToken: userAuth.refreshToken,
+          tokenExpiresAt: userAuth.tokenExpiresAt,
+        })
+        .from(userAuth)
+        .where(eq(userAuth.userId, user.id))
+        .limit(1);
+
+      auth = authRecord;
+    }
 
     if (!auth) {
       throw new Error("User auth not found");

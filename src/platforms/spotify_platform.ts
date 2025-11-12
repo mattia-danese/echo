@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { userAuth } from "@/db/schema";
+import { spotifyAuth, userAuth } from "@/db/schema";
 import { Platform as PlatformEnum } from "@/db/types";
 import { spotifyAdmin } from "@/lib/spotifyAdmin";
 import { Platform } from "@/platforms/platform";
@@ -124,15 +124,25 @@ export class SpotifyPlatform extends Platform {
         Date.now() + responseData.expires_in * 1000,
       ).toISOString();
 
+      // await db
+      //   .update(userAuth)
+      //   .set({
+      //     accessToken: responseData.access_token,
+      //     refreshToken: responseData.refresh_token ?? request.refreshToken,
+      //     tokenExpiresAt: spotifyTokenExpiresAt,
+      //     updatedAt: new Date().toISOString(),
+      //   })
+      //   .where(eq(userAuth.userId, request.userId));
+
       await db
-        .update(userAuth)
+        .update(spotifyAuth)
         .set({
           accessToken: responseData.access_token,
           refreshToken: responseData.refresh_token ?? request.refreshToken,
           tokenExpiresAt: spotifyTokenExpiresAt,
           updatedAt: new Date().toISOString(),
         })
-        .where(eq(userAuth.userId, request.userId));
+        .where(eq(spotifyAuth.userId, request.userId));
 
       const data = {
         accessToken: responseData.access_token,

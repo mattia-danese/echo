@@ -8,6 +8,7 @@ import {
   playlistSongs,
   playlists,
   songLinkCacheMappings,
+  spotifyAuth,
   userAuth,
   userEchoSessions,
   users,
@@ -115,7 +116,7 @@ export const generatePlaylistsTask = schedules.task({
         ok,
         data: userFriendData,
         error,
-      } = await getUserFriends(user.userId);
+      } = await getUserFriends(user.userId, echoSessionId);
 
       if (!ok) {
         usersThatEncounteredErrors[user.userId] ??= [];
@@ -294,6 +295,16 @@ const getEchoSessionAndUsers = async () => {
       },
     );
 
+    const [spotifyAuthData] = await db
+      .select({
+        userId: spotifyAuth.userId,
+        accessToken: spotifyAuth.accessToken,
+        refreshToken: spotifyAuth.refreshToken,
+        tokenExpiresAt: spotifyAuth.tokenExpiresAt,
+      })
+      .from(spotifyAuth)
+      .limit(1);
+
     // get all users that submitted a song in the last session (userId, phoneNumber, trackId)
     const userSongData = (await db
       .select({
@@ -319,8 +330,40 @@ const getEchoSessionAndUsers = async () => {
           eq(userEchoSessions.sessionId, echoSession.id),
           eq(users.isDeleted, false),
           isNotNull(userEchoSessions.trackId),
+          eq(users.platform, Platform.APPLE_MUSIC),
         ),
       )) as UserSongData[];
+
+    const spotifyUsers = (await db
+      .select({
+        userId: userEchoSessions.userId,
+        firstName: users.firstName,
+        phoneNumber: users.phoneNumber,
+        platform: users.platform,
+
+        platformOfEchoSession: userEchoSessions.platform,
+        trackId: userEchoSessions.trackId,
+        trackAlbumImageUrl: userEchoSessions.trackAlbumImageUrl,
+      })
+      .from(userEchoSessions)
+      .innerJoin(users, eq(userEchoSessions.userId, users.id))
+      .where(
+        and(
+          eq(userEchoSessions.sessionId, echoSession.id),
+          eq(users.isDeleted, false),
+          isNotNull(userEchoSessions.trackId),
+          eq(users.platform, Platform.SPOTIFY),
+        ),
+      )) as UserSongData[];
+
+    for (const user of spotifyUsers) {
+      user.platformUserId = spotifyAuthData.userId;
+      user.accessToken = spotifyAuthData.accessToken;
+      user.refreshToken = spotifyAuthData.refreshToken;
+      user.tokenExpiresAt = spotifyAuthData.tokenExpiresAt;
+    }
+
+    userSongData.push(...spotifyUsers);
 
     if (userSongData.length === 0) {
       throw new Error(`no users found for echo session ${echoSession.id}`);
@@ -336,12 +379,22 @@ const getEchoSessionAndUsers = async () => {
   }
 };
 
-const getUserFriends = async (userId: number) => {
+const getUserFriends = async (userId: number, echoSessionId: number) => {
   try {
     const userFriendData = await db
       .select({ friendId: friends.friendId })
       .from(friends)
-      .where(eq(friends.userId, userId));
+      .innerJoin(
+        userEchoSessions,
+        eq(friends.friendId, userEchoSessions.userId),
+      )
+      .where(
+        and(
+          eq(friends.userId, userId),
+          eq(userEchoSessions.sessionId, echoSessionId),
+          isNotNull(userEchoSessions.trackId),
+        ),
+      );
 
     if (userFriendData.length === 0) {
       throw new Error(`no friends found for user ${userId}`);
@@ -371,6 +424,8 @@ const compilePlaylistSongs = async (
 
     for (const friendId of userFriendData) {
       if (playlist.length === numSongsPerPlaylist) break;
+
+      if (!userSongLookup[friendId]) continue;
 
       const [friendSongTrackId, friendSongAlbumImageUrl] =
         userSongLookup[friendId];
@@ -464,7 +519,7 @@ const createSpotifyPlaylistForUser = async (
       data: refreshTokensData,
       error: refreshTokensError,
     } = await SpotifyPlatform.refreshTokens({
-      userId: user.userId,
+      userId: user.platformUserId,
       refreshToken: user.refreshToken,
     });
 

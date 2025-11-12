@@ -377,3 +377,16 @@ export const appleDevToken = pgTable("apple_dev_token", {
 
   ...timestamps,
 });
+
+export const spotifyAuth = pgTable("spotify_auth", {
+  id: integer().primaryKey().generatedByDefaultAsIdentity(),
+  userId: varchar("user_id").notNull(),
+  accessToken: varchar("access_token").notNull(),
+  refreshToken: varchar("refresh_token").notNull(),
+  tokenExpiresAt: timestamp("token_expires_at", {
+    withTimezone: true,
+    mode: "string",
+  }).notNull(),
+
+  ...timestamps,
+});
