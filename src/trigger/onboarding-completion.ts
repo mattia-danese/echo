@@ -61,7 +61,11 @@ export const onboardingCompletionTask = task({
 
       // First get the user's friends
       const userFriends = await db
-        .select({ friendId: friends.friendId, isDeleted: users.isDeleted })
+        .select({
+          friendId: friends.friendId,
+          isDeleted: users.isDeleted,
+          firstName: users.firstName,
+        })
         .from(friends)
         .innerJoin(users, eq(friends.friendId, users.id))
         .where(
@@ -79,7 +83,7 @@ export const onboardingCompletionTask = task({
         await sendMessages({
           phoneNumber: payload.user.phoneNumber,
           playlistLink: genericPlaylistLink,
-          numFriends: 0,
+          friendNames: [],
         });
 
         return {
@@ -87,7 +91,7 @@ export const onboardingCompletionTask = task({
         };
       }
 
-      const numFriends = userFriends.length;
+      const friendNames = userFriends.map((f) => f.firstName);
 
       // Then get echo sessions for those friends
       const friendSubmissions = await db
@@ -118,7 +122,7 @@ export const onboardingCompletionTask = task({
         await sendMessages({
           phoneNumber: payload.user.phoneNumber,
           playlistLink: genericPlaylistLink,
-          numFriends: numFriends,
+          friendNames: friendNames,
         });
 
         return {
@@ -153,7 +157,7 @@ export const onboardingCompletionTask = task({
         await sendMessages({
           phoneNumber: payload.user.phoneNumber,
           playlistLink: genericPlaylistLink,
-          numFriends: numFriends,
+          friendNames: friendNames,
         });
 
         return {
@@ -189,7 +193,7 @@ export const onboardingCompletionTask = task({
         await sendMessages({
           phoneNumber: payload.user.phoneNumber,
           playlistLink: genericPlaylistLink,
-          numFriends: numFriends,
+          friendNames: friendNames,
         });
 
         return {
@@ -201,7 +205,7 @@ export const onboardingCompletionTask = task({
       await sendMessages({
         phoneNumber: payload.user.phoneNumber,
         playlistLink: data,
-        numFriends: numFriends,
+        friendNames: friendNames,
       });
 
       return {
@@ -217,13 +221,20 @@ export const onboardingCompletionTask = task({
 const sendMessages = async (payload: {
   phoneNumber: string;
   playlistLink: string;
-  numFriends: number;
+  friendNames: string[];
 }) => {
+  const numFriends = payload.friendNames.length;
+
+  const friendMessage =
+    numFriends === 1
+      ? `your only friend is ${payload.friendNames[0]} :(`
+      : `you have ${numFriends} friends :(`;
+
   const messages = [
     `thanks for sharing your first song :) at the end of the day you'll get a playlist like this with the songs your friends shared`,
     payload.playlistLink,
     `and that's echo :)`,
-    `you have ${payload.numFriends} friend${payload.numFriends === 1 ? "" : "s"} :( text us "get link" to get your unique friend request link`,
+    `${friendMessage} text us "get link" to get your unique friend request link`,
   ];
 
   await sendMessagesTask.trigger({
