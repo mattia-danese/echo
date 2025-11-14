@@ -6,6 +6,7 @@ import { createFriendships } from "@/app/actions";
 import Hero from "@/components/Hero";
 import PhoneNumberChecker from "@/components/PhoneNumberChecker";
 import RegistrationForm, { type FormData } from "@/components/RegistrationForm";
+import { Button } from "@/components/ui/button";
 import type { Platform } from "@/db/types";
 
 type FriendshipStatus = "created" | "error" | "error-same-user" | null;
@@ -115,10 +116,22 @@ export default function FriendRequest({
 
         {/* Account status messages */}
         {accountStatus === "created" && (
-          <div className="text-white text-center">
-            your account has been created and you should be getting a text from
-            us shortly
-          </div>
+          <>
+            <div className="text-white text-center">
+              your account has been created and you should be getting a text
+              from us shortly
+            </div>
+            <Button
+              className="mt-4 bg-white text-black hover:bg-gray-200"
+              onClick={() => {
+                window.location.href = `sms:${process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER}`;
+              }}
+              type="button"
+              variant="default"
+            >
+              open texts
+            </Button>
+          </>
         )}
 
         {accountStatus === "error" && (
