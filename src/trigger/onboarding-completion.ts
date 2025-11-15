@@ -231,7 +231,7 @@ const sendMessages = async (payload: {
       : `you have ${numFriends} friends :(`;
 
   const messages = [
-    `thanks for sharing your first song :) at the end of the day you'll get a playlist like this with the songs your friends shared`,
+    `thanks for sharing your first song. at the end of the day you'll get a playlist like this with the songs your friends shared`,
     payload.playlistLink,
     `and that's echo :)`,
     `${friendMessage} text us "get link" to get your unique friend request link`,

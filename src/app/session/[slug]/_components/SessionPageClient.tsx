@@ -246,7 +246,7 @@ export default function SessionPageClient({
                 thank you for sharing a song.
                 <br />
                 go back to your text messages to see the songs your friends
-                shared :)
+                shared
               </div>
               <Button
                 className="mt-4 bg-white text-black hover:bg-gray-200"
