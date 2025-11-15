@@ -1,4 +1,4 @@
-import { logger, schedules } from "@trigger.dev/sdk";
+import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { getRecentPlaysTask } from "@/trigger";
 
 export const getRecentPlaysScheduledTask = schedules.task({

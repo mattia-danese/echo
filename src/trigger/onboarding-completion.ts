@@ -75,6 +75,8 @@ export const onboardingCompletionTask = task({
           ),
         );
 
+      logger.log("user friends", { userFriends });
+
       if (userFriends.length === 0) {
         logger.log(
           `no friends found for user ${payload.user.userId}, sending generic playlist instead`,
@@ -93,9 +95,10 @@ export const onboardingCompletionTask = task({
 
       const friendNames = userFriends.map((f) => f.firstName);
 
-      // Then get echo sessions for those friends
+      // Then get echo sessions for those friends (most recent song per friend)
+      // Using DISTINCT ON to get the most recent track for each friend
       const friendSubmissions = await db
-        .select({
+        .selectDistinctOn([userEchoSessions.userId], {
           userId: userEchoSessions.userId,
           platform: userEchoSessions.platform,
           trackId: userEchoSessions.trackId,
@@ -111,7 +114,7 @@ export const onboardingCompletionTask = task({
             isNotNull(userEchoSessions.trackId),
           ),
         )
-        .orderBy(desc(userEchoSessions.createdAt))
+        .orderBy(userEchoSessions.userId, desc(userEchoSessions.createdAt))
         .limit(NUM_SONGS_PER_PLAYLIST);
 
       if (friendSubmissions.length === 0) {
@@ -132,8 +135,14 @@ export const onboardingCompletionTask = task({
 
       // Create list of songs for playlist from friendsData
       const playlistSongs: string[] = [];
+      const friendsThatSharedSongsNames = [];
 
       for (const friendSubmission of friendSubmissions) {
+        friendsThatSharedSongsNames.push(
+          userFriends.find((f) => f.friendId === friendSubmission.userId)
+            ?.firstName,
+        );
+
         if (payload.user.platform === friendSubmission.platform) {
           playlistSongs.push(friendSubmission.trackId as string);
         } else {
@@ -173,12 +182,33 @@ export const onboardingCompletionTask = task({
         ? "'s"
         : "'s";
 
+      let playlistDescription = "";
+
+      // dont need to check for 0 songs here because we already checked that above
+      if (playlistSongs.length >= 1 && playlistSongs.length <= 3) {
+        let friendNamesString = "";
+
+        if (friendsThatSharedSongsNames.length === 1) {
+          friendNamesString = friendsThatSharedSongsNames[0] as string;
+        } else if (friendsThatSharedSongsNames.length === 2) {
+          friendNamesString = `${friendsThatSharedSongsNames[0]} and ${friendsThatSharedSongsNames[1]}`;
+        } else {
+          friendNamesString =
+            friendsThatSharedSongsNames.slice(0, -1).join(", ") +
+            `, and ${friendsThatSharedSongsNames[friendsThatSharedSongsNames.length - 1]}`;
+        }
+        playlistDescription = `this is what ${friendNamesString} recently shared on echo`;
+      } else {
+        playlistDescription = `here are the songs your friends recently shared on echo`;
+      }
+
       // Create playlist on user's platform
       const { ok, data, error } = await createOnboardingPlaylistForUser(
         payload.user,
         playlistSongs,
         playlistDate,
         playlistNameAbbreviation,
+        playlistDescription,
       );
 
       if (!ok || !data || error) {
@@ -253,6 +283,7 @@ const createOnboardingPlaylistForUser = async (
   playlistSongs: string[],
   playlistDate: string,
   playlistNameAbbreviation: string,
+  playlistDescription: string,
 ) => {
   if (user.platform === Platform.SPOTIFY) {
     return handleSpotifyUser(
@@ -260,6 +291,7 @@ const createOnboardingPlaylistForUser = async (
       playlistSongs,
       playlistDate,
       playlistNameAbbreviation,
+      playlistDescription,
     );
   } else if (user.platform === Platform.APPLE_MUSIC) {
     return handleAppleMusicUser(
@@ -267,6 +299,7 @@ const createOnboardingPlaylistForUser = async (
       playlistSongs,
       playlistDate,
       playlistNameAbbreviation,
+      playlistDescription,
     );
   }
 
@@ -278,6 +311,7 @@ const handleSpotifyUser = async (
   playlistSongs: string[],
   playlistDate: string,
   playlistNameAbbreviation: string,
+  playlistDescription: string,
 ) => {
   // refresh spotify access token if it's expired
   if (new Date(user.tokenExpiresAt) < new Date()) {
@@ -333,7 +367,7 @@ const handleSpotifyUser = async (
     accessToken: user.accessToken,
     playlistName: `${user.firstName}${playlistNameAbbreviation} echo ${playlistDate}`,
     // TODO: possibly change description?
-    playlistDescription: `here are the songs your friends shared for the ${playlistDate} echo`,
+    playlistDescription: playlistDescription,
     playlistDate: playlistDate,
   });
 
@@ -386,12 +420,13 @@ const handleAppleMusicUser = async (
   playlistSongs: string[],
   playlistDate: string,
   playlistNameAbbreviation: string,
+  playlistDescription: string,
 ) => {
   const { ok, data, error } =
     await AppleMusicPlatform.createAndPopulatePlaylist({
       accessToken: user.accessToken,
       playlistName: `${user.firstName}${playlistNameAbbreviation} echo ${playlistDate}`,
-      playlistDescription: `here are the songs your friends shared for the ${playlistDate} echo`,
+      playlistDescription: playlistDescription,
       playlistDate: playlistDate,
       songs: playlistSongs,
     });
