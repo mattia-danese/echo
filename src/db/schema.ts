@@ -58,6 +58,7 @@ export const users = pgTable(
     profilePictureUrl: varchar("profile_picture_url"), //nullable
     isDeleted: boolean("is_deleted").default(false).notNull(),
     sentGetLink: boolean("sent_get_link").default(false).notNull(),
+    firstSharedSessionId: integer("first_shared_session_id"),
 
     ...timestamps,
   },
@@ -65,6 +66,13 @@ export const users = pgTable(
     unique("users_phone_number_key").on(table.phoneNumber),
     unique("users_friend_link_token_key").on(table.friendLinkToken),
     unique("users_onboarding_token_key").on(table.onboardingToken),
+    foreignKey({
+      columns: [table.firstSharedSessionId],
+      foreignColumns: [echoSessions.id],
+      name: "users_first_shared_session_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("set null"),
   ],
 );
 

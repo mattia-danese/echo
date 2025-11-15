@@ -2,7 +2,7 @@ import { logger, task } from "@trigger.dev/sdk/v3";
 import { inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { messages, users } from "@/db/schema";
-import { MessageType } from "@/db/types";
+import { CONTACT_CARD_PLACEHOLDER, MessageType } from "@/db/types";
 import { twilioAdmin } from "@/lib/twilioAdmin";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -43,11 +43,21 @@ export const sendMessagesTask = task({
           continue;
         }
 
-        const response = await client.messages.create({
-          body: textMessage,
-          from: fromNumber,
-          to: phoneNumber,
-        });
+        let response: any;
+        if (textMessage === CONTACT_CARD_PLACEHOLDER) {
+          // Send MMS with contact card
+          response = await client.messages.create({
+            from: fromNumber,
+            to: phoneNumber,
+            mediaUrl: [`https://text-echo.com/echo.vcf`],
+          });
+        } else {
+          response = await client.messages.create({
+            body: textMessage,
+            from: fromNumber,
+            to: phoneNumber,
+          });
+        }
 
         logger.log("message sent", { response });
 
@@ -57,11 +67,13 @@ export const sendMessagesTask = task({
           message: textMessage,
           messageType: MessageType.OUTBOUND,
         });
+
+        // wait for 1 second between messages to help preserve ordering
+        await new Promise((resolve) =>
+          setTimeout(resolve, INTER_MESSAGE_DELAY_MS),
+        );
       }
     }
-
-    // wait for 1 second between messages to help preserve ordering
-    await new Promise((resolve) => setTimeout(resolve, INTER_MESSAGE_DELAY_MS));
 
     return {
       message: `send messages task completed`,

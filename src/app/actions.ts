@@ -1,7 +1,17 @@
 "use server";
 
 import crypto from "node:crypto";
-import { and, count, desc, eq, gte, inArray, isNotNull, or } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+} from "drizzle-orm";
 import { UTApi } from "uploadthing/server";
 import { db } from "@/db";
 import {
@@ -589,6 +599,7 @@ export async function getUserTopSongs(payload: {
 export async function submitSong(payload: {
   userId: number;
   token: string;
+  sessionId: number;
   platform: Platform;
   trackId: string;
   trackName: string;
@@ -606,6 +617,15 @@ export async function submitSong(payload: {
         updatedAt: new Date().toISOString(),
       })
       .where(eq(userEchoSessions.token, payload.token));
+
+    await db
+      .update(users)
+      .set({
+        firstSharedSessionId: payload.sessionId,
+      })
+      .where(
+        and(eq(users.id, payload.userId), isNull(users.firstSharedSessionId)),
+      );
 
     const { ok, message: submissionMessage } =
       await handleCrossPlatformSongSubmission({

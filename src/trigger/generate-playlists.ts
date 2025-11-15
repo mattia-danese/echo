@@ -1,6 +1,6 @@
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   echoSessions,
@@ -13,7 +13,7 @@ import {
   userEchoSessions,
   users,
 } from "@/db/schema";
-import { Platform } from "@/db/types";
+import { CONTACT_CARD_PLACEHOLDER, Platform } from "@/db/types";
 import { AppleMusicPlatform, SpotifyPlatform } from "@/platforms";
 import { sendMessagesTask } from "./send-messages";
 
@@ -45,6 +45,7 @@ type UserSongData = {
   platformOfEchoSession: Platform;
   trackId: string;
   trackAlbumImageUrl: string;
+  sendContactCard: boolean;
 };
 
 const NUM_SONGS_PER_PLAYLIST = 10;
@@ -306,6 +307,8 @@ const getEchoSessionAndUsers = async () => {
       .limit(1);
 
     // get all users that submitted a song in the last session (userId, phoneNumber, trackId)
+
+    // non-spotify users
     const userSongData = (await db
       .select({
         userId: userEchoSessions.userId,
@@ -321,6 +324,7 @@ const getEchoSessionAndUsers = async () => {
         platformOfEchoSession: userEchoSessions.platform,
         trackId: userEchoSessions.trackId,
         trackAlbumImageUrl: userEchoSessions.trackAlbumImageUrl,
+        sendContactCard: eq(users.firstSharedSessionId, echoSession.id),
       })
       .from(userEchoSessions)
       .innerJoin(users, eq(userEchoSessions.userId, users.id))
@@ -334,6 +338,9 @@ const getEchoSessionAndUsers = async () => {
         ),
       )) as UserSongData[];
 
+    logger.log("non-spotify users", { userSongData });
+
+    // spotify users
     const spotifyUsers = (await db
       .select({
         userId: userEchoSessions.userId,
@@ -344,6 +351,7 @@ const getEchoSessionAndUsers = async () => {
         platformOfEchoSession: userEchoSessions.platform,
         trackId: userEchoSessions.trackId,
         trackAlbumImageUrl: userEchoSessions.trackAlbumImageUrl,
+        sendContactCard: eq(users.firstSharedSessionId, echoSession.id),
       })
       .from(userEchoSessions)
       .innerJoin(users, eq(userEchoSessions.userId, users.id))
@@ -353,8 +361,11 @@ const getEchoSessionAndUsers = async () => {
           eq(users.isDeleted, false),
           isNotNull(userEchoSessions.trackId),
           eq(users.platform, Platform.SPOTIFY),
+          or(eq(userEchoSessions.userId, 71), eq(userEchoSessions.userId, 41)),
         ),
       )) as UserSongData[];
+
+    logger.log("spotify users", { spotifyUsers });
 
     for (const user of spotifyUsers) {
       user.platformUserId = spotifyAuthData.userId;
@@ -364,6 +375,8 @@ const getEchoSessionAndUsers = async () => {
     }
 
     userSongData.push(...spotifyUsers);
+
+    logger.log("user song data", { userSongData });
 
     if (userSongData.length === 0) {
       throw new Error(`no users found for echo session ${echoSession.id}`);
@@ -681,6 +694,10 @@ const textUsersPlaylists = async (
       (user) => user.userId === playlist.userId,
     )?.phoneNumber;
 
+    const sendContactCard = userSongData.find(
+      (user) => user.userId === playlist.userId,
+    )?.sendContactCard;
+
     if (!userPhoneNumber) {
       usersThatEncounteredErrors[playlist.userId] ??= [];
       usersThatEncounteredErrors[playlist.userId].push(
@@ -702,9 +719,15 @@ const textUsersPlaylists = async (
         break;
     }
 
+    const contactCardMessages: string[] = [
+      "save our contact for easy access",
+      CONTACT_CARD_PLACEHOLDER,
+    ];
+
     data[userPhoneNumber] = [
       "you ready? here's the songs your friends shared:",
       playlistLink,
+      ...(sendContactCard ? contactCardMessages : []),
     ];
   }
 

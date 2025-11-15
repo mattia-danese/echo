@@ -26,6 +26,7 @@ export default async function SessionPage({ params }: PageProps) {
     token: token,
     isOnboarding: false,
     userId: 0,
+    sessionId: 0,
   };
 
   try {
@@ -34,6 +35,7 @@ export default async function SessionPage({ params }: PageProps) {
         userId: userEchoSessions.userId,
         platform: userEchoSessions.platform,
         trackId: userEchoSessions.trackId,
+        sessionId: userEchoSessions.sessionId,
         echoSessionsEnd: echoSessions.end,
       })
       .from(userEchoSessions)
@@ -49,6 +51,7 @@ export default async function SessionPage({ params }: PageProps) {
     props.userId = userEchoSession.userId;
     props.platform = userEchoSession.platform;
     props.alreadySubmitted = !!userEchoSession.trackId;
+    props.sessionId = userEchoSession.sessionId;
     props.sessionEndsAt = userEchoSession.echoSessionsEnd;
 
     // get top songs of user

@@ -1,0 +1,2 @@
+ALTER TABLE "users" ADD COLUMN "first_shared_session_id" integer;--> statement-breakpoint
+ALTER TABLE "users" ADD CONSTRAINT "users_first_shared_session_id_fkey" FOREIGN KEY ("first_shared_session_id") REFERENCES "public"."echo_sessions"("id") ON DELETE set null ON UPDATE cascade;

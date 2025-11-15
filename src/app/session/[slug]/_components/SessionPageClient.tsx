@@ -35,6 +35,7 @@ export interface SessionPageClientProps {
   token: string;
   isOnboarding: boolean;
   userId: number;
+  sessionId?: number; // Optional - only needed for non-onboarding sessions
 }
 
 function resolveAppleArtwork(urlTemplate: string, size: number) {
@@ -50,6 +51,7 @@ export default function SessionPageClient({
   token,
   isOnboarding,
   userId,
+  sessionId,
 }: SessionPageClientProps) {
   const [search, setSearch] = useState("");
   const [selectedSong, setSelectedSong] = useState<SearchResultTrack | null>(
@@ -105,6 +107,7 @@ export default function SessionPageClient({
         trackName: selectedSong.trackName,
         artists: selectedSong.artists,
         albumImageUrl: selectedSong.albumImageUrl,
+        sessionId: sessionId!, // Safe to use ! here because submitSong is only called when not onboarding
       });
 
       if (result.ok) {

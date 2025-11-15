@@ -13,3 +13,5 @@ export enum MessageType {
   INBOUND = "inbound",
   OUTBOUND = "outbound",
 }
+
+export const CONTACT_CARD_PLACEHOLDER = "__SEND_CONTACT_CARD__";
