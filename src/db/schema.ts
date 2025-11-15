@@ -390,3 +390,28 @@ export const spotifyAuth = pgTable("spotify_auth", {
 
   ...timestamps,
 });
+
+export const userRecommendedSongs = pgTable(
+  "user_recommended_songs",
+  {
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    userId: integer("user_id").notNull(),
+
+    trackId: varchar("track_id").notNull(),
+    trackName: varchar("track_name").notNull(),
+    trackArtists: varchar("track_artists").notNull(),
+    trackAlbumImageUrl: varchar("track_album_image_url").notNull(),
+    platform: platform("platform").notNull(),
+
+    createdAt: timestamps.createdAt,
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "user_recommended_songs_user_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ],
+);

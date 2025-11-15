@@ -1,7 +1,7 @@
 "use server";
 
 import crypto from "node:crypto";
-import { and, count, desc, eq, gte, inArray, or } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNotNull, or } from "drizzle-orm";
 import { UTApi } from "uploadthing/server";
 import { db } from "@/db";
 import {
@@ -11,6 +11,7 @@ import {
   spotifyAuth,
   userAuth,
   userEchoSessions,
+  userRecommendedSongs,
   users,
   userTrackPlays,
 } from "@/db/schema";
@@ -511,45 +512,70 @@ export async function searchPlatformTracks(platform: Platform, query: string) {
 
 export async function getUserTopSongs(payload: {
   userId: number;
+  platform: Platform;
   numSongs: number;
 }) {
   try {
-    const FOUR_DAYS_IN_MS = 4 * 24 * 60 * 60 * 1000;
+    if (payload.platform === Platform.SPOTIFY) {
+      const topSongs = await db
+        .select({
+          trackId: userTrackPlays.trackId,
+          trackName: userTrackPlays.trackName,
+          artists: userTrackPlays.artists,
+          albumImageUrl: userTrackPlays.albumImageUrl,
+          platform: userTrackPlays.platform,
+        })
+        .from(userRecommendedSongs)
+        .where(eq(userRecommendedSongs.userId, payload.userId))
+        .limit(payload.numSongs);
 
-    const topSongs = await db
-      .select({
-        trackId: userTrackPlays.trackId,
-        trackName: userTrackPlays.trackName,
-        artists: userTrackPlays.artists,
-        albumImageUrl: userTrackPlays.albumImageUrl,
-        platform: userTrackPlays.platform,
-        playCount: count(),
-      })
-      .from(userTrackPlays)
-      .where(
-        and(
-          eq(userTrackPlays.userId, payload.userId),
-          gte(
-            userTrackPlays.playedAt,
-            new Date(Date.now() - FOUR_DAYS_IN_MS).toISOString(),
+      return {
+        ok: true,
+        songs: topSongs,
+        message: "User top songs fetched successfully",
+      };
+    }
+
+    if (payload.platform === Platform.APPLE_MUSIC) {
+      const FOUR_DAYS_IN_MS = 4 * 24 * 60 * 60 * 1000;
+
+      const topSongs = await db
+        .select({
+          trackId: userTrackPlays.trackId,
+          trackName: userTrackPlays.trackName,
+          artists: userTrackPlays.artists,
+          albumImageUrl: userTrackPlays.albumImageUrl,
+          platform: userTrackPlays.platform,
+          playCount: count(),
+        })
+        .from(userTrackPlays)
+        .where(
+          and(
+            eq(userTrackPlays.userId, payload.userId),
+            gte(
+              userTrackPlays.playedAt,
+              new Date(Date.now() - FOUR_DAYS_IN_MS).toISOString(),
+            ),
           ),
-        ),
-      )
-      .groupBy(
-        userTrackPlays.trackId,
-        userTrackPlays.trackName,
-        userTrackPlays.artists,
-        userTrackPlays.albumImageUrl,
-        userTrackPlays.platform,
-      )
-      .orderBy(desc(count()))
-      .limit(payload.numSongs);
+        )
+        .groupBy(
+          userTrackPlays.trackId,
+          userTrackPlays.trackName,
+          userTrackPlays.artists,
+          userTrackPlays.albumImageUrl,
+          userTrackPlays.platform,
+        )
+        .orderBy(desc(count()))
+        .limit(payload.numSongs);
 
-    return {
-      ok: true,
-      songs: topSongs,
-      message: "User top songs fetched successfully",
-    };
+      return {
+        ok: true,
+        songs: topSongs,
+        message: "User top songs fetched successfully",
+      };
+    }
+
+    throw new Error(`Unsupported platform: ${payload.platform}`);
   } catch (error: unknown) {
     console.error("Error in getUserTopSongs:", error);
     return {
@@ -595,6 +621,39 @@ export async function submitSong(payload: {
         submissionMessage || "An error occurred while submitting song",
       );
     }
+
+    // const {
+    //   ok: recommendedSongsOk,
+    //   data: recommendedSongsData,
+    //   error: recommendedSongsError,
+    // } = await SpotifyPlatform.getRecommendedSongs([payload.trackId]);
+
+    // if (!recommendedSongsOk) {
+    //   throw new Error(
+    //     `Error in SpotifyPlatform.getRecommendedSongs: ${recommendedSongsError}`,
+    //   );
+    // }
+
+    // if (!recommendedSongsData) {
+    //   throw new Error("No recommended songs data returned");
+    // }
+
+    // await db.transaction(async (tx) => {
+    //   await tx
+    //     .delete(userRecommendedSongs)
+    //     .where(eq(userRecommendedSongs.userId, payload.userId));
+
+    //   const songsToInsert = recommendedSongsData.map((song) => ({
+    //     userId: payload.userId,
+    //     trackId: song.trackId,
+    //     trackName: song.trackName,
+    //     trackArtists: song.artists,
+    //     trackAlbumImageUrl: song.albumImageUrl,
+    //     platform: payload.platform,
+    //   }));
+
+    //   await tx.insert(userRecommendedSongs).values(songsToInsert);
+    // });
 
     return { ok: true, message: "Song submitted successfully" };
   } catch (error: unknown) {
@@ -721,20 +780,68 @@ export async function handleCrossPlatformSongSubmission(payload: {
   }
 }
 
-export async function completeOnboarding(payload: { onboardingToken: string }) {
+export async function getRecommendedSongs(payload: {
+  userId: number;
+  platform: Platform;
+}) {
+  if (payload.platform !== Platform.SPOTIFY) return;
+
+  const lastFiveSharedTracks = await db
+    .select({ trackId: userEchoSessions.trackId })
+    .from(userEchoSessions)
+    .where(
+      and(
+        eq(userEchoSessions.userId, payload.userId),
+        isNotNull(userEchoSessions.trackId),
+      ),
+    )
+    .orderBy(desc(userEchoSessions.createdAt))
+    .limit(5);
+
+  if (!lastFiveSharedTracks) return;
+
+  return SpotifyPlatform.getRecommendedSongs(
+    lastFiveSharedTracks.map((track) => track.trackId as string),
+  );
+}
+
+export async function completeOnboarding(payload: {
+  userId: number;
+  onboardingToken: string;
+  platform: Platform;
+  trackId: string;
+}) {
   try {
+    // const [user] = await db
+    //   .update(users)
+    //   .set({
+    //     isOnboardingComplete: true,
+    //   })
+    //   .where(
+    //     and(
+    //       eq(users.onboardingToken, payload.onboardingToken),
+    //       eq(users.isDeleted, false),
+    //     ),
+    //   )
+    //   .returning();
+
     const [user] = await db
-      .update(users)
-      .set({
-        isOnboardingComplete: true,
+      .select({
+        id: users.id,
+        platform: users.platform,
+        firstName: users.firstName,
+        phoneNumber: users.phoneNumber,
+        friendLinkToken: users.friendLinkToken,
       })
+      .from(users)
       .where(
         and(
+          eq(users.id, payload.userId),
           eq(users.onboardingToken, payload.onboardingToken),
           eq(users.isDeleted, false),
         ),
       )
-      .returning();
+      .limit(1);
 
     if (!user) {
       throw new Error(
@@ -745,6 +852,33 @@ export async function completeOnboarding(payload: { onboardingToken: string }) {
     let auth = null;
 
     if (user.platform === Platform.SPOTIFY) {
+      // const {
+      //   ok: recommendedSongsOk,
+      //   data: recommendedSongsData,
+      //   error: recommendedSongsError,
+      // } = await SpotifyPlatform.getRecommendedSongs([payload.trackId]);
+
+      // if (!recommendedSongsOk) {
+      //   throw new Error(
+      //     `Error in SpotifyPlatform.getRecommendedSongs: ${recommendedSongsError}`,
+      //   );
+      // }
+
+      // if (!recommendedSongsData) {
+      //   throw new Error("No recommended songs data returned");
+      // }
+
+      // await db.insert(userRecommendedSongs).values(
+      //   recommendedSongsData.map((song) => ({
+      //     userId: user.id,
+      //     trackId: song.trackId,
+      //     trackName: song.trackName,
+      //     trackArtists: song.artists,
+      //     trackAlbumImageUrl: song.albumImageUrl,
+      //     platform: payload.platform,
+      //   })),
+      // );
+
       const [authRecord] = await db
         .select({
           accessToken: spotifyAuth.accessToken,
@@ -774,6 +908,13 @@ export async function completeOnboarding(payload: { onboardingToken: string }) {
     if (!auth) {
       throw new Error("User auth not found");
     }
+
+    await db
+      .update(users)
+      .set({
+        isOnboardingComplete: true,
+      })
+      .where(eq(users.id, user.id));
 
     // FIXME: this is a hack to get the user data to the onboarding completion task
     // implement codebase wide user type

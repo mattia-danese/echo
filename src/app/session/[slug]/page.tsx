@@ -54,6 +54,7 @@ export default async function SessionPage({ params }: PageProps) {
     // get top songs of user
     const result = await getUserTopSongs({
       userId: userEchoSession.userId,
+      platform: userEchoSession.platform,
       numSongs: 4,
     });
 

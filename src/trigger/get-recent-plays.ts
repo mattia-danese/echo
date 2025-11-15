@@ -1,4 +1,5 @@
 import { logger, task } from "@trigger.dev/sdk/v3";
+import { ne } from "drizzle-orm";
 import { db } from "@/db";
 import { userAuth, userTrackPlays } from "@/db/schema";
 import { Platform } from "@/db/types";
@@ -24,7 +25,8 @@ export const getRecentPlaysTask = task({
             refreshToken: userAuth.refreshToken,
             tokenExpiresAt: userAuth.tokenExpiresAt,
           })
-          .from(userAuth);
+          .from(userAuth)
+          .where(ne(userAuth.platform, Platform.SPOTIFY));
 
     logger.log("processing users", { numUsers: data.length });
 

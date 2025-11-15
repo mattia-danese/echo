@@ -368,6 +368,104 @@ export class SpotifyPlatform extends Platform {
     }
   }
 
+  static async getRecommendedSongs(sharedTracks: string[]): Promise<{
+    ok: boolean;
+    data: Array<{
+      trackId: string;
+      trackName: string;
+      artists: string;
+      albumImageUrl: string;
+    }> | null;
+    error: unknown;
+  }> {
+    try {
+      const [auth] = await db
+        .select({
+          userId: spotifyAuth.userId,
+          accessToken: spotifyAuth.accessToken,
+          refreshToken: spotifyAuth.refreshToken,
+          tokenExpiresAt: spotifyAuth.tokenExpiresAt,
+        })
+        .from(spotifyAuth)
+        .limit(1);
+
+      if (!auth) {
+        return {
+          ok: false,
+          data: null,
+          error: "Error in getRecommendedSongs: No Spotify auth found",
+        };
+      }
+
+      let {
+        userId: platformUserId,
+        accessToken,
+        refreshToken,
+        tokenExpiresAt,
+      } = auth;
+
+      if (new Date(tokenExpiresAt) < new Date()) {
+        const {
+          ok: refreshTokensOk,
+          data: refreshTokensData,
+          error: refreshTokensError,
+        } = await SpotifyPlatform.refreshTokens({
+          userId: platformUserId,
+          refreshToken: refreshToken,
+        });
+
+        if (!refreshTokensOk) {
+          return { ok: false, data: null, error: refreshTokensError };
+        }
+
+        if (!refreshTokensData) {
+          return {
+            ok: false,
+            data: null,
+            error: `no data returned from refreshAccessToken`,
+          };
+        }
+
+        accessToken = refreshTokensData.accessToken;
+        refreshToken = refreshTokensData.refreshToken;
+        tokenExpiresAt = refreshTokensData.expiresIn;
+      }
+
+      const seedTracks = sharedTracks.join(",");
+
+      const response = await fetch(
+        `https://api.spotify.com/v1/recommendations?seed_tracks=${seedTracks}&limit=4`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      console.log("response status", response.status);
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.log("error response", errorData);
+        throw new Error(errorData);
+      }
+
+      const data = await response.json();
+      console.log("recommendations response", data);
+
+      const recommendedSongs = data.tracks.map((track: any) => ({
+        trackId: track.id,
+        trackName: track.name,
+        artists: track.artists.map((artist: any) => artist.name).join(", "),
+        albumImageUrl: track.album.images[0]?.url || "",
+      }));
+
+      return { ok: true, data: recommendedSongs, error: null };
+    } catch (err) {
+      return { ok: false, data: null, error: err };
+    }
+  }
+
   static extractTrackId(url: string): string {
     const match = url.match(/track\/(\w+)/);
     if (match) {

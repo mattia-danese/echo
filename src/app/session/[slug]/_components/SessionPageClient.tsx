@@ -81,7 +81,10 @@ export default function SessionPageClient({
     try {
       if (isOnboarding) {
         const result = await completeOnboarding({
+          userId: userId,
           onboardingToken: token,
+          platform: selectedSong.trackPlatform,
+          trackId: selectedSong.trackId,
         });
 
         if (result.ok) {
