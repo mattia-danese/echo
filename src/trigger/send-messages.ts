@@ -47,9 +47,10 @@ export const sendMessagesTask = task({
         if (textMessage === CONTACT_CARD_PLACEHOLDER) {
           // Send MMS with contact card
           response = await client.messages.create({
+            body: "save our contact for easy access",
             from: fromNumber,
             to: phoneNumber,
-            mediaUrl: [`https://text-echo.com/echo.vcf`],
+            mediaUrl: [`https://text-echo.com/api/contact`],
           });
         } else {
           response = await client.messages.create({
