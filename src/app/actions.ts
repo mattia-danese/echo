@@ -529,11 +529,11 @@ export async function getUserTopSongs(payload: {
     if (payload.platform === Platform.SPOTIFY) {
       const topSongs = await db
         .select({
-          trackId: userTrackPlays.trackId,
-          trackName: userTrackPlays.trackName,
-          artists: userTrackPlays.artists,
-          albumImageUrl: userTrackPlays.albumImageUrl,
-          platform: userTrackPlays.platform,
+          trackId: userRecommendedSongs.trackId,
+          trackName: userRecommendedSongs.trackName,
+          artists: userRecommendedSongs.trackArtists,
+          albumImageUrl: userRecommendedSongs.trackAlbumImageUrl,
+          platform: userRecommendedSongs.platform,
         })
         .from(userRecommendedSongs)
         .where(eq(userRecommendedSongs.userId, payload.userId))
