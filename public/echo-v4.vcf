@@ -1,0 +1,10 @@
+BEGIN:VCARD
+VERSION:4.0
+FN:echo
+EMAIL;TYPE=home:support@text-echo.com
+TEL;TYPE=voice;VALUE=uri:tel:+1-844-278-3830
+NOTE:share songs with friends. all through text.
+URL:https://www.text-echo.com
+PHOTO;MEDIATYPE=image/png:https://text-echo.com/logo.png
+END:VCARD
+

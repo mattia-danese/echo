@@ -1,0 +1,9 @@
+BEGIN:VCARD
+VERSION:3.0
+FN:echo
+EMAIL;type=INTERNET;type=HOME;type=pref:support@text-echo.com
+NOTE:share songs with friends. all through text.
+URL;type=pref:https://www.text-echo.com
+PHOTO;VALUE=URL;TYPE=PNG:https://text-echo.com/logo.png
+END:VCARD
+
