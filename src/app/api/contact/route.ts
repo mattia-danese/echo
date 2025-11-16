@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import fs from "fs";
+import { NextResponse } from "next/server";
 import path from "path";
 
 export async function GET() {
@@ -22,4 +22,3 @@ export async function GET() {
     return new NextResponse("VCF file not found", { status: 404 });
   }
 }
-
