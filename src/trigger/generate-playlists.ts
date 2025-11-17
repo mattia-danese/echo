@@ -1,7 +1,7 @@
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 
 import { isSameDay } from "date-fns";
-import { and, desc, eq, isNotNull, or } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   echoSessions,
@@ -38,6 +38,7 @@ type UserSongData = {
   userId: number;
   firstName: string;
   phoneNumber: string;
+  friendLinkToken: string;
   platformUserId: string;
   platform: Platform;
   accessToken: string;
@@ -47,6 +48,7 @@ type UserSongData = {
   trackId: string;
   trackAlbumImageUrl: string;
   sendContactCard: boolean;
+  hasLessThanThreeFriendsAfterTwoEchoes: boolean;
 };
 
 const NUM_SONGS_PER_PLAYLIST = 10;
@@ -66,19 +68,23 @@ export const generatePlaylistsTask = schedules.task({
     logger.log("generate playlists task starting ...");
 
     // Check if we should run today by checking if a session was created today
-    const [lastSession] = await db
-      .select({ createdAt: echoSessions.createdAt })
+    const [echoSession] = await db
+      .select({ id: echoSessions.id, createdAt: echoSessions.createdAt })
       .from(echoSessions)
       .orderBy(desc(echoSessions.createdAt))
       .limit(1);
 
-    if (!lastSession) {
+    if (!echoSession) {
       logger.log("Skipping execution - no sessions found in database");
       return { message: "Skipped - no sessions found" };
     }
 
-    const lastSessionDate = new Date(lastSession.createdAt);
+    const lastSessionDate = new Date(echoSession.createdAt);
     const now = new Date();
+    const playlistDate = new Date(lastSessionDate).toLocaleDateString("en-US", {
+      month: "2-digit",
+      day: "2-digit",
+    });
 
     // Check if the last session was created today (same calendar day)
     if (!isSameDay(lastSessionDate, now)) {
@@ -94,7 +100,7 @@ export const generatePlaylistsTask = schedules.task({
       lastSessionDate: lastSessionDate.toISOString(),
     });
 
-    const { ok, data, error } = await getEchoSessionAndUsers();
+    const { ok, data, error } = await getUserEchoSessions(echoSession.id);
 
     if (!ok) {
       logger.error("error getting echo session and users", { error });
@@ -106,11 +112,11 @@ export const generatePlaylistsTask = schedules.task({
       throw error;
     }
 
-    const { userSongData, echoSessionId, playlistDate } = data;
+    const { userSongData, noShareSecondSessionUsers } = data;
 
     logger.log("echo session and users fetched", {
       numUsers: userSongData.length,
-      echoSessionId,
+      echoSessionId: echoSession.id,
       playlistDate,
     });
 
@@ -146,7 +152,7 @@ export const generatePlaylistsTask = schedules.task({
         ok,
         data: userFriendData,
         error,
-      } = await getUserFriends(user.userId, echoSessionId);
+      } = await getUserFriends(user.userId, echoSession.id);
 
       if (!ok) {
         usersThatEncounteredErrors[user.userId] ??= [];
@@ -257,7 +263,7 @@ export const generatePlaylistsTask = schedules.task({
       playlistRecords.push({
         userId: user.userId,
         platform: user.platform,
-        sessionId: echoSessionId,
+        sessionId: echoSession.id,
         platformPlaylistId: playlistData.playlistId,
         playlistName: playlistName,
         playlistImageUrl: playlistImageUrl,
@@ -288,9 +294,10 @@ export const generatePlaylistsTask = schedules.task({
     }
 
     // text each user their playlist
-    await textUsersPlaylists(
+    await textUsers(
       playlistRecords,
       userSongData,
+      noShareSecondSessionUsers,
       usersThatEncounteredErrors,
     );
 
@@ -306,27 +313,8 @@ export const generatePlaylistsTask = schedules.task({
 });
 
 // FIXME: make 2 db calls into 1?
-const getEchoSessionAndUsers = async () => {
+const getUserEchoSessions = async (echoSessionId: number) => {
   try {
-    // get most recent echo session
-    const [echoSession] = await db
-      .select({ id: echoSessions.id, start: echoSessions.start })
-      .from(echoSessions)
-      .orderBy(desc(echoSessions.start))
-      .limit(1);
-
-    if (!echoSession) {
-      throw new Error("no echo session found");
-    }
-
-    const playlistDate = new Date(echoSession.start).toLocaleDateString(
-      "en-US",
-      {
-        month: "2-digit",
-        day: "2-digit",
-      },
-    );
-
     const [spotifyAuthData] = await db
       .select({
         userId: spotifyAuth.userId,
@@ -338,13 +326,12 @@ const getEchoSessionAndUsers = async () => {
       .limit(1);
 
     // get all users that submitted a song in the last session (userId, phoneNumber, trackId)
-
-    // non-spotify users
-    const userSongData = (await db
+    const userData = await db
       .select({
         userId: userEchoSessions.userId,
         firstName: users.firstName,
         phoneNumber: users.phoneNumber,
+        friendLinkToken: users.friendLinkToken,
         platform: users.platform,
         platformUserId: userAuth.platformUserId,
 
@@ -355,67 +342,61 @@ const getEchoSessionAndUsers = async () => {
         platformOfEchoSession: userEchoSessions.platform,
         trackId: userEchoSessions.trackId,
         trackAlbumImageUrl: userEchoSessions.trackAlbumImageUrl,
-        sendContactCard: eq(users.firstSharedSessionId, echoSession.id),
+        sendContactCard: eq(users.firstSharedSessionId, echoSessionId),
+        hasLessThanThreeFriendsAfterTwoEchoes: sql<boolean>`(
+          (SELECT COUNT(*) FROM ${userEchoSessions} WHERE ${userEchoSessions.userId} = ${users.id}) = 2
+          AND
+          (SELECT COUNT(*) FROM ${friends} WHERE ${friends.userId} = ${users.id} AND ${friends.active} = true) < 3
+        )`.as("has_less_than_three_friends_after_two_echoes"),
       })
       .from(userEchoSessions)
       .innerJoin(users, eq(userEchoSessions.userId, users.id))
-      .innerJoin(userAuth, eq(userAuth.userId, users.id))
+      .leftJoin(userAuth, eq(userAuth.userId, users.id))
       .where(
         and(
-          eq(userEchoSessions.sessionId, echoSession.id),
+          eq(userEchoSessions.sessionId, echoSessionId),
           eq(users.isDeleted, false),
-          isNotNull(userEchoSessions.trackId),
-          eq(users.platform, Platform.APPLE_MUSIC),
         ),
-      )) as UserSongData[];
+      );
 
-    logger.log("non-spotify users", { userSongData });
+    const userSongData: UserSongData[] = [];
+    const noShareSecondSessionUsers: {
+      userId: number;
+      phoneNumber: string;
+      friendLinkToken: string;
+    }[] = [];
 
-    // spotify users
-    const spotifyUsers = (await db
-      .select({
-        userId: userEchoSessions.userId,
-        firstName: users.firstName,
-        phoneNumber: users.phoneNumber,
-        platform: users.platform,
+    for (const user of userData) {
+      if (!user.trackId && user.hasLessThanThreeFriendsAfterTwoEchoes) {
+        noShareSecondSessionUsers.push({
+          userId: user.userId,
+          phoneNumber: user.phoneNumber,
+          friendLinkToken: user.friendLinkToken,
+        });
+        continue;
+      }
 
-        platformOfEchoSession: userEchoSessions.platform,
-        trackId: userEchoSessions.trackId,
-        trackAlbumImageUrl: userEchoSessions.trackAlbumImageUrl,
-        sendContactCard: eq(users.firstSharedSessionId, echoSession.id),
-      })
-      .from(userEchoSessions)
-      .innerJoin(users, eq(userEchoSessions.userId, users.id))
-      .where(
-        and(
-          eq(userEchoSessions.sessionId, echoSession.id),
-          eq(users.isDeleted, false),
-          isNotNull(userEchoSessions.trackId),
-          eq(users.platform, Platform.SPOTIFY),
-          or(eq(userEchoSessions.userId, 71), eq(userEchoSessions.userId, 41)),
-        ),
-      )) as UserSongData[];
+      if (!user.trackId) continue;
 
-    logger.log("spotify users", { spotifyUsers });
+      if (user.platform === Platform.SPOTIFY) {
+        user.platformUserId = spotifyAuthData.userId;
+        user.accessToken = spotifyAuthData.accessToken;
+        user.refreshToken = spotifyAuthData.refreshToken;
+        user.tokenExpiresAt = spotifyAuthData.tokenExpiresAt;
+      }
 
-    for (const user of spotifyUsers) {
-      user.platformUserId = spotifyAuthData.userId;
-      user.accessToken = spotifyAuthData.accessToken;
-      user.refreshToken = spotifyAuthData.refreshToken;
-      user.tokenExpiresAt = spotifyAuthData.tokenExpiresAt;
+      userSongData.push(user as UserSongData);
     }
-
-    userSongData.push(...spotifyUsers);
 
     logger.log("user song data", { userSongData });
 
     if (userSongData.length === 0) {
-      throw new Error(`no users found for echo session ${echoSession.id}`);
+      throw new Error(`no users found for echo session ${echoSessionId}`);
     }
 
     return {
       ok: true,
-      data: { userSongData, echoSessionId: echoSession.id, playlistDate },
+      data: { userSongData, noShareSecondSessionUsers },
       error: null,
     };
   } catch (error) {
@@ -709,27 +690,31 @@ const persistPlaylistsToDatabase = async (
   }
 };
 
-const textUsersPlaylists = async (
+const textUsers = async (
   playlists: PlaylistRecords,
   userSongData: UserSongData[],
+  noShareSecondSessionUsers: {
+    userId: number;
+    phoneNumber: string;
+    friendLinkToken: string;
+  }[],
   usersThatEncounteredErrors: Record<number, (string | unknown)[]>,
 ) => {
   const data: Record<string, Array<string>> = {};
+
+  const contactCardMessages: string[] = [
+    "save our contact for easy access",
+    CONTACT_CARD_PLACEHOLDER,
+  ];
 
   for (const playlist of playlists) {
     if (usersThatEncounteredErrors[playlist.userId]) {
       continue;
     }
 
-    const userPhoneNumber = userSongData.find(
-      (user) => user.userId === playlist.userId,
-    )?.phoneNumber;
+    const user = userSongData.find((u) => u.userId === playlist.userId);
 
-    const sendContactCard = userSongData.find(
-      (user) => user.userId === playlist.userId,
-    )?.sendContactCard;
-
-    if (!userPhoneNumber) {
+    if (!user?.phoneNumber) {
       usersThatEncounteredErrors[playlist.userId] ??= [];
       usersThatEncounteredErrors[playlist.userId].push(
         "NO TEXT send to user because phone number not found",
@@ -750,15 +735,23 @@ const textUsersPlaylists = async (
         break;
     }
 
-    const contactCardMessages: string[] = [
-      "save our contact for easy access",
-      CONTACT_CARD_PLACEHOLDER,
+    const lowFriendsMessages: string[] = [
+      "looks like you don't have many songs coming in :( invite more friends with your link",
+      user.friendLinkToken ?? "",
     ];
 
-    data[userPhoneNumber] = [
+    data[user.phoneNumber] = [
       "you ready? here's the songs your friends shared:",
       playlistLink,
-      ...(sendContactCard ? contactCardMessages : []),
+      ...(user.hasLessThanThreeFriendsAfterTwoEchoes ? lowFriendsMessages : []),
+      ...(user.sendContactCard ? contactCardMessages : []),
+    ];
+  }
+
+  for (const user of noShareSecondSessionUsers) {
+    data[user.phoneNumber] = [
+      `echo is more fun with friends :) invite more friends with your link`,
+      user.friendLinkToken,
     ];
   }
 
