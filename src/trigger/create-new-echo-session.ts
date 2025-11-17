@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { differenceInDays } from "date-fns";
 import { fromZonedTime } from "date-fns-tz";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { echoSessions, userEchoSessions, users } from "@/db/schema";
 import { sendMessagesTask } from "./send-messages";
@@ -86,6 +86,18 @@ export const createNewEchoSessionTask = schedules.task({
           id: users.id,
           phoneNumber: users.phoneNumber,
           platform: users.platform,
+          threeConsecutiveNoShare: sql<boolean>`(
+            SELECT 
+              COUNT(*) >= 3 AND 
+              COUNT(${userEchoSessions.trackId}) = 0
+            FROM (
+              SELECT ${userEchoSessions.trackId}
+              FROM ${userEchoSessions}
+              WHERE ${userEchoSessions.userId} = ${users.id}
+              ORDER BY ${userEchoSessions.sessionId} DESC
+              LIMIT 3
+            ) recent_sessions
+          )`.as("three_consecutive_no_share"),
         })
         .from(users)
         .where(
@@ -110,6 +122,7 @@ export const createNewEchoSessionTask = schedules.task({
           sessionId: echoSession.id,
           token: token,
           platform: user.platform,
+          threeConsecutiveNoShare: user.threeConsecutiveNoShare,
         });
 
         userIdToPhoneNumberLookup.set(user.id, user.phoneNumber);
@@ -137,7 +150,9 @@ export const createNewEchoSessionTask = schedules.task({
         }
 
         sendMessagesData[phoneNumber] = [
-          "start the echo :) click here to share what you've been listening to by 9pm est tonight",
+          userEchoSession.threeConsecutiveNoShare
+            ? "hey we noticed you haven’t shared a song recently. your friends are missing out on all your great songs :) start the echo and share your song of the moment..."
+            : "start the echo :) click here to share what you've been listening to by 9pm est tonight",
           `https://text-echo.com/session/${userEchoSession.token}`,
         ];
       }
