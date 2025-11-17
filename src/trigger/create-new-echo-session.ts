@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import { logger, schedules } from "@trigger.dev/sdk/v3";
+import { differenceInDays } from "date-fns";
 import { fromZonedTime } from "date-fns-tz";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { echoSessions, userEchoSessions, users } from "@/db/schema";
 import { sendMessagesTask } from "./send-messages";
@@ -12,13 +13,46 @@ export const createNewEchoSessionTask = schedules.task({
   maxDuration: 300, // Stop executing after 300 secs (5 mins) of compute
 
   cron: {
-    pattern: "0 11 * * 3,7", // run every Wed and Sun at 11:00 AM EST
+    pattern: "0 11 * * *", // run daily at 11:00 AM EST, with conditional logic inside
     timezone: "America/New_York",
     environments: ["DEVELOPMENT"],
   },
 
   run: async () => {
     logger.log("create new echo session task starting ...");
+
+    // Check if we should run today by checking the last echo session
+    const [lastSession] = await db
+      .select({ createdAt: echoSessions.createdAt })
+      .from(echoSessions)
+      .orderBy(desc(echoSessions.createdAt))
+      .limit(1);
+
+    if (!lastSession) {
+      logger.error("No previous sessions found in database");
+      throw new Error(
+        "No previous sessions found - database may be empty or reset",
+      );
+    }
+
+    const lastSessionDate = new Date(lastSession.createdAt);
+    const now = new Date();
+    const daysSinceLastSession = differenceInDays(now, lastSessionDate);
+
+    if (daysSinceLastSession < 2) {
+      logger.log("Skipping execution - last session was less than 2 days ago", {
+        lastSessionDate: lastSessionDate.toISOString(),
+        daysSinceLastSession,
+      });
+      return {
+        message: `Skipped - last session was ${daysSinceLastSession} day(s) ago`,
+      };
+    }
+
+    logger.log("Executing - last session was 2+ days ago", {
+      lastSessionDate: lastSessionDate.toISOString(),
+      daysSinceLastSession,
+    });
 
     try {
       const sendMessagesData: Record<string, Array<string>> = {};
@@ -31,8 +65,8 @@ export const createNewEchoSessionTask = schedules.task({
       const startEST = new Date(today).setHours(11, 0, 0, 0);
       const startUTC = fromZonedTime(startEST, timezone);
 
-      // Create 6 PM EST/EDT
-      const endEST = new Date(today).setHours(18, 0, 0, 0);
+      // Create 9 PM EST/EDT
+      const endEST = new Date(today).setHours(21, 0, 0, 0);
       const endUTC = fromZonedTime(endEST, timezone);
 
       // create new echo session in the database
@@ -103,7 +137,7 @@ export const createNewEchoSessionTask = schedules.task({
         }
 
         sendMessagesData[phoneNumber] = [
-          "start the echo :) click here to share what you've been listening to by 9pm tonight",
+          "start the echo :) click here to share what you've been listening to by 9pm est tonight",
           `https://text-echo.com/session/${userEchoSession.token}`,
         ];
       }

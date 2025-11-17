@@ -1,5 +1,6 @@
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 
+import { isSameDay } from "date-fns";
 import { and, desc, eq, isNotNull, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -56,14 +57,42 @@ export const generatePlaylistsTask = schedules.task({
   maxDuration: 300, // Stop executing after 300 secs (5 mins) of compute
 
   cron: {
-    // echo sessions are every Wed and Sun at 11:00 AM - 6:00 PM EST
-    pattern: "30 18 * * 3,7", // run every Wed and Sun at 6:30 PM EST
+    pattern: "30 21 * * *", // run daily at 9:30 PM EST, with conditional logic inside
     timezone: "America/New_York",
     environments: ["DEVELOPMENT"],
   },
 
   run: async () => {
     logger.log("generate playlists task starting ...");
+
+    // Check if we should run today by checking if a session was created today
+    const [lastSession] = await db
+      .select({ createdAt: echoSessions.createdAt })
+      .from(echoSessions)
+      .orderBy(desc(echoSessions.createdAt))
+      .limit(1);
+
+    if (!lastSession) {
+      logger.log("Skipping execution - no sessions found in database");
+      return { message: "Skipped - no sessions found" };
+    }
+
+    const lastSessionDate = new Date(lastSession.createdAt);
+    const now = new Date();
+
+    // Check if the last session was created today (same calendar day)
+    if (!isSameDay(lastSessionDate, now)) {
+      logger.log("Skipping execution - no session created today", {
+        lastSessionDate: lastSessionDate.toISOString(),
+      });
+      return {
+        message: "Skipped - no session created today",
+      };
+    }
+
+    logger.log("Executing - session was created today", {
+      lastSessionDate: lastSessionDate.toISOString(),
+    });
 
     const { ok, data, error } = await getEchoSessionAndUsers();
 
