@@ -12,7 +12,8 @@
     "format": "biome format --write .",
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
-    "trigger": "dlx trigger.dev@latest dev"
+    "trigger:dev": "pnpm dlx trigger.dev@4.0.7 dev",
+    "trigger:deploy": "pnpm dlx trigger.dev@4.0.7 deploy"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
