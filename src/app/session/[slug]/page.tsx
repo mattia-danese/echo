@@ -1,8 +1,15 @@
 import { and, eq } from "drizzle-orm";
 import { getUserTopSongs } from "@/app/actions";
 import { db } from "@/db";
-import { echoSessions, userEchoSessions, users } from "@/db/schema";
+import {
+  appleDevToken,
+  echoSessions,
+  spotifyAuth,
+  userEchoSessions,
+  users,
+} from "@/db/schema";
 import { Platform } from "@/db/types";
+import { SpotifyPlatform } from "@/platforms/spotify_platform";
 import SessionPageClient, {
   type SessionPageClientProps,
 } from "./_components/SessionPageClient";
@@ -72,6 +79,41 @@ export default async function SessionPage({ params }: PageProps) {
       albumImageUrl: song.albumImageUrl,
       trackPlatform: song.platform,
     }));
+
+    if (userEchoSession.platform === Platform.SPOTIFY) {
+      console.log("getting spotify token in page.tsx");
+      const [spotifyAuthRecord] = await db
+        .select({
+          userId: spotifyAuth.userId,
+          accessToken: spotifyAuth.accessToken,
+          refreshToken: spotifyAuth.refreshToken,
+          tokenExpiresAt: spotifyAuth.tokenExpiresAt,
+        })
+        .from(spotifyAuth)
+        .limit(1);
+
+      if (new Date(spotifyAuthRecord.tokenExpiresAt) < new Date()) {
+        const { ok, data, error } = await SpotifyPlatform.refreshTokens({
+          userId: spotifyAuthRecord.userId,
+          refreshToken: spotifyAuthRecord.refreshToken,
+        });
+
+        if (ok && data && !error) {
+          spotifyAuthRecord.accessToken = data.accessToken;
+        }
+      }
+
+      props.platformAccessToken = spotifyAuthRecord.accessToken;
+    } else if (userEchoSession.platform === Platform.APPLE_MUSIC) {
+      const [appleMusicAuthRecord] = await db
+        .select({
+          token: appleDevToken.token,
+        })
+        .from(appleDevToken)
+        .limit(1);
+
+      props.platformAccessToken = appleMusicAuthRecord.token;
+    }
 
     return <SessionPageClient {...props} />;
   } catch (error: unknown) {

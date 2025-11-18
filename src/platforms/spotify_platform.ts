@@ -269,13 +269,17 @@ export class SpotifyPlatform extends Platform {
     }
   }
 
-  static async searchTracks(request: SearchTracksRequest): Promise<{
+  /**
+   * Helper method to get client credentials access token
+   * Can be used to get a token once and reuse it for multiple API calls
+   */
+  static async getClientCredentialsToken(): Promise<{
     ok: boolean;
-    data: SearchTracksResponse | null;
+    data: { accessToken: string } | null;
     error: unknown;
   }> {
     try {
-      // gets ECHO access token
+      console.log("getting spotify token in getClientCredentialsToken");
       const authResponse = await fetch(
         "https://accounts.spotify.com/api/token",
         {
@@ -302,13 +306,47 @@ export class SpotifyPlatform extends Platform {
       }
 
       const authData = await authResponse.json();
+      return {
+        ok: true,
+        data: { accessToken: authData.access_token },
+        error: null,
+      };
+    } catch (err) {
+      return { ok: false, data: null, error: err };
+    }
+  }
+
+  static async searchTracks(
+    request: SearchTracksRequest,
+    accessToken?: string,
+    limit = 10,
+  ): Promise<{
+    ok: boolean;
+    data: SearchTracksResponse | null;
+    error: unknown;
+  }> {
+    try {
+      let token = accessToken;
+
+      // Only fetch token if not provided
+      if (!token) {
+        const tokenResponse = await SpotifyPlatform.getClientCredentialsToken();
+        if (!tokenResponse.ok || !tokenResponse.data) {
+          return {
+            ok: false,
+            data: null,
+            error: tokenResponse.error || "Failed to get access token",
+          };
+        }
+        token = tokenResponse.data.accessToken;
+      }
 
       // Search using app token
       const searchResponse = await fetch(
-        `https://api.spotify.com/v1/search?q=${encodeURIComponent(request.query)}&type=track&limit=10`,
+        `https://api.spotify.com/v1/search?q=${encodeURIComponent(request.query)}&type=track&limit=${limit}`,
         {
           headers: {
-            Authorization: `Bearer ${authData.access_token}`,
+            Authorization: `Bearer ${token}`,
           },
         },
       );
@@ -338,6 +376,26 @@ export class SpotifyPlatform extends Platform {
     } catch (err) {
       return { ok: false, data: null, error: err };
     }
+  }
+
+  /**
+   * Wrapper method to search for a track by name and artist using precise field filters
+   * @param trackName - The name of the track
+   * @param artistName - The name of the artist
+   * @param accessToken - Optional access token to reuse (useful for bulk searches)
+   * @param limit - Number of results to return (default: 10)
+   */
+  static async searchTrackByNameAndArtist(
+    trackName: string,
+    artistName: string,
+    accessToken?: string,
+  ): Promise<{
+    ok: boolean;
+    data: SearchTracksResponse | null;
+    error: unknown;
+  }> {
+    const query = `track:"${trackName}" artist:"${artistName}"`;
+    return SpotifyPlatform.searchTracks({ query }, accessToken, 1);
   }
 
   static async getUserId(

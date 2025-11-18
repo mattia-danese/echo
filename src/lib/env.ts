@@ -24,6 +24,9 @@ const envSchema = z.object({
   TWILIO_AUTH_TOKEN: z.string().min(1),
   TWILIO_VERIFY_SERVICE_SID: z.string().min(1),
 
+  LAST_FM_API_KEY: z.string().min(1),
+  LAST_FM_SECRET_KEY: z.string().min(1),
+
   LUCAS_PHONE_NUMBER: z.string().min(1),
   DATABASE_URL: z.string().min(1),
   NODE_ENV: z
@@ -57,6 +60,9 @@ export const env = envSchema.parse({
   TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
   TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
   TWILIO_VERIFY_SERVICE_SID: process.env.TWILIO_VERIFY_SERVICE_SID,
+
+  LAST_FM_API_KEY: process.env.LAST_FM_API_KEY,
+  LAST_FM_SECRET_KEY: process.env.LAST_FM_SECRET_KEY,
 
   // miscellaneous
   LUCAS_PHONE_NUMBER: process.env.LUCAS_PHONE_NUMBER,

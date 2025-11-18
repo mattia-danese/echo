@@ -27,6 +27,7 @@ import {
 } from "@/db/schema";
 import { type Gender, Platform } from "@/db/types";
 import { createSession, deleteAllSessionsForUser } from "@/lib/cookieSession";
+import { lastFmAdmin } from "@/lib/lastFmAdmin";
 import { songLinkAdmin } from "@/lib/songLinkAdmin";
 import { twilioAdmin } from "@/lib/twilioAdmin";
 import { isNameValid, isPhoneNumberValid, isValidDate } from "@/lib/validation";
@@ -470,7 +471,11 @@ export async function sendWelcomeMessage(payload: { phoneNumber: string }) {
   };
 }
 
-export async function searchPlatformTracks(platform: Platform, query: string) {
+export async function searchPlatformTracks(
+  platform: Platform,
+  query: string,
+  platformAccessToken?: string,
+) {
   "use server";
 
   try {
@@ -484,9 +489,12 @@ export async function searchPlatformTracks(platform: Platform, query: string) {
     }
 
     if (platform === Platform.SPOTIFY) {
-      const { ok, data, error } = await SpotifyPlatform.searchTracks({
-        query: query,
-      });
+      const { ok, data, error } = await SpotifyPlatform.searchTracks(
+        {
+          query: query,
+        },
+        platformAccessToken,
+      );
 
       if (!ok) {
         return { ok: false, tracks: [], message: error };
@@ -494,9 +502,12 @@ export async function searchPlatformTracks(platform: Platform, query: string) {
 
       return { ok: true, tracks: data?.tracks || [], message: error };
     } else if (platform === Platform.APPLE_MUSIC) {
-      const { ok, data, error } = await AppleMusicPlatform.searchTracks({
-        query,
-      });
+      const { ok, data, error } = await AppleMusicPlatform.searchTracks(
+        {
+          query,
+        },
+        platformAccessToken,
+      );
 
       if (!ok) {
         return { ok: false, tracks: [], message: error };
@@ -605,8 +616,110 @@ export async function submitSong(payload: {
   trackName: string;
   artists: string;
   albumImageUrl: string;
+  platformAccessToken?: string;
 }) {
   try {
+    const { ok, message: submissionMessage } =
+      await handleCrossPlatformSongSubmission({
+        userId: payload.userId,
+        platform: payload.platform,
+        trackId: payload.trackId,
+        trackName: payload.trackName,
+        artists: payload.artists,
+      });
+
+    if (!ok) {
+      throw new Error(
+        submissionMessage || "An error occurred while submitting song",
+      );
+    }
+
+    if (payload.platform === Platform.SPOTIFY) {
+      const {
+        ok: similarTracksOk,
+        data: similarTracksData,
+        error: similarTracksError,
+      } = await lastFmAdmin.getSimilarTracks(
+        payload.trackName,
+        payload.artists.split(",")[0].trim(),
+      );
+
+      if (!similarTracksOk) {
+        throw new Error(
+          `Error in lastFmAdmin.getSimilarTracks: ${similarTracksError}`,
+        );
+      }
+
+      const spotifySimilarTracks: {
+        userId: number;
+        trackId: string;
+        trackName: string;
+        trackArtists: string;
+        trackAlbumImageUrl: string;
+        platform: Platform;
+      }[] = [];
+
+      if (!payload.platformAccessToken) {
+        console.log("getting spotify token in submitSong");
+        const [spotifyAuthRecord] = await db
+          .select({
+            userId: spotifyAuth.userId,
+            accessToken: spotifyAuth.accessToken,
+            refreshToken: spotifyAuth.refreshToken,
+            tokenExpiresAt: spotifyAuth.tokenExpiresAt,
+          })
+          .from(spotifyAuth)
+          .limit(1);
+
+        if (new Date(spotifyAuthRecord.tokenExpiresAt) < new Date()) {
+          const { ok, data, error } = await SpotifyPlatform.refreshTokens({
+            userId: spotifyAuthRecord.userId,
+            refreshToken: spotifyAuthRecord.refreshToken,
+          });
+
+          if (!ok) {
+            throw new Error(`Error in SpotifyPlatform.refreshTokens: ${error}`);
+          }
+
+          if (!data) {
+            throw new Error(
+              "No data returned from SpotifyPlatform.refreshTokens",
+            );
+          }
+
+          payload.platformAccessToken = data.accessToken;
+        }
+      }
+
+      for (const track of similarTracksData) {
+        const { ok, data, error } =
+          await SpotifyPlatform.searchTrackByNameAndArtist(
+            track.trackName,
+            track.artists,
+            payload.platformAccessToken,
+          );
+
+        if (!ok || !data || error) continue;
+
+        spotifySimilarTracks.push({
+          userId: payload.userId,
+          trackId: data.tracks[0].trackId,
+          trackName: data.tracks[0].trackName,
+          trackArtists: data.tracks[0].artists,
+          trackAlbumImageUrl: data.tracks[0].albumImageUrl,
+          platform: Platform.SPOTIFY,
+        });
+      }
+
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(userRecommendedSongs)
+          .where(eq(userRecommendedSongs.userId, payload.userId));
+
+        await tx.insert(userRecommendedSongs).values(spotifySimilarTracks);
+      });
+    }
+
     await db
       .update(userEchoSessions)
       .set({
@@ -626,54 +739,6 @@ export async function submitSong(payload: {
       .where(
         and(eq(users.id, payload.userId), isNull(users.firstSharedSessionId)),
       );
-
-    const { ok, message: submissionMessage } =
-      await handleCrossPlatformSongSubmission({
-        userId: payload.userId,
-        platform: payload.platform,
-        trackId: payload.trackId,
-        trackName: payload.trackName,
-        artists: payload.artists,
-      });
-
-    if (!ok) {
-      throw new Error(
-        submissionMessage || "An error occurred while submitting song",
-      );
-    }
-
-    // const {
-    //   ok: recommendedSongsOk,
-    //   data: recommendedSongsData,
-    //   error: recommendedSongsError,
-    // } = await SpotifyPlatform.getRecommendedSongs([payload.trackId]);
-
-    // if (!recommendedSongsOk) {
-    //   throw new Error(
-    //     `Error in SpotifyPlatform.getRecommendedSongs: ${recommendedSongsError}`,
-    //   );
-    // }
-
-    // if (!recommendedSongsData) {
-    //   throw new Error("No recommended songs data returned");
-    // }
-
-    // await db.transaction(async (tx) => {
-    //   await tx
-    //     .delete(userRecommendedSongs)
-    //     .where(eq(userRecommendedSongs.userId, payload.userId));
-
-    //   const songsToInsert = recommendedSongsData.map((song) => ({
-    //     userId: payload.userId,
-    //     trackId: song.trackId,
-    //     trackName: song.trackName,
-    //     trackArtists: song.artists,
-    //     trackAlbumImageUrl: song.albumImageUrl,
-    //     platform: payload.platform,
-    //   }));
-
-    //   await tx.insert(userRecommendedSongs).values(songsToInsert);
-    // });
 
     return { ok: true, message: "Song submitted successfully" };
   } catch (error: unknown) {

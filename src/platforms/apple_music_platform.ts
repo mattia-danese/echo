@@ -137,16 +137,22 @@ export class AppleMusicPlatform extends Platform {
     }
   }
 
-  static async searchTracks(request: SearchTracksRequest): Promise<{
+  static async searchTracks(
+    request: SearchTracksRequest,
+    accessToken?: string,
+  ): Promise<{
     ok: boolean;
     data: SearchTracksResponse | null;
     error: unknown;
   }> {
     try {
-      const [developerToken] = await db.select().from(appleDevToken).limit(1);
+      if (!accessToken) {
+        const [developerToken] = await db.select().from(appleDevToken).limit(1);
 
-      if (!developerToken) {
-        throw new Error("Developer token not found");
+        if (!developerToken) {
+          throw new Error("Developer token not found");
+        }
+        accessToken = developerToken.token;
       }
 
       const params = new URLSearchParams({
@@ -159,7 +165,7 @@ export class AppleMusicPlatform extends Platform {
         `https://api.music.apple.com/v1/catalog/us/search?${params.toString()}`,
         {
           headers: {
-            Authorization: `Bearer ${developerToken.token}`,
+            Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",
           },
         },

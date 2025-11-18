@@ -36,6 +36,7 @@ export interface SessionPageClientProps {
   isOnboarding: boolean;
   userId: number;
   sessionId?: number; // Optional - only needed for non-onboarding sessions
+  platformAccessToken?: string;
 }
 
 function resolveAppleArtwork(urlTemplate: string, size: number) {
@@ -52,6 +53,7 @@ export default function SessionPageClient({
   isOnboarding,
   userId,
   sessionId,
+  platformAccessToken,
 }: SessionPageClientProps) {
   const [search, setSearch] = useState("");
   const [selectedSong, setSelectedSong] = useState<SearchResultTrack | null>(
@@ -108,6 +110,7 @@ export default function SessionPageClient({
         artists: selectedSong.artists,
         albumImageUrl: selectedSong.albumImageUrl,
         sessionId: sessionId!, // Safe to use ! here because submitSong is only called when not onboarding
+        platformAccessToken: platformAccessToken || undefined,
       });
 
       if (result.ok) {
@@ -147,7 +150,11 @@ export default function SessionPageClient({
         setSearchError(false);
 
         try {
-          const result = await searchPlatformTracks(platform, debouncedSearch);
+          const result = await searchPlatformTracks(
+            platform,
+            debouncedSearch,
+            platformAccessToken || undefined,
+          );
 
           if (result.ok) {
             setSearchResults(result.tracks);
@@ -384,6 +391,14 @@ export default function SessionPageClient({
             </div>
           )}
         </div>
+
+        {topSongs.length > 0 && (
+          <div className="text-white text-sm text-center">
+            {platform === Platform.SPOTIFY
+              ? "suggested from your previously shared songs"
+              : "here are the songs you played recently"}
+          </div>
+        )}
 
         {/* Album covers grid */}
         <div className="grid grid-cols-2 gap-3 w-full">
