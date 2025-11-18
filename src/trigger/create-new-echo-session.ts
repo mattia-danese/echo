@@ -36,10 +36,10 @@ export const createNewEchoSessionTask = schedules.task({
     }
 
     const lastSessionDate = new Date(lastSession.createdAt);
-    lastSessionDate.setHours(0,0,0,0);
+    lastSessionDate.setHours(0, 0, 0, 0);
     
     const now = new Date();
-    now.setHours(0,0,0,0);
+    now.setHours(0, 0, 0, 0);
     
     const daysSinceLastSession = differenceInDays(now, lastSessionDate);
 
