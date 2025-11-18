@@ -711,7 +711,7 @@ export async function submitSong(payload: {
         });
       }
 
-      console.log("similar songs:", spotifySimilarTracks)
+      console.log("similar songs:", spotifySimilarTracks);
 
       await db.transaction(async (tx) => {
         await tx
