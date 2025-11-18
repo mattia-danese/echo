@@ -711,12 +711,16 @@ export async function submitSong(payload: {
         });
       }
 
+      console.log("similar songs:", spotifySimilarTracks)
+
       await db.transaction(async (tx) => {
         await tx
           .delete(userRecommendedSongs)
           .where(eq(userRecommendedSongs.userId, payload.userId));
 
-        await tx.insert(userRecommendedSongs).values(spotifySimilarTracks);
+        if (spotifySimilarTracks.length !== 0) {
+          await tx.insert(userRecommendedSongs).values(spotifySimilarTracks);
+        }
       });
     }
 
