@@ -88,7 +88,12 @@ export default function SessionPageClient({
           userId: userId,
           onboardingToken: token,
           platform: selectedSong.trackPlatform,
-          trackId: selectedSong.trackId,
+          trackName: selectedSong.trackName,
+          artists: selectedSong.artists,
+          spotifyAccessToken:
+            selectedSong.trackPlatform === Platform.SPOTIFY
+              ? platformAccessToken
+              : undefined,
         });
 
         if (result.ok) {

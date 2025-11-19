@@ -898,22 +898,11 @@ export async function completeOnboarding(payload: {
   userId: number;
   onboardingToken: string;
   platform: Platform;
-  trackId: string;
+  trackName: string;
+  artists: string;
+  spotifyAccessToken?: string;
 }) {
   try {
-    // const [user] = await db
-    //   .update(users)
-    //   .set({
-    //     isOnboardingComplete: true,
-    //   })
-    //   .where(
-    //     and(
-    //       eq(users.onboardingToken, payload.onboardingToken),
-    //       eq(users.isDeleted, false),
-    //     ),
-    //   )
-    //   .returning();
-
     const [user] = await db
       .select({
         id: users.id,
@@ -941,44 +930,86 @@ export async function completeOnboarding(payload: {
     let auth = null;
 
     if (user.platform === Platform.SPOTIFY) {
-      // const {
-      //   ok: recommendedSongsOk,
-      //   data: recommendedSongsData,
-      //   error: recommendedSongsError,
-      // } = await SpotifyPlatform.getRecommendedSongs([payload.trackId]);
+      const {
+        ok: similarTracksOk,
+        data: similarTracksData,
+        error: similarTracksError,
+      } = await lastFmAdmin.getSimilarTracks(
+        payload.trackName,
+        payload.artists.split(",")[0].trim(),
+      );
 
-      // if (!recommendedSongsOk) {
-      //   throw new Error(
-      //     `Error in SpotifyPlatform.getRecommendedSongs: ${recommendedSongsError}`,
-      //   );
-      // }
+      if (!similarTracksOk) {
+        throw new Error(
+          `Error in lastFmAdmin.getSimilarTracks: ${similarTracksError}`,
+        );
+      }
 
-      // if (!recommendedSongsData) {
-      //   throw new Error("No recommended songs data returned");
-      // }
+      const spotifySimilarTracks: {
+        userId: number;
+        trackId: string;
+        trackName: string;
+        trackArtists: string;
+        trackAlbumImageUrl: string;
+        platform: Platform;
+      }[] = [];
 
-      // await db.insert(userRecommendedSongs).values(
-      //   recommendedSongsData.map((song) => ({
-      //     userId: user.id,
-      //     trackId: song.trackId,
-      //     trackName: song.trackName,
-      //     trackArtists: song.artists,
-      //     trackAlbumImageUrl: song.albumImageUrl,
-      //     platform: payload.platform,
-      //   })),
-      // );
+      if (!payload.spotifyAccessToken) {
+        console.log("getting spotify token in completeOnboarding");
+        const [spotifyAuthRecord] = await db
+          .select({
+            platformUserId: spotifyAuth.userId,
+            accessToken: spotifyAuth.accessToken,
+            refreshToken: spotifyAuth.refreshToken,
+            tokenExpiresAt: spotifyAuth.tokenExpiresAt,
+          })
+          .from(spotifyAuth)
+          .limit(1);
 
-      const [authRecord] = await db
-        .select({
-          accessToken: spotifyAuth.accessToken,
-          refreshToken: spotifyAuth.refreshToken,
-          tokenExpiresAt: spotifyAuth.tokenExpiresAt,
-          platformUserId: spotifyAuth.userId,
-        })
-        .from(spotifyAuth)
-        .limit(1);
+        if (new Date(spotifyAuthRecord.tokenExpiresAt) < new Date()) {
+          const { ok, data, error } = await SpotifyPlatform.refreshTokens({
+            userId: spotifyAuthRecord.platformUserId,
+            refreshToken: spotifyAuthRecord.refreshToken,
+          });
 
-      auth = authRecord;
+          if (!ok) {
+            throw new Error(`Error in SpotifyPlatform.refreshTokens: ${error}`);
+          }
+
+          if (!data) {
+            throw new Error(
+              "No data returned from SpotifyPlatform.refreshTokens",
+            );
+          }
+
+          payload.spotifyAccessToken = data.accessToken;
+          auth = spotifyAuthRecord;
+        }
+      }
+
+      for (const track of similarTracksData) {
+        const { ok, data, error } =
+          await SpotifyPlatform.searchTrackByNameAndArtist(
+            track.trackName,
+            track.artists,
+            payload.spotifyAccessToken,
+          );
+
+        if (!ok || !data || error) continue;
+
+        spotifySimilarTracks.push({
+          userId: payload.userId,
+          trackId: data.tracks[0].trackId,
+          trackName: data.tracks[0].trackName,
+          trackArtists: data.tracks[0].artists,
+          trackAlbumImageUrl: data.tracks[0].albumImageUrl,
+          platform: Platform.SPOTIFY,
+        });
+      }
+
+      console.log("similar songs:", spotifySimilarTracks);
+
+      await db.insert(userRecommendedSongs).values(spotifySimilarTracks);
     } else {
       const [authRecord] = await db
         .select({
