@@ -1,6 +1,7 @@
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 
 import { isSameDay } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -81,15 +82,24 @@ export const generatePlaylistsTask = schedules.task({
 
     const lastSessionDate = new Date(echoSession.createdAt);
     const now = new Date();
-    const playlistDate = new Date(lastSessionDate).toLocaleDateString("en-US", {
+
+    // Convert both dates to EST for comparison
+    const timezone = "America/New_York";
+    const lastSessionDateEST = toZonedTime(lastSessionDate, timezone);
+    const nowEST = toZonedTime(now, timezone);
+
+    const playlistDate = lastSessionDateEST.toLocaleDateString("en-US", {
       month: "2-digit",
       day: "2-digit",
+      timeZone: timezone,
     });
 
-    // Check if the last session was created today (same calendar day)
-    if (!isSameDay(lastSessionDate, now)) {
+    // Check if the last session was created today (same calendar day in EST)
+    if (!isSameDay(lastSessionDateEST, nowEST)) {
       logger.log("Skipping execution - no session created today", {
         lastSessionDate: lastSessionDate.toISOString(),
+        lastSessionDateEST: lastSessionDateEST.toISOString(),
+        nowEST: nowEST.toISOString(),
       });
       return {
         message: "Skipped - no session created today",
