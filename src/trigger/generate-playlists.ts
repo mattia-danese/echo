@@ -209,8 +209,6 @@ export const generatePlaylistsTask = schedules.task({
       const playlistName = `${user.firstName}${playlistNameAbbreviation} echo ${playlistDate}`;
       const playlistDescription = `here are the songs your friends shared for the ${playlistDate} echo`;
 
-      if (user.firstName === "lucas") continue;
-
       const {
         ok: createPlaylistOk,
         data: playlistData,
