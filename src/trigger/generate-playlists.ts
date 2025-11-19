@@ -745,7 +745,7 @@ const textUsers = async (
 
     const lowFriendsMessages: string[] = [
       "looks like you don't have many songs coming in :( invite more friends with your link",
-      user.friendLinkToken ?? "",
+      `https://text-echo.com/${user.friendLinkToken}`,
     ];
 
     data[user.phoneNumber] = [
@@ -759,7 +759,7 @@ const textUsers = async (
   for (const user of noShareSecondSessionUsers) {
     data[user.phoneNumber] = [
       `echo is more fun with friends :) invite more friends with your link`,
-      user.friendLinkToken,
+      `https://text-echo.com/${user.friendLinkToken}`,
     ];
   }
 
