@@ -900,7 +900,6 @@ export async function completeOnboarding(payload: {
   platform: Platform;
   trackName: string;
   artists: string;
-  spotifyAccessToken?: string;
 }) {
   try {
     const [user] = await db
@@ -954,45 +953,51 @@ export async function completeOnboarding(payload: {
         platform: Platform;
       }[] = [];
 
-      if (!payload.spotifyAccessToken) {
-        console.log("getting spotify token in completeOnboarding");
-        const [spotifyAuthRecord] = await db
-          .select({
-            platformUserId: spotifyAuth.userId,
-            accessToken: spotifyAuth.accessToken,
-            refreshToken: spotifyAuth.refreshToken,
-            tokenExpiresAt: spotifyAuth.tokenExpiresAt,
-          })
-          .from(spotifyAuth)
-          .limit(1);
+      console.log("getting spotify token in completeOnboarding");
+      const [spotifyAuthRecord] = await db
+        .select({
+          platformUserId: spotifyAuth.userId,
+          accessToken: spotifyAuth.accessToken,
+          refreshToken: spotifyAuth.refreshToken,
+          tokenExpiresAt: spotifyAuth.tokenExpiresAt,
+        })
+        .from(spotifyAuth)
+        .limit(1);
 
-        if (new Date(spotifyAuthRecord.tokenExpiresAt) < new Date()) {
-          const { ok, data, error } = await SpotifyPlatform.refreshTokens({
-            userId: spotifyAuthRecord.platformUserId,
-            refreshToken: spotifyAuthRecord.refreshToken,
-          });
+      if (new Date(spotifyAuthRecord.tokenExpiresAt) < new Date()) {
+        const { ok, data, error } = await SpotifyPlatform.refreshTokens({
+          userId: spotifyAuthRecord.platformUserId,
+          refreshToken: spotifyAuthRecord.refreshToken,
+        });
 
-          if (!ok) {
-            throw new Error(`Error in SpotifyPlatform.refreshTokens: ${error}`);
-          }
-
-          if (!data) {
-            throw new Error(
-              "No data returned from SpotifyPlatform.refreshTokens",
-            );
-          }
-
-          payload.spotifyAccessToken = data.accessToken;
-          auth = spotifyAuthRecord;
+        if (!ok) {
+          throw new Error(`Error in SpotifyPlatform.refreshTokens: ${error}`);
         }
+
+        if (!data) {
+          throw new Error(
+            "No data returned from SpotifyPlatform.refreshTokens",
+          );
+        }
+
+        spotifyAuthRecord.accessToken = data.accessToken;
+        spotifyAuthRecord.refreshToken = data.refreshToken;
+        spotifyAuthRecord.tokenExpiresAt = data.expiresIn;
       }
+
+      auth = {
+        platformUserId: spotifyAuthRecord.platformUserId,
+        accessToken: spotifyAuthRecord.accessToken,
+        refreshToken: spotifyAuthRecord.refreshToken,
+        tokenExpiresAt: spotifyAuthRecord.tokenExpiresAt,
+      };
 
       for (const track of similarTracksData) {
         const { ok, data, error } =
           await SpotifyPlatform.searchTrackByNameAndArtist(
             track.trackName,
             track.artists,
-            payload.spotifyAccessToken,
+            auth.accessToken,
           );
 
         if (!ok || !data || error) continue;
@@ -1006,8 +1011,6 @@ export async function completeOnboarding(payload: {
           platform: Platform.SPOTIFY,
         });
       }
-
-      console.log("similar songs:", spotifySimilarTracks);
 
       await db.insert(userRecommendedSongs).values(spotifySimilarTracks);
     } else {

@@ -90,10 +90,6 @@ export default function SessionPageClient({
           platform: selectedSong.trackPlatform,
           trackName: selectedSong.trackName,
           artists: selectedSong.artists,
-          spotifyAccessToken:
-            selectedSong.trackPlatform === Platform.SPOTIFY
-              ? platformAccessToken
-              : undefined,
         });
 
         if (result.ok) {
