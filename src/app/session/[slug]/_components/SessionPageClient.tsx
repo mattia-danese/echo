@@ -393,7 +393,7 @@ export default function SessionPageClient({
           )}
         </div>
 
-        {topSongs.length > 0 && (
+        {!isOnboarding && topSongs.length > 0 && (
           <div className="text-white text-sm text-center">
             {platform === Platform.SPOTIFY
               ? "suggested from your previously shared songs"
