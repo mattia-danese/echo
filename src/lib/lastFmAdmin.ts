@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { env } from "./env";
 
 // TOOD: see if multiple arrists can be supplied
@@ -11,14 +12,40 @@ export const getSimilarTracks = async (
 
   if (!response.ok) {
     const errorData = await response.text();
-    return { ok: false, data: null, error: errorData };
+    const errorMessage = `Last.fm API error: ${response.status} ${response.statusText}`;
+    Sentry.captureException(new Error(errorMessage), {
+      extra: {
+        statusCode: response.status,
+        statusText: response.statusText,
+        errorData,
+        trackName,
+        artistName,
+      },
+      tags: {
+        service: "lastfm",
+        errorType: "network_error",
+      },
+    });
+    return { ok: true, data: [], error: errorMessage };
   }
 
   const data = await response.json();
 
   if (data.error) {
     const errorMessage = `Received error from Last.fm: code ${data.error} & message ${data.message}`;
-    return { ok: false, data: null, error: errorMessage };
+    Sentry.captureException(new Error(errorMessage), {
+      extra: {
+        errorCode: data.error,
+        errorMessage: data.message,
+        trackName,
+        artistName,
+      },
+      tags: {
+        service: "lastfm",
+        errorType: "api_error",
+      },
+    });
+    return { ok: true, data: [], error: errorMessage };
   }
 
   const similarTracks = data.similartracks.track.map((track: any) => ({

@@ -635,18 +635,16 @@ export async function submitSong(payload: {
     }
 
     if (payload.platform === Platform.SPOTIFY) {
-      const {
-        ok: similarTracksOk,
-        data: similarTracksData,
-        error: similarTracksError,
-      } = await lastFmAdmin.getSimilarTracks(
-        payload.trackName,
-        payload.artists.split(",")[0].trim(),
-      );
+      const { data: similarTracksData, error: similarTracksError } =
+        await lastFmAdmin.getSimilarTracks(
+          payload.trackName,
+          payload.artists.split(",")[0].trim(),
+        );
 
-      if (!similarTracksOk) {
-        throw new Error(
-          `Error in lastFmAdmin.getSimilarTracks: ${similarTracksError}`,
+      if (similarTracksError) {
+        console.error(
+          "Last.fm API error in submitSong (non-blocking):",
+          similarTracksError,
         );
       }
 
@@ -929,18 +927,16 @@ export async function completeOnboarding(payload: {
     let auth = null;
 
     if (user.platform === Platform.SPOTIFY) {
-      const {
-        ok: similarTracksOk,
-        data: similarTracksData,
-        error: similarTracksError,
-      } = await lastFmAdmin.getSimilarTracks(
-        payload.trackName,
-        payload.artists.split(",")[0].trim(),
-      );
+      const { data: similarTracksData, error: similarTracksError } =
+        await lastFmAdmin.getSimilarTracks(
+          payload.trackName,
+          payload.artists.split(",")[0].trim(),
+        );
 
-      if (!similarTracksOk) {
-        throw new Error(
-          `Error in lastFmAdmin.getSimilarTracks: ${similarTracksError}`,
+      if (similarTracksError) {
+        console.error(
+          "Last.fm API error in completeOnboarding (non-blocking):",
+          similarTracksError,
         );
       }
 
@@ -1012,7 +1008,9 @@ export async function completeOnboarding(payload: {
         });
       }
 
-      await db.insert(userRecommendedSongs).values(spotifySimilarTracks);
+      if (spotifySimilarTracks.length > 0) {
+        await db.insert(userRecommendedSongs).values(spotifySimilarTracks);
+      }
     } else {
       const [authRecord] = await db
         .select({
