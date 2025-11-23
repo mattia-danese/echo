@@ -59,14 +59,6 @@ export const oneHourReminderTask = schedules.task({
     try {
       const sessionId = echoSession.id;
 
-      // TESTING SAFEGUARD: Only process specific test users
-      // TODO: Remove this filter before full production deployment
-      const TEST_USER_IDS = [41, 73];
-
-      logger.log(
-        `TESTING MODE: Only processing users ${TEST_USER_IDS.join(", ")}`,
-      );
-
       // Create aliases for friend data
       const friendUsers = alias(users, "friendUsers");
       const friendSessions = alias(userEchoSessions, "friendSessions");
@@ -103,7 +95,6 @@ export const oneHourReminderTask = schedules.task({
             isNull(userEchoSessions.trackId), // User hasn't shared
             eq(users.isDeleted, false),
             eq(users.isOnboardingComplete, true),
-            inArray(userEchoSessions.userId, TEST_USER_IDS), // TESTING SAFEGUARD
           ),
         );
 
