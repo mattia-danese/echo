@@ -605,6 +605,7 @@ export class SpotifyPlatform extends Platform {
   }> {
     try {
       const trackId = SpotifyPlatform.extractTrackId(link);
+      console.log("*****TRACK ID*****", trackId);
       const { ok, data, error } = await SpotifyPlatform.getTrack(
         trackId,
         accessToken,
