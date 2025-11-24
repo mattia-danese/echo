@@ -535,4 +535,74 @@ export class SpotifyPlatform extends Platform {
   static createPlaylistLink(platformPlaylistId: string) {
     return `https://open.spotify.com/playlist/${platformPlaylistId}`;
   }
+
+  static async getTrack(trackId: string): Promise<{
+    ok: boolean;
+    data: {
+      trackId: string;
+      trackName: string;
+      artists: string;
+      albumImageUrl: string;
+    } | null;
+    error: unknown;
+  }> {
+    try {
+      const response = await fetch(
+        `https://api.spotify.com/v1/tracks/${trackId}`,
+      );
+      if (!response.ok) {
+        const errorData = await response.text();
+        return { ok: false, data: null, error: errorData };
+      }
+
+      const data = await response.json();
+      return {
+        ok: true,
+        data: {
+          trackId,
+          trackName: data.name,
+          artists: data.artists.map((artist: any) => artist.name).join(", "),
+          albumImageUrl: data.album.images[0]?.url || "",
+        },
+        error: null,
+      };
+    } catch (err) {
+      return { ok: false, data: null, error: err };
+    }
+  }
+
+  static isTrackLink(link: string): boolean {
+    // https://open.spotify.com/track/0jkAr7eZsvWDLYiQCfaxak?si=-P5tF8qcQ0ezx9ZALcQpYw&context=spotify%3Aplaylist%3A37i9dQZF1EId8sNiDAP5xq
+    if (!link) return false;
+
+    if (!link.startsWith("https://")) return false;
+
+    if (!link.includes("spotify.com/track/")) return false;
+
+    return true;
+  }
+
+  static async getTrackFromLink(link: string): Promise<{
+    ok: boolean;
+    data: {
+      trackId: string;
+      trackName: string;
+      artists: string;
+      albumImageUrl: string;
+    } | null;
+    error: unknown;
+  }> {
+    try {
+      const trackId = SpotifyPlatform.extractTrackId(link);
+      const { ok, data, error } = await SpotifyPlatform.getTrack(trackId);
+
+      if (!ok || !data || error) {
+        return { ok: false, data: null, error: error };
+      }
+
+      return { ok: true, data: data, error: null };
+    } catch (err) {
+      return { ok: false, data: null, error: err };
+    }
+  }
 }

@@ -1,10 +1,12 @@
 import { logger, task } from "@trigger.dev/sdk/v3";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { messages, users } from "@/db/schema";
-import { MessageType } from "@/db/types";
+import { messages, userEchoSessions, users } from "@/db/schema";
+import { MessageType, Platform } from "@/db/types";
 import { env } from "@/lib/env";
 import { sendMessagesTask } from "./send-messages";
+import { SpotifyPlatform } from "@/platforms";
+import { submitSong } from "@/app/actions";
 
 export const inboundTextResponseTask = task({
   id: "inbound-text-response",
@@ -67,7 +69,78 @@ export const inboundTextResponseTask = task({
         };
       }
 
-      if (payload.inboundMessage.trim().toLowerCase() === "get help") {
+      const message = payload.inboundMessage.trim().toLowerCase();
+
+      if (SpotifyPlatform.isTrackLink(message)) {
+        const {
+          ok,
+          data: trackData,
+          error,
+        } = await SpotifyPlatform.getTrackFromLink(message);
+
+        if (!ok || !trackData || error) {
+          throw new Error(`error getting spotify track from link: ${error}`, {
+            cause: {
+              link: message,
+              error: error,
+            },
+          });
+        }
+
+        const [recentSession] = await db
+          .select({
+            sessionId: userEchoSessions.sessionId,
+            token: userEchoSessions.token,
+          })
+          .from(userEchoSessions)
+          .where(eq(userEchoSessions.userId, user.id))
+          .orderBy(desc(userEchoSessions.createdAt))
+          .limit(1);
+
+        if (!recentSession) {
+          throw new Error(`no recent session found for user: ${user.id}`, {
+            cause: {
+              userId: user.id,
+            },
+          });
+        }
+
+        const { ok: submitSongOk, message: submitSongMessage } =
+          await submitSong({
+            userId: user.id,
+            token: recentSession.token,
+            sessionId: recentSession.sessionId,
+            platform: Platform.SPOTIFY,
+            trackId: trackData.trackId,
+            trackName: trackData.trackName,
+            artists: trackData.artists,
+            albumImageUrl: trackData.albumImageUrl,
+          });
+
+        if (!submitSongOk) {
+          throw new Error(`error submitting song: ${submitSongMessage}`, {
+            cause: {
+              message: submitSongMessage,
+              error: error,
+            },
+          });
+        }
+
+        data[payload.phoneNumber] = ["thanks for sharing :)"];
+
+        await sendMessagesTask.trigger({
+          data: data,
+        });
+
+        return {
+          message: `responded to spotify song submission from ${payload.phoneNumber}: '${payload.inboundMessage}'`,
+        };
+      }
+
+      // if (AppleMusicPlatform.isSongLink(message)) {
+      // }
+
+      if (message === "get help") {
         data[payload.phoneNumber] = [
           "we notified our team about your issue. they will personally reach out shortly",
         ];
@@ -85,7 +158,7 @@ export const inboundTextResponseTask = task({
         };
       }
 
-      if (payload.inboundMessage.trim().toLowerCase() === "get link") {
+      if (message === "get link") {
         if (!user.sentGetLink) {
           await db
             .update(users)
