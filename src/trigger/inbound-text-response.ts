@@ -1,12 +1,12 @@
 import { logger, task } from "@trigger.dev/sdk/v3";
 import { desc, eq } from "drizzle-orm";
+import { submitSong } from "@/app/actions";
 import { db } from "@/db";
 import { messages, userEchoSessions, users } from "@/db/schema";
 import { MessageType, Platform } from "@/db/types";
 import { env } from "@/lib/env";
-import { sendMessagesTask } from "./send-messages";
 import { SpotifyPlatform } from "@/platforms";
-import { submitSong } from "@/app/actions";
+import { sendMessagesTask } from "./send-messages";
 
 export const inboundTextResponseTask = task({
   id: "inbound-text-response",
