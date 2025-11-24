@@ -69,7 +69,7 @@ export const inboundTextResponseTask = task({
         };
       }
 
-      const message = payload.inboundMessage.trim().toLowerCase();
+      let message = payload.inboundMessage.trim();
 
       if (SpotifyPlatform.isTrackLink(message)) {
         const [spotifyAuthData] = await db
@@ -154,6 +154,7 @@ export const inboundTextResponseTask = task({
             trackName: trackData.trackName,
             artists: trackData.artists,
             albumImageUrl: trackData.albumImageUrl,
+            platformAccessToken: spotifyAuthData.accessToken,
           });
 
         if (!submitSongOk) {
@@ -178,6 +179,8 @@ export const inboundTextResponseTask = task({
 
       // if (AppleMusicPlatform.isSongLink(message)) {
       // }
+
+      message = message.toLowerCase();
 
       if (message === "get help") {
         data[payload.phoneNumber] = [
