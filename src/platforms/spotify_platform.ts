@@ -536,7 +536,10 @@ export class SpotifyPlatform extends Platform {
     return `https://open.spotify.com/playlist/${platformPlaylistId}`;
   }
 
-  static async getTrack(trackId: string): Promise<{
+  static async getTrack(
+    trackId: string,
+    accessToken: string,
+  ): Promise<{
     ok: boolean;
     data: {
       trackId: string;
@@ -549,6 +552,11 @@ export class SpotifyPlatform extends Platform {
     try {
       const response = await fetch(
         `https://api.spotify.com/v1/tracks/${trackId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
       );
       if (!response.ok) {
         const errorData = await response.text();
@@ -582,7 +590,10 @@ export class SpotifyPlatform extends Platform {
     return true;
   }
 
-  static async getTrackFromLink(link: string): Promise<{
+  static async getTrackFromLink(
+    link: string,
+    accessToken: string,
+  ): Promise<{
     ok: boolean;
     data: {
       trackId: string;
@@ -594,7 +605,10 @@ export class SpotifyPlatform extends Platform {
   }> {
     try {
       const trackId = SpotifyPlatform.extractTrackId(link);
-      const { ok, data, error } = await SpotifyPlatform.getTrack(trackId);
+      const { ok, data, error } = await SpotifyPlatform.getTrack(
+        trackId,
+        accessToken,
+      );
 
       if (!ok || !data || error) {
         return { ok: false, data: null, error: error };

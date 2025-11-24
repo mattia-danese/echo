@@ -2,7 +2,7 @@ import { logger, task } from "@trigger.dev/sdk/v3";
 import { desc, eq } from "drizzle-orm";
 import { submitSong } from "@/app/actions";
 import { db } from "@/db";
-import { messages, userEchoSessions, users } from "@/db/schema";
+import { messages, spotifyAuth, userEchoSessions, users } from "@/db/schema";
 import { MessageType, Platform } from "@/db/types";
 import { env } from "@/lib/env";
 import { SpotifyPlatform } from "@/platforms";
@@ -72,6 +72,42 @@ export const inboundTextResponseTask = task({
       const message = payload.inboundMessage.trim().toLowerCase();
 
       if (SpotifyPlatform.isTrackLink(message)) {
+        const [spotifyAuthData] = await db
+          .select({
+            accessToken: spotifyAuth.accessToken,
+            refreshToken: spotifyAuth.refreshToken,
+            tokenExpiresAt: spotifyAuth.tokenExpiresAt,
+            platformUserId: spotifyAuth.userId,
+          })
+          .from(spotifyAuth)
+          .limit(1);
+
+        if (new Date(spotifyAuthData.tokenExpiresAt) < new Date()) {
+          const {
+            ok: refreshTokensOk,
+            data: refreshTokensData,
+            error: refreshTokensError,
+          } = await SpotifyPlatform.refreshTokens({
+            userId: spotifyAuthData.platformUserId,
+            refreshToken: spotifyAuthData.refreshToken,
+          });
+
+          if (!refreshTokensOk || !refreshTokensData || refreshTokensError) {
+            throw new Error(
+              `error refreshing spotify token: ${refreshTokensError}`,
+              {
+                cause: {
+                  refreshTokensError: refreshTokensError,
+                },
+              },
+            );
+          }
+
+          spotifyAuthData.accessToken = refreshTokensData.accessToken;
+          spotifyAuthData.refreshToken = refreshTokensData.refreshToken;
+          spotifyAuthData.tokenExpiresAt = refreshTokensData.expiresIn;
+        }
+
         const {
           ok,
           data: trackData,
