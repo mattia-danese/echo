@@ -112,7 +112,10 @@ export const inboundTextResponseTask = task({
           ok,
           data: trackData,
           error,
-        } = await SpotifyPlatform.getTrackFromLink(message);
+        } = await SpotifyPlatform.getTrackFromLink(
+          message,
+          spotifyAuthData.accessToken,
+        );
 
         if (!ok || !trackData || error) {
           throw new Error(`error getting spotify track from link: ${error}`, {
