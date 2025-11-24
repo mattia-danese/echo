@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { logger, task } from "@trigger.dev/sdk/v3";
 import { desc, eq } from "drizzle-orm";
 import { submitSong } from "@/app/actions";
@@ -72,109 +73,136 @@ export const inboundTextResponseTask = task({
       let message = payload.inboundMessage.trim();
 
       if (SpotifyPlatform.isTrackLink(message)) {
-        const [spotifyAuthData] = await db
-          .select({
-            accessToken: spotifyAuth.accessToken,
-            refreshToken: spotifyAuth.refreshToken,
-            tokenExpiresAt: spotifyAuth.tokenExpiresAt,
-            platformUserId: spotifyAuth.userId,
-          })
-          .from(spotifyAuth)
-          .limit(1);
+        try {
+          const [spotifyAuthData] = await db
+            .select({
+              accessToken: spotifyAuth.accessToken,
+              refreshToken: spotifyAuth.refreshToken,
+              tokenExpiresAt: spotifyAuth.tokenExpiresAt,
+              platformUserId: spotifyAuth.userId,
+            })
+            .from(spotifyAuth)
+            .limit(1);
 
-        if (new Date(spotifyAuthData.tokenExpiresAt) < new Date()) {
-          const {
-            ok: refreshTokensOk,
-            data: refreshTokensData,
-            error: refreshTokensError,
-          } = await SpotifyPlatform.refreshTokens({
-            userId: spotifyAuthData.platformUserId,
-            refreshToken: spotifyAuthData.refreshToken,
-          });
+          if (new Date(spotifyAuthData.tokenExpiresAt) < new Date()) {
+            const {
+              ok: refreshTokensOk,
+              data: refreshTokensData,
+              error: refreshTokensError,
+            } = await SpotifyPlatform.refreshTokens({
+              userId: spotifyAuthData.platformUserId,
+              refreshToken: spotifyAuthData.refreshToken,
+            });
 
-          if (!refreshTokensOk || !refreshTokensData || refreshTokensError) {
-            throw new Error(
-              `error refreshing spotify token: ${refreshTokensError}`,
-              {
-                cause: {
-                  refreshTokensError: refreshTokensError,
+            if (!refreshTokensOk || !refreshTokensData || refreshTokensError) {
+              throw new Error(
+                `error refreshing spotify token: ${refreshTokensError}`,
+                {
+                  cause: {
+                    refreshTokensError: refreshTokensError,
+                  },
                 },
-              },
-            );
+              );
+            }
+
+            spotifyAuthData.accessToken = refreshTokensData.accessToken;
+            spotifyAuthData.refreshToken = refreshTokensData.refreshToken;
+            spotifyAuthData.tokenExpiresAt = refreshTokensData.expiresIn;
           }
 
-          spotifyAuthData.accessToken = refreshTokensData.accessToken;
-          spotifyAuthData.refreshToken = refreshTokensData.refreshToken;
-          spotifyAuthData.tokenExpiresAt = refreshTokensData.expiresIn;
-        }
+          const {
+            ok,
+            data: trackData,
+            error,
+          } = await SpotifyPlatform.getTrackFromLink(
+            message,
+            spotifyAuthData.accessToken,
+          );
 
-        const {
-          ok,
-          data: trackData,
-          error,
-        } = await SpotifyPlatform.getTrackFromLink(
-          message,
-          spotifyAuthData.accessToken,
-        );
+          if (!ok || !trackData || error) {
+            throw new Error(`error getting spotify track from link: ${error}`, {
+              cause: {
+                link: message,
+                error: error,
+              },
+            });
+          }
 
-        if (!ok || !trackData || error) {
-          throw new Error(`error getting spotify track from link: ${error}`, {
-            cause: {
-              link: message,
-              error: error,
-            },
-          });
-        }
+          const [recentSession] = await db
+            .select({
+              sessionId: userEchoSessions.sessionId,
+              token: userEchoSessions.token,
+            })
+            .from(userEchoSessions)
+            .where(eq(userEchoSessions.userId, user.id))
+            .orderBy(desc(userEchoSessions.createdAt))
+            .limit(1);
 
-        const [recentSession] = await db
-          .select({
-            sessionId: userEchoSessions.sessionId,
-            token: userEchoSessions.token,
-          })
-          .from(userEchoSessions)
-          .where(eq(userEchoSessions.userId, user.id))
-          .orderBy(desc(userEchoSessions.createdAt))
-          .limit(1);
+          if (!recentSession) {
+            throw new Error(`no recent session found for user: ${user.id}`, {
+              cause: {
+                userId: user.id,
+              },
+            });
+          }
 
-        if (!recentSession) {
-          throw new Error(`no recent session found for user: ${user.id}`, {
-            cause: {
+          const { ok: submitSongOk, message: submitSongMessage } =
+            await submitSong({
               userId: user.id,
+              token: recentSession.token,
+              sessionId: recentSession.sessionId,
+              platform: Platform.SPOTIFY,
+              trackId: trackData.trackId,
+              trackName: trackData.trackName,
+              artists: trackData.artists,
+              albumImageUrl: trackData.albumImageUrl,
+              platformAccessToken: spotifyAuthData.accessToken,
+            });
+
+          if (!submitSongOk) {
+            throw new Error(`error submitting song: ${submitSongMessage}`, {
+              cause: {
+                message: submitSongMessage,
+                error: error,
+              },
+            });
+          }
+
+          data[payload.phoneNumber] = ["thanks for sharing :)"];
+
+          await sendMessagesTask.trigger({
+            data: data,
+          });
+
+          return {
+            message: `responded to spotify song submission from ${payload.phoneNumber}: '${payload.inboundMessage}'`,
+          };
+        } catch (error) {
+          logger.error("error submitting song", { error });
+
+          // Manually capture in Sentry
+          Sentry.captureException(error, {
+            extra: {
+              phoneNumber: payload.phoneNumber,
+              inboundMessage: payload.inboundMessage,
+              context: "spotify_link_submission_failed",
+            },
+            tags: {
+              taskId: "inbound-text-response",
+              errorType: "spotify_link_error",
             },
           });
-        }
 
-        const { ok: submitSongOk, message: submitSongMessage } =
-          await submitSong({
-            userId: user.id,
-            token: recentSession.token,
-            sessionId: recentSession.sessionId,
-            platform: Platform.SPOTIFY,
-            trackId: trackData.trackId,
-            trackName: trackData.trackName,
-            artists: trackData.artists,
-            albumImageUrl: trackData.albumImageUrl,
-            platformAccessToken: spotifyAuthData.accessToken,
+          data[payload.phoneNumber] = ["we cannot regonize this link"];
+
+          await sendMessagesTask.trigger({
+            data: data,
           });
 
-        if (!submitSongOk) {
-          throw new Error(`error submitting song: ${submitSongMessage}`, {
-            cause: {
-              message: submitSongMessage,
-              error: error,
-            },
-          });
+          return {
+            message: `could not recognize spotify link from ${payload.phoneNumber}: '${payload.inboundMessage}'`,
+          };
         }
-
-        data[payload.phoneNumber] = ["thanks for sharing :)"];
-
-        await sendMessagesTask.trigger({
-          data: data,
-        });
-
-        return {
-          message: `responded to spotify song submission from ${payload.phoneNumber}: '${payload.inboundMessage}'`,
-        };
       }
 
       // if (AppleMusicPlatform.isSongLink(message)) {
