@@ -1,7 +1,7 @@
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { isSameDay } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { echoSessions, friends, userEchoSessions, users } from "@/db/schema";
@@ -20,9 +20,9 @@ export const oneHourReminderTask = schedules.task({
 
   run: async () => {
     logger.log("one hour reminder task starting ...");
-    // Check if we should run today by checking if a session was created today
+    // Check if we should run today by checking if a session ends today
     const [echoSession] = await db
-      .select({ id: echoSessions.id, createdAt: echoSessions.createdAt })
+      .select({ id: echoSessions.id, end: echoSessions.end })
       .from(echoSessions)
       .orderBy(desc(echoSessions.createdAt))
       .limit(1);
@@ -32,28 +32,28 @@ export const oneHourReminderTask = schedules.task({
       return { message: "Skipped - no sessions found" };
     }
 
-    const lastSessionDate = new Date(echoSession.createdAt);
+    const sessionEndDate = new Date(echoSession.end);
     const now = new Date();
 
     // Convert both dates to EST for comparison
     const timezone = "America/New_York";
-    const lastSessionDateEST = toZonedTime(lastSessionDate, timezone);
+    const sessionEndDateEST = toZonedTime(sessionEndDate, timezone);
     const nowEST = toZonedTime(now, timezone);
 
-    if (!isSameDay(lastSessionDateEST, nowEST)) {
-      // Check if the last session was created today (same calendar day in EST)
-      logger.log("Skipping execution - no session created today", {
-        lastSessionDate: lastSessionDate.toISOString(),
-        lastSessionDateEST: lastSessionDateEST.toISOString(),
+    if (!isSameDay(sessionEndDateEST, nowEST)) {
+      // Check if the most recent session ends today (same calendar day in EST)
+      logger.log("Skipping execution - no session ends today", {
+        sessionEndDate: sessionEndDate.toISOString(),
+        sessionEndDateEST: sessionEndDateEST.toISOString(),
         nowEST: nowEST.toISOString(),
       });
       return {
-        message: "Skipped - no session created today",
+        message: "Skipped - no session ends today",
       };
     }
 
-    logger.log("Executing - session was created today", {
-      lastSessionDate: lastSessionDate.toISOString(),
+    logger.log("Executing - session ends today", {
+      sessionEndDate: sessionEndDate.toISOString(),
     });
 
     try {
