@@ -100,7 +100,6 @@ export async function createUser(payload: {
       return {
         ok: true,
         userId: existingUser.id.toString(),
-        onboardingToken: null,
         created: false,
         message: "User with this phone number already exists.",
       };
@@ -154,7 +153,6 @@ export async function createUser(payload: {
       return {
         ok: false,
         userId: null,
-        onboardingToken: null,
         created: false,
         message: "Invalid platform",
       };
@@ -162,9 +160,6 @@ export async function createUser(payload: {
 
     // Generate friend link
     const friendLinkToken = crypto.randomBytes(16).toString("base64url");
-
-    // Generate onboarding token
-    const onboardingToken = crypto.randomBytes(16).toString("base64url");
 
     // Create or reactivate user (upsert on phone number)
     const [newUser] = await db
@@ -176,8 +171,7 @@ export async function createUser(payload: {
         gender: payload.gender,
         dateOfBirth: payload.dateOfBirth,
         friendLinkToken: friendLinkToken,
-        onboardingToken: onboardingToken,
-        isOnboardingComplete: false,
+        whenOnboardingComplete: null,
         platform: payload.platform,
       })
       .onConflictDoUpdate({
@@ -188,7 +182,6 @@ export async function createUser(payload: {
           gender: payload.gender,
           dateOfBirth: payload.dateOfBirth,
           friendLinkToken: friendLinkToken,
-          onboardingToken: onboardingToken,
           platform: payload.platform,
           isDeleted: false,
           updatedAt: new Date().toISOString(),
@@ -196,7 +189,6 @@ export async function createUser(payload: {
       })
       .returning({
         id: users.id,
-        onboardingToken: users.onboardingToken,
         updatedAt: users.updatedAt,
         createdAt: users.createdAt,
       });
@@ -219,17 +211,21 @@ export async function createUser(payload: {
       await db.insert(userAuth).values(userAuthData);
     }
 
+    let friendFirstName = "";
+
     if (payload.referralFriendLinkToken) {
-      const { ok, message } = await createFriendships({
+      const { ok, data, message } = await createFriendships({
         userId: newUser.id,
         referralFriendLinkToken: payload.referralFriendLinkToken,
         userPlatform: payload.platform,
         userFirstName: payload.firstName,
       });
 
-      if (!ok) {
+      if (!ok || !data) {
         console.error("Error creating friendship:", message);
       }
+
+      friendFirstName = data?.friendFirstName || "";
     }
 
     // async task to get recent plays of new user
@@ -248,7 +244,7 @@ export async function createUser(payload: {
 
     return {
       ok: true,
-      user: newUser,
+      user: { ...newUser, friendFirstName: friendFirstName },
       created: true,
       message: "User created successfully with Spotify tokens.",
     };
@@ -257,7 +253,6 @@ export async function createUser(payload: {
     return {
       ok: false,
       userId: null,
-      onboardingToken: null,
       created: false,
       message: `An error occurred while creating the user: ${error}`,
     };
@@ -338,6 +333,7 @@ export async function createFriendships(payload: {
     const [friend] = await db
       .select({
         id: users.id,
+        firstName: users.firstName,
         platform: users.platform,
         phoneNumber: users.phoneNumber,
       })
@@ -411,7 +407,11 @@ export async function createFriendships(payload: {
       },
     });
 
-    return { ok: true, message: "Friendship created successfully" };
+    return {
+      ok: true,
+      data: { friendFirstName: friend.firstName },
+      message: "Friendship created successfully",
+    };
   } catch (error: unknown) {
     console.error(
       `Error in createFriendships (${payload.userId}, ${payload.referralFriendLinkToken}):`,
@@ -419,6 +419,7 @@ export async function createFriendships(payload: {
     );
     return {
       ok: false,
+      data: null,
       message:
         error instanceof Error
           ? error.message
@@ -429,23 +430,33 @@ export async function createFriendships(payload: {
 
 export async function sendOnboardingMessage(payload: {
   phoneNumber: string;
-  onboardingToken: string;
+  friendFirstName: string;
+  userPlatform: Platform;
 }) {
   console.log("Sending onboarding messages to... ", payload.phoneNumber);
+
+  const lastSentence = payload.friendFirstName
+    ? `we’ll add your song to ${payload.friendFirstName}'s playlist`
+    : "we’ll add your song to your friends' playlist";
+
+  const platformLink =
+    payload.userPlatform === Platform.SPOTIFY
+      ? "https://open.spotify.com/"
+      : "https://music.apple.com/";
 
   await sendMessagesTask.trigger({
     data: {
       [payload.phoneNumber]: [
         [
-          "welcome to echo - thanks for signing up :) here's how it works:",
+          "welcome to echo - your music sharing squad :)",
+          "here’s how it works:",
           "",
-          "1. we'll text you every 3 days to share a song",
-          "2. submit your song",
-          "3. at the end of the day, we'll text you the songs your friends shared",
-          "",
-          "let's walk through a live example. click on the link below to share your first song",
-          `https://text-echo.com/onboarding/${payload.onboardingToken}`,
+          "1. next time you’re listening to a good song, just text us the link",
+          "2. every 2 days, we’ll send you a playlist with the songs your friends shared",
+          "3. we’ll text you before playlists drop so you remember to send groovy tunes",
         ].join("\n"),
+        `now let’s try it together. tap the link below to share your first song. pick a track, tap "share", then "copy link", & text it here. ${lastSentence}`,
+        platformLink,
       ],
     },
   });
@@ -890,176 +901,176 @@ export async function getRecommendedSongs(payload: {
   );
 }
 
-export async function completeOnboarding(payload: {
-  userId: number;
-  onboardingToken: string;
-  platform: Platform;
-  trackName: string;
-  artists: string;
-}) {
-  try {
-    const [user] = await db
-      .select({
-        id: users.id,
-        platform: users.platform,
-        firstName: users.firstName,
-        phoneNumber: users.phoneNumber,
-        friendLinkToken: users.friendLinkToken,
-      })
-      .from(users)
-      .where(
-        and(
-          eq(users.id, payload.userId),
-          eq(users.onboardingToken, payload.onboardingToken),
-          eq(users.isDeleted, false),
-        ),
-      )
-      .limit(1);
+// export async function completeOnboarding(payload: {
+//   userId: number;
+//   onboardingToken: string;
+//   platform: Platform;
+//   trackName: string;
+//   artists: string;
+// }) {
+//   try {
+//     const [user] = await db
+//       .select({
+//         id: users.id,
+//         platform: users.platform,
+//         firstName: users.firstName,
+//         phoneNumber: users.phoneNumber,
+//         friendLinkToken: users.friendLinkToken,
+//       })
+//       .from(users)
+//       .where(
+//         and(
+//           eq(users.id, payload.userId),
+//           eq(users.onboardingToken, payload.onboardingToken),
+//           eq(users.isDeleted, false),
+//         ),
+//       )
+//       .limit(1);
 
-    if (!user) {
-      throw new Error(
-        `User not found with onboarding token ${payload.onboardingToken}`,
-      );
-    }
+//     if (!user) {
+//       throw new Error(
+//         `User not found with onboarding token ${payload.onboardingToken}`,
+//       );
+//     }
 
-    let auth = null;
+//     let auth = null;
 
-    if (user.platform === Platform.SPOTIFY) {
-      const { data: similarTracksData, error: similarTracksError } =
-        await lastFmAdmin.getSimilarTracks(
-          payload.trackName,
-          payload.artists.split(",")[0].trim(),
-        );
+//     if (user.platform === Platform.SPOTIFY) {
+//       const { data: similarTracksData, error: similarTracksError } =
+//         await lastFmAdmin.getSimilarTracks(
+//           payload.trackName,
+//           payload.artists.split(",")[0].trim(),
+//         );
 
-      if (similarTracksError) {
-        console.error(
-          "Last.fm API error in completeOnboarding (non-blocking):",
-          similarTracksError,
-        );
-      }
+//       if (similarTracksError) {
+//         console.error(
+//           "Last.fm API error in completeOnboarding (non-blocking):",
+//           similarTracksError,
+//         );
+//       }
 
-      const spotifySimilarTracks: {
-        userId: number;
-        trackId: string;
-        trackName: string;
-        trackArtists: string;
-        trackAlbumImageUrl: string;
-        platform: Platform;
-      }[] = [];
+//       const spotifySimilarTracks: {
+//         userId: number;
+//         trackId: string;
+//         trackName: string;
+//         trackArtists: string;
+//         trackAlbumImageUrl: string;
+//         platform: Platform;
+//       }[] = [];
 
-      console.log("getting spotify token in completeOnboarding");
-      const [spotifyAuthRecord] = await db
-        .select({
-          platformUserId: spotifyAuth.userId,
-          accessToken: spotifyAuth.accessToken,
-          refreshToken: spotifyAuth.refreshToken,
-          tokenExpiresAt: spotifyAuth.tokenExpiresAt,
-        })
-        .from(spotifyAuth)
-        .limit(1);
+//       console.log("getting spotify token in completeOnboarding");
+//       const [spotifyAuthRecord] = await db
+//         .select({
+//           platformUserId: spotifyAuth.userId,
+//           accessToken: spotifyAuth.accessToken,
+//           refreshToken: spotifyAuth.refreshToken,
+//           tokenExpiresAt: spotifyAuth.tokenExpiresAt,
+//         })
+//         .from(spotifyAuth)
+//         .limit(1);
 
-      if (new Date(spotifyAuthRecord.tokenExpiresAt) < new Date()) {
-        const { ok, data, error } = await SpotifyPlatform.refreshTokens({
-          userId: spotifyAuthRecord.platformUserId,
-          refreshToken: spotifyAuthRecord.refreshToken,
-        });
+//       if (new Date(spotifyAuthRecord.tokenExpiresAt) < new Date()) {
+//         const { ok, data, error } = await SpotifyPlatform.refreshTokens({
+//           userId: spotifyAuthRecord.platformUserId,
+//           refreshToken: spotifyAuthRecord.refreshToken,
+//         });
 
-        if (!ok) {
-          throw new Error(`Error in SpotifyPlatform.refreshTokens: ${error}`);
-        }
+//         if (!ok) {
+//           throw new Error(`Error in SpotifyPlatform.refreshTokens: ${error}`);
+//         }
 
-        if (!data) {
-          throw new Error(
-            "No data returned from SpotifyPlatform.refreshTokens",
-          );
-        }
+//         if (!data) {
+//           throw new Error(
+//             "No data returned from SpotifyPlatform.refreshTokens",
+//           );
+//         }
 
-        spotifyAuthRecord.accessToken = data.accessToken;
-        spotifyAuthRecord.refreshToken = data.refreshToken;
-        spotifyAuthRecord.tokenExpiresAt = data.expiresIn;
-      }
+//         spotifyAuthRecord.accessToken = data.accessToken;
+//         spotifyAuthRecord.refreshToken = data.refreshToken;
+//         spotifyAuthRecord.tokenExpiresAt = data.expiresIn;
+//       }
 
-      auth = {
-        platformUserId: spotifyAuthRecord.platformUserId,
-        accessToken: spotifyAuthRecord.accessToken,
-        refreshToken: spotifyAuthRecord.refreshToken,
-        tokenExpiresAt: spotifyAuthRecord.tokenExpiresAt,
-      };
+//       auth = {
+//         platformUserId: spotifyAuthRecord.platformUserId,
+//         accessToken: spotifyAuthRecord.accessToken,
+//         refreshToken: spotifyAuthRecord.refreshToken,
+//         tokenExpiresAt: spotifyAuthRecord.tokenExpiresAt,
+//       };
 
-      for (const track of similarTracksData) {
-        const { ok, data, error } =
-          await SpotifyPlatform.searchTrackByNameAndArtist(
-            track.trackName,
-            track.artists,
-            auth.accessToken,
-          );
+//       for (const track of similarTracksData) {
+//         const { ok, data, error } =
+//           await SpotifyPlatform.searchTrackByNameAndArtist(
+//             track.trackName,
+//             track.artists,
+//             auth.accessToken,
+//           );
 
-        if (!ok || !data || error) continue;
+//         if (!ok || !data || error) continue;
 
-        spotifySimilarTracks.push({
-          userId: payload.userId,
-          trackId: data.tracks[0].trackId,
-          trackName: data.tracks[0].trackName,
-          trackArtists: data.tracks[0].artists,
-          trackAlbumImageUrl: data.tracks[0].albumImageUrl,
-          platform: Platform.SPOTIFY,
-        });
-      }
+//         spotifySimilarTracks.push({
+//           userId: payload.userId,
+//           trackId: data.tracks[0].trackId,
+//           trackName: data.tracks[0].trackName,
+//           trackArtists: data.tracks[0].artists,
+//           trackAlbumImageUrl: data.tracks[0].albumImageUrl,
+//           platform: Platform.SPOTIFY,
+//         });
+//       }
 
-      if (spotifySimilarTracks.length > 0) {
-        await db.insert(userRecommendedSongs).values(spotifySimilarTracks);
-      }
-    } else {
-      const [authRecord] = await db
-        .select({
-          platformUserId: userAuth.platformUserId,
-          accessToken: userAuth.accessToken,
-          refreshToken: userAuth.refreshToken,
-          tokenExpiresAt: userAuth.tokenExpiresAt,
-        })
-        .from(userAuth)
-        .where(eq(userAuth.userId, user.id))
-        .limit(1);
+//       if (spotifySimilarTracks.length > 0) {
+//         await db.insert(userRecommendedSongs).values(spotifySimilarTracks);
+//       }
+//     } else {
+//       const [authRecord] = await db
+//         .select({
+//           platformUserId: userAuth.platformUserId,
+//           accessToken: userAuth.accessToken,
+//           refreshToken: userAuth.refreshToken,
+//           tokenExpiresAt: userAuth.tokenExpiresAt,
+//         })
+//         .from(userAuth)
+//         .where(eq(userAuth.userId, user.id))
+//         .limit(1);
 
-      auth = authRecord;
-    }
+//       auth = authRecord;
+//     }
 
-    if (!auth) {
-      throw new Error("User auth not found");
-    }
+//     if (!auth) {
+//       throw new Error("User auth not found");
+//     }
 
-    await db
-      .update(users)
-      .set({
-        isOnboardingComplete: true,
-      })
-      .where(eq(users.id, user.id));
+//     await db
+//       .update(users)
+//       .set({
+//         isOnboardingComplete: true,
+//       })
+//       .where(eq(users.id, user.id));
 
-    // FIXME: this is a hack to get the user data to the onboarding completion task
-    // implement codebase wide user type
-    await onboardingCompletionTask.trigger({
-      user: {
-        userId: user.id,
-        platform: user.platform,
-        platformUserId: auth.platformUserId ?? "",
-        accessToken: auth.accessToken,
-        refreshToken: auth.refreshToken ?? "",
-        tokenExpiresAt: auth.tokenExpiresAt ?? "",
-        friendLinkToken: user.friendLinkToken,
-        firstName: user.firstName,
-        phoneNumber: user.phoneNumber,
-      },
-    });
+//     // FIXME: this is a hack to get the user data to the onboarding completion task
+//     // implement codebase wide user type
+//     await onboardingCompletionTask.trigger({
+//       user: {
+//         userId: user.id,
+//         platform: user.platform,
+//         platformUserId: auth.platformUserId ?? "",
+//         accessToken: auth.accessToken,
+//         refreshToken: auth.refreshToken ?? "",
+//         tokenExpiresAt: auth.tokenExpiresAt ?? "",
+//         friendLinkToken: user.friendLinkToken,
+//         firstName: user.firstName,
+//         phoneNumber: user.phoneNumber,
+//       },
+//     });
 
-    return { ok: true, message: "Onboarding completed successfully" };
-  } catch (error: unknown) {
-    console.error("Error in completeOnboarding:", error);
-    return {
-      ok: false,
-      message: "An error occurred while completing onboarding",
-    };
-  }
-}
+//     return { ok: true, message: "Onboarding completed successfully" };
+//   } catch (error: unknown) {
+//     console.error("Error in completeOnboarding:", error);
+//     return {
+//       ok: false,
+//       message: "An error occurred while completing onboarding",
+//     };
+//   }
+// }
 
 export async function muteFriend(userId: number, friendId: number) {
   "use server";

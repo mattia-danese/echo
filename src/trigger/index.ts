@@ -4,3 +4,4 @@ export { getRecentPlaysTask } from "./get-recent-plays";
 export { onboardingCompletionTask } from "./onboarding-completion";
 export { onFailure } from "./onFailure";
 export { sendMessagesTask } from "./send-messages";
+export { textBlastTask } from "./text-blast";

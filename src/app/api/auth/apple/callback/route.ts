@@ -86,7 +86,8 @@ export async function POST(req: Request) {
         if (user.updatedAt === user.createdAt) {
           await sendOnboardingMessage({
             phoneNumber: phoneNumber,
-            onboardingToken: user.onboardingToken,
+            friendFirstName: user.friendFirstName,
+            userPlatform: platform,
           });
         } else {
           await sendWelcomeMessage({

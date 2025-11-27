@@ -44,10 +44,10 @@ export const users = pgTable(
     gender: gender("gender").notNull(),
     dateOfBirth: date("date_of_birth", { mode: "string" }).notNull(),
     friendLinkToken: varchar("friend_link_token").notNull(),
-    onboardingToken: varchar("onboarding_token").notNull(),
-    isOnboardingComplete: boolean("is_onboarding_complete")
-      .default(false)
-      .notNull(),
+    whenOnboardingComplete: timestamp("when_onboarding_complete", {
+      withTimezone: true,
+      mode: "string",
+    }),
     receivedNoTextAlert: boolean("received_no_text_alert")
       .default(false)
       .notNull(),
@@ -65,7 +65,6 @@ export const users = pgTable(
   (table) => [
     unique("users_phone_number_key").on(table.phoneNumber),
     unique("users_friend_link_token_key").on(table.friendLinkToken),
-    unique("users_onboarding_token_key").on(table.onboardingToken),
     foreignKey({
       columns: [table.firstSharedSessionId],
       foreignColumns: [echoSessions.id],

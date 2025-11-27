@@ -3,7 +3,13 @@ import { logger, task } from "@trigger.dev/sdk/v3";
 import { desc, eq } from "drizzle-orm";
 import { submitSong } from "@/app/actions";
 import { db } from "@/db";
-import { messages, spotifyAuth, userEchoSessions, users } from "@/db/schema";
+import {
+  echoSessions,
+  messages,
+  spotifyAuth,
+  userEchoSessions,
+  users,
+} from "@/db/schema";
 import { MessageType, Platform } from "@/db/types";
 import { env } from "@/lib/env";
 import { SpotifyPlatform } from "@/platforms";
@@ -36,6 +42,7 @@ export const inboundTextResponseTask = task({
           isDeleted: users.isDeleted,
           friendLinkToken: users.friendLinkToken,
           sentGetLink: users.sentGetLink,
+          whenOnboardingComplete: users.whenOnboardingComplete,
         })
         .from(users)
         .where(eq(users.phoneNumber, payload.phoneNumber))
@@ -130,10 +137,15 @@ export const inboundTextResponseTask = task({
 
           const [recentSession] = await db
             .select({
-              sessionId: userEchoSessions.sessionId,
-              token: userEchoSessions.token,
+              sessionId: echoSessions.id,
+              sessionEndsAt: echoSessions.end,
+              sessionToken: userEchoSessions.token,
             })
             .from(userEchoSessions)
+            .innerJoin(
+              echoSessions,
+              eq(userEchoSessions.sessionId, echoSessions.id),
+            )
             .where(eq(userEchoSessions.userId, user.id))
             .orderBy(desc(userEchoSessions.createdAt))
             .limit(1);
@@ -149,7 +161,7 @@ export const inboundTextResponseTask = task({
           const { ok: submitSongOk, message: submitSongMessage } =
             await submitSong({
               userId: user.id,
-              token: recentSession.token,
+              token: recentSession.sessionToken,
               sessionId: recentSession.sessionId,
               platform: Platform.SPOTIFY,
               trackId: trackData.trackId,
@@ -168,7 +180,30 @@ export const inboundTextResponseTask = task({
             });
           }
 
-          data[payload.phoneNumber] = ["thanks for sharing :)"];
+          const timeUntilNextPlaylist =
+            new Date(recentSession.sessionEndsAt).getTime() - Date.now();
+
+          // Convert to total minutes and round
+          const totalMinutes =
+            Math.round(timeUntilNextPlaylist / (1000 * 60)) + 30;
+          // Round to nearest hour
+          const totalHours = Math.round(totalMinutes / 60);
+
+          const timeFormatted = `${totalHours} hour${totalHours !== 1 ? "s" : ""}`;
+
+          if (user.whenOnboardingComplete) {
+            data[payload.phoneNumber] = ["thanks for sharing :)"];
+          } else {
+            data[payload.phoneNumber] = [
+              "nice pick - that’s echo :) from now on, share a song with us every few days & you’ll get a playlist with the songs your friends send. if you don’t send a song, you don’t get the playlist.",
+              `the next playlist comes out in ${timeFormatted}. stay tuned, we’ll text you then`,
+            ];
+
+            await db
+              .update(users)
+              .set({ whenOnboardingComplete: new Date().toISOString() })
+              .where(eq(users.id, user.id));
+          }
 
           await sendMessagesTask.trigger({
             data: data,

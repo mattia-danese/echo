@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { logger, task } from "@trigger.dev/sdk/v3";
 import { fromZonedTime } from "date-fns-tz";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { echoSessions, userEchoSessions, users } from "@/db/schema";
 
@@ -48,7 +48,10 @@ export const createNewEchoSessionTask = task({
         })
         .from(users)
         .where(
-          and(eq(users.isOnboardingComplete, true), eq(users.isDeleted, false)),
+          and(
+            isNotNull(users.whenOnboardingComplete),
+            eq(users.isDeleted, false),
+          ),
         );
 
       if (fetchedUsers.length === 0) {

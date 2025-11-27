@@ -1,7 +1,7 @@
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { isSameDay } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { echoSessions, friends, userEchoSessions, users } from "@/db/schema";
@@ -94,7 +94,7 @@ export const oneHourReminderTask = schedules.task({
             eq(userEchoSessions.sessionId, sessionId),
             isNull(userEchoSessions.trackId), // User hasn't shared
             eq(users.isDeleted, false),
-            eq(users.isOnboardingComplete, true),
+            isNotNull(users.whenOnboardingComplete),
           ),
         );
 

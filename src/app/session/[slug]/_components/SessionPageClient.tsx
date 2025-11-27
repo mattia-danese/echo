@@ -2,11 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useId, useState } from "react";
-import {
-  completeOnboarding,
-  searchPlatformTracks,
-  submitSong,
-} from "@/app/actions";
+import { searchPlatformTracks, submitSong } from "@/app/actions";
 import { useDebounce } from "@/components/Debounce";
 import Hero from "@/components/Hero";
 import { Button } from "@/components/ui/button";
@@ -83,24 +79,24 @@ export default function SessionPageClient({
     setIsSubmitting(true);
 
     try {
-      if (isOnboarding) {
-        const result = await completeOnboarding({
-          userId: userId,
-          onboardingToken: token,
-          platform: selectedSong.trackPlatform,
-          trackName: selectedSong.trackName,
-          artists: selectedSong.artists,
-        });
+      // if (isOnboarding) {
+      //   const result = await completeOnboarding({
+      //     userId: userId,
+      //     onboardingToken: token,
+      //     platform: selectedSong.trackPlatform,
+      //     trackName: selectedSong.trackName,
+      //     artists: selectedSong.artists,
+      //   });
 
-        if (result.ok) {
-          setIsSubmitted(true);
-        } else {
-          console.error("Error completing onboarding:", result.message);
-          setSubmitError(true);
-        }
+      //   if (result.ok) {
+      //     setIsSubmitted(true);
+      //   } else {
+      //     console.error("Error completing onboarding:", result.message);
+      //     setSubmitError(true);
+      //   }
 
-        return;
-      }
+      //   return;
+      // }
 
       const result = await submitSong({
         userId: userId,
