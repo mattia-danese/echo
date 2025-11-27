@@ -1,5 +1,5 @@
+import * as Sentry from "@sentry/nextjs";
 import { logger, schedules } from "@trigger.dev/sdk/v3";
-
 import { isSameDay } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
@@ -17,6 +17,7 @@ import {
 } from "@/db/schema";
 import { CONTACT_CARD_PLACEHOLDER, Platform } from "@/db/types";
 import { AppleMusicPlatform, SpotifyPlatform } from "@/platforms";
+import { createNewEchoSessionTask } from "./create-new-echo-session";
 import { sendMessagesTask } from "./send-messages";
 
 type PlaylistRecords = {
@@ -68,9 +69,9 @@ export const generatePlaylistsTask = schedules.task({
   run: async () => {
     logger.log("generate playlists task starting ...");
 
-    // Check if we should run today by checking if a session was created today
+    // Check if we should run today by checking if a session ends today
     const [echoSession] = await db
-      .select({ id: echoSessions.id, createdAt: echoSessions.createdAt })
+      .select({ id: echoSessions.id, end: echoSessions.end })
       .from(echoSessions)
       .orderBy(desc(echoSessions.createdAt))
       .limit(1);
@@ -80,34 +81,34 @@ export const generatePlaylistsTask = schedules.task({
       return { message: "Skipped - no sessions found" };
     }
 
-    const lastSessionDate = new Date(echoSession.createdAt);
+    const sessionEndDate = new Date(echoSession.end);
     const now = new Date();
 
     // Convert both dates to EST for comparison
     const timezone = "America/New_York";
-    const lastSessionDateEST = toZonedTime(lastSessionDate, timezone);
+    const sessionEndDateEST = toZonedTime(sessionEndDate, timezone);
     const nowEST = toZonedTime(now, timezone);
 
-    const playlistDate = lastSessionDateEST.toLocaleDateString("en-US", {
+    const playlistDate = sessionEndDateEST.toLocaleDateString("en-US", {
       month: "2-digit",
       day: "2-digit",
       timeZone: timezone,
     });
 
-    // Check if the last session was created today (same calendar day in EST)
-    if (!isSameDay(lastSessionDateEST, nowEST)) {
-      logger.log("Skipping execution - no session created today", {
-        lastSessionDate: lastSessionDate.toISOString(),
-        lastSessionDateEST: lastSessionDateEST.toISOString(),
+    // Check if the most recent session ends today (same calendar day in EST)
+    if (!isSameDay(sessionEndDateEST, nowEST)) {
+      logger.log("Skipping execution - no session ends today", {
+        sessionEndDate: sessionEndDate.toISOString(),
+        sessionEndDateEST: sessionEndDateEST.toISOString(),
         nowEST: nowEST.toISOString(),
       });
       return {
-        message: "Skipped - no session created today",
+        message: "Skipped - no session ends today",
       };
     }
 
-    logger.log("Executing - session was created today", {
-      lastSessionDate: lastSessionDate.toISOString(),
+    logger.log("Executing - session ends today", {
+      sessionEndDate: sessionEndDate.toISOString(),
     });
 
     const { ok, data, error } = await getUserEchoSessions(echoSession.id);
@@ -311,8 +312,20 @@ export const generatePlaylistsTask = schedules.task({
 
     // logging all encountered errors
     if (Object.keys(usersThatEncounteredErrors).length > 0) {
-      logger.error("ERRORS", { usersThatEncounteredErrors });
+      logger.error("errors encountered during generate playlists task", {
+        usersThatEncounteredErrors,
+      });
+
+      // Manually capture in Sentry
+      Sentry.captureException(
+        new Error("errors encountered during generate playlists task"),
+        {
+          extra: { usersThatEncounteredErrors },
+        },
+      );
     }
+
+    await createNewEchoSessionTask.trigger();
 
     return {
       message: `generate playlists task completed`,
