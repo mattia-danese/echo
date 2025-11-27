@@ -136,15 +136,17 @@ export const oneHourReminderTask = schedules.task({
 
         if (data.friendsWhoShared.length === 0) {
           message =
-            "you've got 1 hour to share your song and see what your friends shared";
+            "1 hour left to share your song to see what your friends shared";
         } else if (data.friendsWhoShared.length === 1) {
-          message = `you've got 1 hour to share your song and see what ${data.friendsWhoShared[0]} has shared`;
+          message = `1 hour left to share your song to see what ${data.friendsWhoShared[0]} has shared`;
         } else if (data.friendsWhoShared.length === 2) {
-          message = `you've got 1 hour to share your song and see what ${data.friendsWhoShared[0]} and ${data.friendsWhoShared[1]} have shared`;
+          message = `1 hour left to share your song to see what ${data.friendsWhoShared[0]} and ${data.friendsWhoShared[1]} have shared`;
+        } else if (data.friendsWhoShared.length === 3) {
+          const [first, second, third] = data.friendsWhoShared;
+          message = `1 hour left to share your song to see what ${first}, ${second}, and ${third} have shared`;
         } else {
-          // Take first 3 friends
           const firstThree = data.friendsWhoShared.slice(0, 3).join(", ");
-          message = `you've got 1 hour to share your song and see what ${firstThree}, and more have shared`;
+          message = `1 hour left to share your song to see what ${firstThree}, and more have shared`;
         }
 
         messagesToSend[data.phoneNumber] = [message];
