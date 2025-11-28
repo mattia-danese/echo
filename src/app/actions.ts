@@ -620,7 +620,7 @@ export async function getUserTopSongs(payload: {
 
 export async function submitSong(payload: {
   userId: number;
-  token: string;
+  userEchoSessionToken: string;
   sessionId: number;
   platform: Platform;
   trackId: string;
@@ -731,16 +731,29 @@ export async function submitSong(payload: {
       });
     }
 
+    // if userEchoSession already exists, update it, otherwise insert a new one (onboarding)
     await db
-      .update(userEchoSessions)
-      .set({
+      .insert(userEchoSessions)
+      .values({
+        userId: payload.userId,
+        sessionId: payload.sessionId,
+        token: payload.userEchoSessionToken,
+        platform: payload.platform,
         trackId: payload.trackId,
         trackName: payload.trackName,
         trackArtists: payload.artists,
         trackAlbumImageUrl: payload.albumImageUrl,
-        updatedAt: new Date().toISOString(),
       })
-      .where(eq(userEchoSessions.token, payload.token));
+      .onConflictDoUpdate({
+        target: userEchoSessions.token,
+        set: {
+          trackId: payload.trackId,
+          trackName: payload.trackName,
+          trackArtists: payload.artists,
+          trackAlbumImageUrl: payload.albumImageUrl,
+          updatedAt: new Date().toISOString(),
+        },
+      });
 
     await db
       .update(users)

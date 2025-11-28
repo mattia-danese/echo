@@ -1,6 +1,7 @@
+import crypto from "node:crypto";
 import * as Sentry from "@sentry/nextjs";
 import { logger, task } from "@trigger.dev/sdk/v3";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { submitSong } from "@/app/actions";
 import { db } from "@/db";
 import {
@@ -139,29 +140,37 @@ export const inboundTextResponseTask = task({
             .select({
               sessionId: echoSessions.id,
               sessionEndsAt: echoSessions.end,
-              sessionToken: userEchoSessions.token,
+              userEchoSessionToken: userEchoSessions.token,
             })
-            .from(userEchoSessions)
-            .innerJoin(
-              echoSessions,
-              eq(userEchoSessions.sessionId, echoSessions.id),
+            .from(echoSessions)
+            .leftJoin(
+              userEchoSessions,
+              and(
+                eq(userEchoSessions.sessionId, echoSessions.id),
+                eq(userEchoSessions.userId, user.id),
+              ),
             )
-            .where(eq(userEchoSessions.userId, user.id))
-            .orderBy(desc(userEchoSessions.createdAt))
+            .orderBy(desc(echoSessions.createdAt))
             .limit(1);
 
           if (!recentSession) {
-            throw new Error(`no recent session found for user: ${user.id}`, {
+            throw new Error(`no recent echo session found`, {
               cause: {
                 userId: user.id,
+                message: message,
               },
             });
           }
 
+          // Generate token if null (onboarding case where userEchoSession doesn't exist yet)
+          const userEchoSessionToken =
+            recentSession.userEchoSessionToken ||
+            crypto.randomBytes(16).toString("base64url");
+
           const { ok: submitSongOk, message: submitSongMessage } =
             await submitSong({
               userId: user.id,
-              token: recentSession.sessionToken,
+              userEchoSessionToken: userEchoSessionToken,
               sessionId: recentSession.sessionId,
               platform: Platform.SPOTIFY,
               trackId: trackData.trackId,
