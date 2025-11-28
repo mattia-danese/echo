@@ -64,7 +64,7 @@ export const morningReminderTask = schedules.task({
         threeConsecutiveNoShare: sql<boolean>`(
             SELECT 
               COUNT(*) >= 3 AND 
-              COUNT(${userEchoSessions.trackId}) = 0
+              COUNT(track_id) = 0
             FROM (
               SELECT ${userEchoSessions.trackId}
               FROM ${userEchoSessions}
