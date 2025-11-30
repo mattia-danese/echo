@@ -102,6 +102,7 @@ export const generatePlaylistsTask = schedules.task({
     });
 
     const userErrors: Record<number, (string | unknown)[]> = {};
+    const usersWithNoFriendSongs: number[] = [];
     const playlistRecords: PlaylistRecord[] = [];
     const playlistSongRecords: PlaylistSongRecord[] = [];
 
@@ -170,10 +171,7 @@ export const generatePlaylistsTask = schedules.task({
       );
 
       if (playlist.size === 0) {
-        userErrors[user.userId] ??= [];
-        userErrors[user.userId].push(
-          `compilePlaylist() found 0 songs to add to playlist`,
-        );
+        usersWithNoFriendSongs.push(user.userId);
         continue;
       }
 
@@ -349,6 +347,7 @@ export const generatePlaylistsTask = schedules.task({
       userData.data,
       lowFriendsNoShareUsers.data,
       userErrors,
+      usersWithNoFriendSongs,
     );
 
     // Log all encountered errors

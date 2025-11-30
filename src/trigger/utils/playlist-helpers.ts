@@ -561,6 +561,7 @@ export const textUsers = async (
     friendLinkToken: string;
   }[],
   userErrors: Record<number, (string | unknown)[]>,
+  usersWithNoFriendSongs: number[],
 ) => {
   const data: Record<string, Array<string>> = {};
 
@@ -610,6 +611,17 @@ export const textUsers = async (
     data[user.phoneNumber] = [
       `echo is more fun with friends :) invite more friends with your link`,
       `https://text-echo.com/${user.friendLinkToken}`,
+    ];
+  }
+
+  for (const userId of usersWithNoFriendSongs) {
+    if (userErrors[userId]) continue;
+
+    const user = userData.find((u) => u.userId === userId);
+    if (!user?.phoneNumber) continue;
+
+    data[user.phoneNumber] = [
+      "unfortunately none of your friends shared. great song though :)",
     ];
   }
 
