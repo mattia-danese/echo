@@ -257,7 +257,7 @@ const sendMessages = async (payload: {
 
   const friendMessage =
     numFriends === 1
-      ? `your only friend is ${payload.friendNames[0]} :(`
+      ? `btw your only friend is ${payload.friendNames[0]} :(`
       : `you have ${numFriends} friends :(`;
 
   const messages = [

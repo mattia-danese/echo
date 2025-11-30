@@ -282,7 +282,7 @@ export const inboundTextResponseTask = task({
 
         data[payload.phoneNumber] = [
           [
-            "send this link to your friends to add them and start discovering music together",
+            "share this link with friends to add them & start discovering music together - the same link works whether or not your friends are already on echo",
             "",
             `if you ever forget your link, just text us "get link" and we'll send it to you`,
           ].join("\n"),
