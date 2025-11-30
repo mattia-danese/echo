@@ -2,58 +2,48 @@ import * as Sentry from "@sentry/nextjs";
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { isSameDay } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import { db } from "@/db";
+import { echoSessions } from "@/db/schema";
+import { Platform } from "@/db/types";
+import { SpotifyPlatform } from "@/platforms";
+
 import {
-  echoSessions,
-  friends,
-  playlistSongs,
-  playlists,
-  songLinkCacheMappings,
-  spotifyAuth,
-  userAuth,
-  userEchoSessions,
-  users,
-} from "@/db/schema";
-import { CONTACT_CARD_PLACEHOLDER, Platform } from "@/db/types";
-import { AppleMusicPlatform, SpotifyPlatform } from "@/platforms";
+  compileOnboardingFallbackPlaylist,
+  compilePlaylist,
+  createPlaylistOnPlatformForUser,
+  getAllUsersWhoSharedSongs,
+  getLowFriendsNoShareUsers,
+  getUserFriendships,
+  type PlaylistRecord,
+  type PlaylistSongRecord,
+  persistPlaylistsToDatabase,
+  textUsers,
+} from "@/trigger/utils/playlist-helpers";
 import { createNewEchoSessionTask } from "./create-new-echo-session";
-import { sendMessagesTask } from "./send-messages";
 
-type PlaylistRecords = {
-  userId: number;
-  platform: Platform;
-  sessionId: number;
-  platformPlaylistId: string;
-  playlistName: string;
-  playlistImageUrl: string;
-}[];
-
-type PlaylistSongRecords = {
-  playlistId: number;
-  trackId: string;
-  submittedByUserId: number;
-  platformPlaylistId: string;
-}[];
-
-type UserSongData = {
-  userId: number;
-  firstName: string;
-  phoneNumber: string;
-  friendLinkToken: string;
-  platformUserId: string;
-  platform: Platform;
-  accessToken: string;
-  refreshToken: string;
-  tokenExpiresAt: string;
-  platformOfEchoSession: Platform;
-  trackId: string;
-  trackAlbumImageUrl: string;
-  sendContactCard: boolean;
-  hasLessThanThreeFriendsAfterTwoEchoes: boolean;
-};
+export type FriendSong = [
+  friendId: number,
+  trackData: [trackId: string, albumImageUrl: string],
+];
 
 const NUM_SONGS_PER_PLAYLIST = 10;
+
+// Generic onboarding playlists (pre-made, one per platform)
+const GENERIC_ONBOARDING_PLAYLISTS = {
+  [Platform.SPOTIFY]: {
+    id: "2KLJ5yYkos95iFVIAPH95e",
+    name: "your first echo",
+    imageUrl:
+      "https://i.scdn.co/image/ab67616d0000b27372296030f87da7500d01e113",
+  },
+  [Platform.APPLE_MUSIC]: {
+    id: "pl.u-NpXmzeWFljKPga",
+    name: "your first echo",
+    imageUrl:
+      "https://i.scdn.co/image/ab67616d0000b27372296030f87da7500d01e113",
+  },
+};
 
 export const generatePlaylistsTask = schedules.task({
   id: "generate-playlists",
@@ -111,146 +101,194 @@ export const generatePlaylistsTask = schedules.task({
       sessionEndDate: sessionEndDate.toISOString(),
     });
 
-    const { ok, data, error } = await getUserEchoSessions(echoSession.id);
+    const userErrors: Record<number, (string | unknown)[]> = {};
+    const playlistRecords: PlaylistRecord[] = [];
+    const playlistSongRecords: PlaylistSongRecord[] = [];
 
-    if (!ok) {
-      logger.error("error getting echo session and users", { error });
-      throw error;
+    // getting playlist data
+    const userData = await getAllUsersWhoSharedSongs(echoSession.id);
+    const lowFriendsNoShareUsers = await getLowFriendsNoShareUsers(
+      echoSession.id,
+    );
+
+    if (!userData.ok) {
+      logger.error("Failed to get users who shared songs", {
+        error: userData.error,
+      });
+      throw new Error("Failed to get users who shared songs");
     }
 
-    if (!data) {
-      logger.error("no data returned from getEchoSessionAndUsers", { error });
-      throw error;
+    if (!lowFriendsNoShareUsers.ok) {
+      logger.error("Failed to get low friends no share users", {
+        error: lowFriendsNoShareUsers.error,
+      });
+      throw new Error("Failed to get low friends no share users");
     }
 
-    const { userSongData, noShareSecondSessionUsers } = data;
+    const userFriendships = await getUserFriendships(
+      userData.data.map((user) => user.userId),
+    );
 
-    logger.log("echo session and users fetched", {
-      numUsers: userSongData.length,
-      echoSessionId: echoSession.id,
-      playlistDate,
-    });
-
-    // create lookup table mapping userId to [trackId, trackAlbumImageUrl]
-    const userSongLookup: Record<number, [string, string]> = {};
-    for (const user of userSongData) {
-      userSongLookup[user.userId] = [user.trackId, user.trackAlbumImageUrl];
+    if (!userFriendships.ok) {
+      logger.error("Failed to get user friendships", {
+        error: userFriendships.error,
+      });
+      throw new Error("Failed to get user friendships");
     }
 
-    logger.log("user to song lookup created");
+    const userFriendshipsLookup = userFriendships.data;
 
-    // create lookup table mapping userId to platform (used to determine which platform to create playlist on)
-    const userToPlatformOfEchoSessionLookup: Record<number, Platform> = {};
-    for (const user of userSongData) {
-      userToPlatformOfEchoSessionLookup[user.userId] =
-        user.platformOfEchoSession;
+    const {
+      ok: spotifyAuthOk,
+      data: spotifyAuthData,
+      error: spotifyAuthError,
+    } = await SpotifyPlatform.getValidToken();
+
+    if (!spotifyAuthOk || !spotifyAuthData) {
+      logger.error("Failed to get Spotify auth token", {
+        error: spotifyAuthError,
+      });
+      throw new Error("Failed to get Spotify auth token");
     }
 
-    logger.log("user to song platform lookup created");
+    const userToPlaylists: Record<number, Set<FriendSong>> = {};
 
-    // userId -> [friendId, trackId]
-    const playlists: Record<number, Array<[number, [string, string]]>> = {}; // userId -> [friendId, [trackId, trackAlbumImageUrl]]
-
-    const playlistRecords: PlaylistRecords = [];
-    const playlistSongRecords: PlaylistSongRecords = [];
-
-    const usersThatEncounteredErrors: Record<number, (string | unknown)[]> = {};
-
-    for (const user of userSongData) {
-      logger.log("processing user", { user });
-
-      const {
-        ok,
-        data: userFriendData,
-        error,
-      } = await getUserFriends(user.userId, echoSession.id);
-
-      if (!ok) {
-        usersThatEncounteredErrors[user.userId] ??= [];
-        usersThatEncounteredErrors[user.userId].push(error);
-        continue;
+    // compile playlists for each user
+    for (const user of userData.data) {
+      if (user.platform === Platform.SPOTIFY) {
+        user.platformUserId = spotifyAuthData.userId;
+        user.accessToken = spotifyAuthData.accessToken;
       }
 
-      logger.log("user's friends fetched", { userFriendData });
+      const friends = userFriendshipsLookup[user.userId] || [];
 
-      const {
-        ok: compilePlaylistSongsOk,
-        data: compiledPlaylistSongs,
-        errors: compilePlaylistSongsErrors,
-      } = await compilePlaylistSongs(
+      const playlist = await compilePlaylist(
+        userData.data,
         user.platform,
-        userFriendData,
-        userSongLookup,
-        userToPlatformOfEchoSessionLookup,
+        friends,
         NUM_SONGS_PER_PLAYLIST,
       );
 
-      if (!compilePlaylistSongsOk || compilePlaylistSongsErrors.length > 0) {
-        usersThatEncounteredErrors[user.userId] ??= [];
-        usersThatEncounteredErrors[user.userId].push(
-          ...compilePlaylistSongsErrors,
+      if (playlist.size === 0) {
+        userErrors[user.userId] ??= [];
+        userErrors[user.userId].push(
+          `compilePlaylist() found 0 songs to add to playlist`,
         );
         continue;
       }
 
-      playlists[user.userId] = compiledPlaylistSongs;
+      userToPlaylists[user.userId] = playlist;
+    }
 
-      if (playlists[user.userId].length === 0) {
-        usersThatEncounteredErrors[user.userId] ??= [];
-        usersThatEncounteredErrors[user.userId].push(
-          "compilePlaylistSongs() found 0 songs to add to playlist",
+    // Handle onboarding users who ended up with empty playlists (fallback logic)
+    for (const user of userData.data) {
+      // Skip if not onboarding user
+      if (user.firstSharedSessionId !== echoSession.id) continue;
+      // Skip if already has playlist
+      if (userToPlaylists[user.userId]?.size > 0) continue;
+
+      logger.log("onboarding user has no songs, trying fallback", {
+        userId: user.userId,
+      });
+
+      // Fallback 1: Try to get friends' songs from ANY previous session
+      try {
+        const fallbackPlaylist = await compileOnboardingFallbackPlaylist(
+          user.platform,
+          userFriendshipsLookup[user.userId] ?? [],
+          NUM_SONGS_PER_PLAYLIST,
         );
+
+        if (fallbackPlaylist.size > 0) {
+          userToPlaylists[user.userId] = fallbackPlaylist;
+
+          logger.log("onboarding user fallback playlist created from history", {
+            userId: user.userId,
+            numSongs: fallbackPlaylist.size,
+          });
+
+          continue;
+        }
+
+        logger.log("onboarding user fallback playlist empty, trying generic", {
+          userId: user.userId,
+        });
+      } catch (error) {
+        userErrors[user.userId] ??= [];
+        userErrors[user.userId].push(error);
+        logger.error("Error creating onboarding fallback playlist", {
+          userId: user.userId,
+          error,
+        });
+      }
+
+      // Fallback 2: Use generic pre-made playlist (just the link, no creation needed)
+      const genericPlaylist = GENERIC_ONBOARDING_PLAYLISTS[user.platform];
+
+      if (!genericPlaylist || !genericPlaylist.id) {
+        userErrors[user.userId] ??= [];
+        userErrors[user.userId].push(
+          `No generic playlist configured for platform ${user.platform}`,
+        );
+
         continue;
       }
 
-      const playlistNameAbbreviation = user.firstName.endsWith("s")
-        ? "'"
-        : "'s";
+      // Add PlaylistRecord directly (no need to create playlist on platform)
+      playlistRecords.push({
+        userId: user.userId,
+        platform: user.platform,
+        sessionId: echoSession.id,
+        platformPlaylistId: genericPlaylist.id,
+        playlistName: genericPlaylist.name,
+        playlistImageUrl: genericPlaylist.imageUrl,
+      });
 
-      const playlistName = `${user.firstName}${playlistNameAbbreviation} echo ${playlistDate}`;
-      const playlistDescription = `here are the songs your friends shared for the ${playlistDate} echo`;
+      logger.log("onboarding user using generic playlist", {
+        userId: user.userId,
+        platform: user.platform,
+        playlistId: genericPlaylist.id,
+      });
+    }
+
+    // create and populate playlists for each user
+    for (const [userId, userPlaylist] of Object.entries(userToPlaylists)) {
+      const user = userData.data.find((user) => user.userId === Number(userId));
+
+      const songs = Array.from(userPlaylist).map((song) => song[1][0]);
+
+      if (!user) continue;
 
       const {
         ok: createPlaylistOk,
-        data: playlistData,
+        data: createPlaylistData,
         error: createPlaylistError,
       } = await createPlaylistOnPlatformForUser(
-        user,
-        playlistName,
-        playlistDescription,
+        user.firstName,
+        user.platform,
+        user.platformUserId,
+        user.accessToken as string,
         playlistDate,
-        playlists[user.userId].map((song) => song[1][0]),
+        songs,
       );
 
       if (!createPlaylistOk) {
-        usersThatEncounteredErrors[user.userId] ??= [];
-        usersThatEncounteredErrors[user.userId].push(createPlaylistError);
+        userErrors[user.userId] ??= [];
+        userErrors[user.userId].push(createPlaylistError);
         continue;
       }
 
-      if (!playlistData) {
-        usersThatEncounteredErrors[user.userId] ??= [];
-        usersThatEncounteredErrors[user.userId].push(
-          "no data returned from createPlaylist()",
+      if (!createPlaylistData) {
+        userErrors[user.userId] ??= [];
+        userErrors[user.userId].push(
+          `no data returned from createPlaylistOnPlatformForUser()`,
         );
         continue;
       }
 
-      // only doing this for Spotify because Apple Music populates playlist upon creation
-      if (user.platform === Platform.SPOTIFY) {
-        const { ok: populatePlaylistOk, error: populatePlaylistError } =
-          await populatePlatformPlaylist(
-            user,
-            playlists[user.userId].map((song) => song[1][0]),
-            playlistData.playlistId,
-          );
+      logger.log("playlist created", { user, createPlaylistData });
 
-        if (!populatePlaylistOk) {
-          usersThatEncounteredErrors[user.userId] ??= [];
-          usersThatEncounteredErrors[user.userId].push(populatePlaylistError);
-          continue;
-        }
-      }
+      const playlistSongs = Array.from(userPlaylist).map((song) => song[1][0]);
 
       /* 
       this matches how Spotify generates playlist images - uses first 4 track 
@@ -262,35 +300,35 @@ export const generatePlaylistsTask = schedules.task({
       NOTE: Apple Music DOES provide playlist image url, but it is boring 
       */
       const playlistImageUrl =
-        playlists[user.userId].length >= 4
-          ? playlists[user.userId]
+        userPlaylist.size >= 4
+          ? playlistSongs
               .slice(0, 4)
               .map((song) => song[1][1])
               .join("|")
-          : playlists[user.userId][0][1][1];
+          : playlistSongs[0][1][1];
 
       playlistRecords.push({
         userId: user.userId,
         platform: user.platform,
         sessionId: echoSession.id,
-        platformPlaylistId: playlistData.playlistId,
-        playlistName: playlistName,
+        platformPlaylistId: createPlaylistData.playlistId,
+        playlistName: createPlaylistData.playlistName,
         playlistImageUrl: playlistImageUrl,
       });
 
       playlistSongRecords.push(
-        ...playlists[user.userId].map((song) => ({
+        ...Array.from(userPlaylist).map((song) => ({
           playlistId: 0,
           trackId: song[1][0],
           submittedByUserId: song[0],
-          platformPlaylistId: playlistData.playlistId, // will not be persisted to database, just used to get Playlist.id in persistPlaylistsToDatabase
+          platformPlaylistId: createPlaylistData.playlistId, // will not be persisted to database, just used to get Playlist.id in persistPlaylistsToDatabase
         })),
       );
     }
 
-    logger.log("playlist records and playlist song records", {
-      playlistRecords,
-      playlistSongRecords,
+    logger.log("all playlist records and playlist song records", {
+      numPlaylistRecords: playlistRecords.length,
+      numPlaylistSongRecords: playlistSongRecords.length,
     });
 
     const { ok: persistPlaylistsOk, error: persistPlaylistsError } =
@@ -299,28 +337,31 @@ export const generatePlaylistsTask = schedules.task({
       logger.error("error persisting playlists to database", {
         persistPlaylistsError,
       });
+      // throwing error here because we want to fail the task if we cannot persist playlists to database
       throw persistPlaylistsError;
     }
+
+    logger.log("playlists persisted to database");
 
     // text each user their playlist
     await textUsers(
       playlistRecords,
-      userSongData,
-      noShareSecondSessionUsers,
-      usersThatEncounteredErrors,
+      userData.data,
+      lowFriendsNoShareUsers.data,
+      userErrors,
     );
 
-    // logging all encountered errors
-    if (Object.keys(usersThatEncounteredErrors).length > 0) {
+    // Log all encountered errors
+    if (Object.keys(userErrors).length > 0) {
       logger.error("errors encountered during generate playlists task", {
-        usersThatEncounteredErrors,
+        userErrors,
       });
 
       // Manually capture in Sentry
       Sentry.captureException(
         new Error("errors encountered during generate playlists task"),
         {
-          extra: { usersThatEncounteredErrors },
+          extra: { userErrors },
         },
       );
     }
@@ -332,511 +373,3 @@ export const generatePlaylistsTask = schedules.task({
     };
   },
 });
-
-// FIXME: make 2 db calls into 1?
-const getUserEchoSessions = async (echoSessionId: number) => {
-  try {
-    const [spotifyAuthData] = await db
-      .select({
-        userId: spotifyAuth.userId,
-        accessToken: spotifyAuth.accessToken,
-        refreshToken: spotifyAuth.refreshToken,
-        tokenExpiresAt: spotifyAuth.tokenExpiresAt,
-      })
-      .from(spotifyAuth)
-      .limit(1);
-
-    // get all users that submitted a song in the last session (userId, phoneNumber, trackId)
-    const userData = await db
-      .select({
-        userId: userEchoSessions.userId,
-        firstName: users.firstName,
-        phoneNumber: users.phoneNumber,
-        friendLinkToken: users.friendLinkToken,
-        platform: users.platform,
-        platformUserId: userAuth.platformUserId,
-
-        accessToken: userAuth.accessToken,
-        refreshToken: userAuth.refreshToken,
-        tokenExpiresAt: userAuth.tokenExpiresAt,
-
-        platformOfEchoSession: userEchoSessions.platform,
-        trackId: userEchoSessions.trackId,
-        trackAlbumImageUrl: userEchoSessions.trackAlbumImageUrl,
-        sendContactCard: eq(users.firstSharedSessionId, echoSessionId),
-        hasLessThanThreeFriendsAfterTwoEchoes: sql<boolean>`(
-          (SELECT COUNT(*) FROM ${userEchoSessions} WHERE ${userEchoSessions.userId} = ${users.id}) = 2
-          AND
-          (SELECT COUNT(*) FROM ${friends} WHERE ${friends.userId} = ${users.id} AND ${friends.active} = true) < 3
-        )`.as("has_less_than_three_friends_after_two_echoes"),
-      })
-      .from(userEchoSessions)
-      .innerJoin(users, eq(userEchoSessions.userId, users.id))
-      .leftJoin(userAuth, eq(userAuth.userId, users.id))
-      .where(
-        and(
-          eq(userEchoSessions.sessionId, echoSessionId),
-          eq(users.isDeleted, false),
-        ),
-      );
-
-    const userSongData: UserSongData[] = [];
-    const noShareSecondSessionUsers: {
-      userId: number;
-      phoneNumber: string;
-      friendLinkToken: string;
-    }[] = [];
-
-    for (const user of userData) {
-      if (!user.trackId && user.hasLessThanThreeFriendsAfterTwoEchoes) {
-        noShareSecondSessionUsers.push({
-          userId: user.userId,
-          phoneNumber: user.phoneNumber,
-          friendLinkToken: user.friendLinkToken,
-        });
-        continue;
-      }
-
-      if (!user.trackId) continue;
-
-      if (user.platform === Platform.SPOTIFY) {
-        user.platformUserId = spotifyAuthData.userId;
-        user.accessToken = spotifyAuthData.accessToken;
-        user.refreshToken = spotifyAuthData.refreshToken;
-        user.tokenExpiresAt = spotifyAuthData.tokenExpiresAt;
-      }
-
-      userSongData.push(user as UserSongData);
-    }
-
-    logger.log("user song data", { userSongData });
-
-    if (userSongData.length === 0) {
-      throw new Error(`no users found for echo session ${echoSessionId}`);
-    }
-
-    return {
-      ok: true,
-      data: { userSongData, noShareSecondSessionUsers },
-      error: null,
-    };
-  } catch (error) {
-    return { ok: false, data: null, error: error };
-  }
-};
-
-const getUserFriends = async (userId: number, echoSessionId: number) => {
-  try {
-    const userFriendData = await db
-      .select({ friendId: friends.friendId })
-      .from(friends)
-      .innerJoin(
-        userEchoSessions,
-        eq(friends.friendId, userEchoSessions.userId),
-      )
-      .where(
-        and(
-          eq(friends.userId, userId),
-          eq(userEchoSessions.sessionId, echoSessionId),
-          isNotNull(userEchoSessions.trackId),
-        ),
-      );
-
-    if (userFriendData.length === 0) {
-      throw new Error(`no friends found for user ${userId}`);
-    }
-
-    return {
-      ok: true,
-      data: userFriendData.map((friend) => friend.friendId),
-      error: null,
-    };
-  } catch (error) {
-    return { ok: false, data: [], error: error };
-  }
-};
-
-const compilePlaylistSongs = async (
-  userPlatform: Platform,
-  userFriendData: number[],
-  userSongLookup: Record<number, [string, string]>, // userId -> [trackId, trackAlbumImageUrl]
-  userToPlatformOfEchoSessionLookup: Record<number, Platform>,
-  numSongsPerPlaylist: number,
-) => {
-  try {
-    const playlist: Array<[number, [string, string]]> = []; // [friendId, [trackId, trackAlbumImageUrl]]
-
-    const errors: (string | unknown)[] = [];
-
-    for (const friendId of userFriendData) {
-      if (playlist.length === numSongsPerPlaylist) break;
-
-      if (!userSongLookup[friendId]) continue;
-
-      const [friendSongTrackId, friendSongAlbumImageUrl] =
-        userSongLookup[friendId];
-      const friendSongPlatformOfEchoSession =
-        userToPlatformOfEchoSessionLookup[friendId];
-
-      if (!friendSongTrackId || !friendSongAlbumImageUrl) continue;
-
-      if (playlist.map((p) => p[1][0]).includes(friendSongTrackId))
-        // FIXME: use set instead of array
-        continue;
-
-      const {
-        ok: matchFriendSongToUserPlatformOk,
-        trackId: matchedTrackId,
-        error: matchFriendSongToUserPlatformError,
-      } = await matchFriendSongToUserPlatform(
-        userPlatform,
-        friendSongPlatformOfEchoSession,
-        friendSongTrackId,
-      );
-
-      // FIXME: handle error better
-      if (!matchFriendSongToUserPlatformOk) {
-        errors.push(matchFriendSongToUserPlatformError);
-        continue;
-      }
-
-      if (!matchedTrackId) {
-        errors.push(
-          `No track returned from matchFriendSongToUserPlatform() for friend ${friendId} when converting track to ${userPlatform}`,
-        );
-        continue;
-      }
-
-      playlist.push([friendId, [matchedTrackId, friendSongAlbumImageUrl]]);
-    }
-
-    return {
-      ok: true,
-      data: playlist,
-      errors: errors,
-    };
-  } catch (error) {
-    return { ok: false, data: [], errors: [error] };
-  }
-};
-
-const createPlaylistOnPlatformForUser = async (
-  user: UserSongData,
-  playlistName: string,
-  playlistDescription: string,
-  playlistDate: string,
-  songs: string[],
-) => {
-  if (user.platform === Platform.SPOTIFY) {
-    return await createSpotifyPlaylistForUser(
-      user,
-      playlistName,
-      playlistDescription,
-      playlistDate,
-    );
-  } else if (user.platform === Platform.APPLE_MUSIC) {
-    return await createAppleMusicPlaylistForUser(
-      user,
-      playlistName,
-      playlistDescription,
-      playlistDate,
-      songs,
-    );
-  }
-
-  return {
-    ok: false,
-    data: null,
-    error: `invalid platform ${user.platform}`,
-  };
-};
-
-const createSpotifyPlaylistForUser = async (
-  user: UserSongData,
-  playlistName: string,
-  playlistDescription: string,
-  playlistDate: string,
-) => {
-  if (new Date(user.tokenExpiresAt) < new Date()) {
-    logger.log("spotify token expired, refreshing ...", { user });
-
-    const {
-      ok: refreshTokensOk,
-      data: refreshTokensData,
-      error: refreshTokensError,
-    } = await SpotifyPlatform.refreshTokens({
-      userId: user.platformUserId,
-      refreshToken: user.refreshToken,
-    });
-
-    if (!refreshTokensOk) {
-      return { ok: false, data: null, error: refreshTokensError };
-    }
-
-    if (!refreshTokensData) {
-      logger.error("no data returned from refreshAccessToken", {
-        user,
-        refreshTokensData,
-      });
-      return {
-        ok: false,
-        data: null,
-        error: `no data returned from refreshAccessToken`,
-      };
-    }
-
-    user.accessToken = refreshTokensData.accessToken;
-    user.refreshToken = refreshTokensData.refreshToken;
-    user.tokenExpiresAt = refreshTokensData.expiresIn;
-
-    logger.log("user update complete", { user });
-  }
-
-  logger.log("creating spotify playlist for user", { user });
-
-  const {
-    ok: createPlaylistOk,
-    data: createPlaylistData,
-    error: createPlaylistError,
-  } = await SpotifyPlatform.createPlaylist({
-    userId: user.platformUserId,
-    accessToken: user.accessToken,
-    playlistName: playlistName,
-    playlistDescription: playlistDescription,
-    playlistDate: playlistDate,
-  });
-
-  if (!createPlaylistOk) {
-    return { ok: false, data: null, error: createPlaylistError };
-  }
-
-  return { ok: true, data: createPlaylistData, error: null };
-};
-
-const createAppleMusicPlaylistForUser = async (
-  user: UserSongData,
-  playlistName: string,
-  playlistDescription: string,
-  playlistDate: string,
-  songs: string[],
-) => {
-  logger.log("creating apple music playlist for user", { user });
-
-  const {
-    ok: createPlaylistOk,
-    data: createPlaylistData,
-    error: createPlaylistError,
-  } = await AppleMusicPlatform.createAndPopulatePlaylist({
-    accessToken: user.accessToken,
-    playlistName: playlistName,
-    playlistDescription: playlistDescription,
-    playlistDate: playlistDate,
-    songs: songs,
-  });
-
-  if (!createPlaylistOk) {
-    return { ok: false, data: null, error: createPlaylistError };
-  }
-
-  return { ok: true, data: createPlaylistData, error: null };
-};
-
-const populatePlatformPlaylist = async (
-  user: UserSongData,
-  songs: string[],
-  playlistId: string,
-) => {
-  if (user.platform === Platform.SPOTIFY) {
-    const songURIs = songs.map((song) => `spotify:track:${song}`);
-
-    return await SpotifyPlatform.populatePlaylist({
-      accessToken: user.accessToken,
-      trackURIs: songURIs,
-      playlistId: playlistId,
-    });
-  }
-
-  return {
-    ok: false,
-    error: `invalid platform ${user.platform} in populatePlatformPlaylist()`,
-  };
-};
-
-const persistPlaylistsToDatabase = async (
-  newPlaylists: PlaylistRecords,
-  newPlaylistSongs: PlaylistSongRecords,
-) => {
-  try {
-    if (newPlaylists.length === 0 || newPlaylistSongs.length === 0) {
-      logger.log(
-        "no playlists or playlist songs to save to database, skipping",
-      );
-      return { ok: true, error: null };
-    }
-
-    logger.log("saving playlists to database");
-    const playlistsInserted = await db
-      .insert(playlists)
-      .values(newPlaylists)
-      .returning({
-        id: playlists.id,
-        platformPlaylistId: playlists.platformPlaylistId,
-      });
-    logger.log("saving playlists to database done", {});
-
-    const playlistIdByPlatformPlaylistId = new Map(
-      playlistsInserted.map((r) => [r.platformPlaylistId, r.id]),
-    );
-
-    logger.log("saving playlists to database done", {
-      numPlaylists: playlistIdByPlatformPlaylistId.size,
-    });
-
-    // save each playlistSong to database
-    for (const playlistSong of newPlaylistSongs) {
-      playlistSong.playlistId = playlistIdByPlatformPlaylistId.get(
-        playlistSong.platformPlaylistId,
-      ) as number;
-    }
-
-    logger.log("saving playlist songs to database");
-    await db.insert(playlistSongs).values(newPlaylistSongs);
-    logger.log("saving playlist songs to database done", {
-      numPlaylistSongs: newPlaylistSongs.length,
-    });
-
-    return { ok: true, error: null };
-  } catch (error) {
-    return { ok: false, error: error };
-  }
-};
-
-const textUsers = async (
-  playlists: PlaylistRecords,
-  userSongData: UserSongData[],
-  noShareSecondSessionUsers: {
-    userId: number;
-    phoneNumber: string;
-    friendLinkToken: string;
-  }[],
-  usersThatEncounteredErrors: Record<number, (string | unknown)[]>,
-) => {
-  const data: Record<string, Array<string>> = {};
-
-  const contactCardMessages: string[] = [
-    "save our contact for easy access",
-    CONTACT_CARD_PLACEHOLDER,
-  ];
-
-  for (const playlist of playlists) {
-    if (usersThatEncounteredErrors[playlist.userId]) {
-      continue;
-    }
-
-    const user = userSongData.find((u) => u.userId === playlist.userId);
-
-    if (!user?.phoneNumber) {
-      usersThatEncounteredErrors[playlist.userId] ??= [];
-      usersThatEncounteredErrors[playlist.userId].push(
-        "NO TEXT send to user because phone number not found",
-      );
-      continue;
-    }
-
-    let playlistLink = "";
-
-    switch (playlist.platform) {
-      case Platform.SPOTIFY:
-        playlistLink = `https://open.spotify.com/playlist/${playlist.platformPlaylistId}`;
-        break;
-      case Platform.APPLE_MUSIC:
-        playlistLink = AppleMusicPlatform.createPlaylistLink(
-          playlist.platformPlaylistId,
-        );
-        break;
-    }
-
-    const lowFriendsMessages: string[] = [
-      "looks like you don't have many songs coming in :( invite more friends with your link",
-      `https://text-echo.com/${user.friendLinkToken}`,
-    ];
-
-    data[user.phoneNumber] = [
-      "you ready? here's the songs your friends shared:",
-      playlistLink,
-      ...(user.hasLessThanThreeFriendsAfterTwoEchoes ? lowFriendsMessages : []),
-      ...(user.sendContactCard ? contactCardMessages : []),
-    ];
-  }
-
-  for (const user of noShareSecondSessionUsers) {
-    data[user.phoneNumber] = [
-      `echo is more fun with friends :) invite more friends with your link`,
-      `https://text-echo.com/${user.friendLinkToken}`,
-    ];
-  }
-
-  await sendMessagesTask.trigger({
-    data: data,
-  });
-
-  return {
-    message: `sent playlists to ${Object.keys(data).length} users`,
-  };
-};
-
-const matchFriendSongToUserPlatform = async (
-  userPlatform: Platform,
-  songSubmittedPlatform: Platform,
-  submittedSong: string,
-) => {
-  if (userPlatform === songSubmittedPlatform) {
-    return { ok: true, trackId: submittedSong, error: null };
-  }
-
-  return await convertTrack(submittedSong, userPlatform);
-};
-
-const convertTrack = async (trackId: string, platform: Platform) => {
-  try {
-    const [submittedTrack] = await db
-      .select({ songlinkCacheId: songLinkCacheMappings.songlinkCacheId })
-      .from(songLinkCacheMappings)
-      .where(eq(songLinkCacheMappings.trackId, trackId))
-      .limit(1);
-
-    if (!submittedTrack) {
-      return {
-        ok: false,
-        trackId: null,
-        error: `TrackId ${trackId} not found in songlink_cache_mappings when converting track to ${platform}`,
-      };
-    }
-
-    const [convertedTrack] = await db
-      .select({ trackId: songLinkCacheMappings.trackId })
-      .from(songLinkCacheMappings)
-      .where(
-        and(
-          eq(
-            songLinkCacheMappings.songlinkCacheId,
-            submittedTrack.songlinkCacheId,
-          ),
-          eq(songLinkCacheMappings.platform, platform),
-        ),
-      )
-      .limit(1);
-
-    if (!convertedTrack) {
-      return {
-        ok: false,
-        trackId: null,
-        error: `Track with songlinkCacheId ${submittedTrack.songlinkCacheId} not found in songlink_cache_mappings when converting track to ${platform}`,
-      };
-    }
-
-    return { ok: true, trackId: convertedTrack.trackId, error: null };
-  } catch (error) {
-    return { ok: false, trackId: null, error: error };
-  }
-};

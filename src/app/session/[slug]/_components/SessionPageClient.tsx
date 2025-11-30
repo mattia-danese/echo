@@ -100,7 +100,7 @@ export default function SessionPageClient({
 
       const result = await submitSong({
         userId: userId,
-        token: token,
+        userEchoSessionToken: token,
         platform: selectedSong.trackPlatform,
         trackId: selectedSong.trackId,
         trackName: selectedSong.trackName,

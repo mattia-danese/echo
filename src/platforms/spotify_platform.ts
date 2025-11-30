@@ -43,6 +43,116 @@ type SpotifySearchResultTrack = {
 };
 
 export class SpotifyPlatform extends Platform {
+  // Static cache for the Echo app's Spotify token (singleton pattern)
+  private static cachedToken: string | null = null;
+  private static tokenExpiry: Date | null = null;
+
+  /**
+   * Get a valid Spotify access token for the Echo app account.
+   * Handles in-memory caching and automatic refresh.
+   * Use this instead of manually fetching and checking token expiry.
+   */
+  static async getValidToken(): Promise<{
+    ok: boolean;
+    data: { accessToken: string; userId: string } | null;
+    error: unknown;
+  }> {
+    try {
+      // Check in-memory cache first (fast!)
+      if (
+        SpotifyPlatform.cachedToken &&
+        SpotifyPlatform.tokenExpiry &&
+        new Date() < SpotifyPlatform.tokenExpiry
+      ) {
+        // Need userId for API calls, fetch it (lightweight query)
+        const [auth] = await db
+          .select({ userId: spotifyAuth.userId })
+          .from(spotifyAuth)
+          .limit(1);
+
+        if (!auth) {
+          return {
+            ok: false,
+            data: null,
+            error: "No Spotify auth found",
+          };
+        }
+
+        return {
+          ok: true,
+          data: {
+            accessToken: SpotifyPlatform.cachedToken,
+            userId: auth.userId,
+          },
+          error: null,
+        };
+      }
+
+      // Fetch from DB
+      const [auth] = await db
+        .select({
+          userId: spotifyAuth.userId,
+          accessToken: spotifyAuth.accessToken,
+          refreshToken: spotifyAuth.refreshToken,
+          tokenExpiresAt: spotifyAuth.tokenExpiresAt,
+        })
+        .from(spotifyAuth)
+        .limit(1);
+
+      if (!auth) {
+        return {
+          ok: false,
+          data: null,
+          error: "No Spotify auth found",
+        };
+      }
+
+      // Check if token is still valid
+      if (new Date(auth.tokenExpiresAt) > new Date()) {
+        // Token is still good, cache it
+        SpotifyPlatform.cachedToken = auth.accessToken;
+        SpotifyPlatform.tokenExpiry = new Date(auth.tokenExpiresAt);
+
+        return {
+          ok: true,
+          data: { accessToken: auth.accessToken, userId: auth.userId },
+          error: null,
+        };
+      }
+
+      // Token expired, refresh it
+      const { ok, data, error } = await SpotifyPlatform.refreshTokens({
+        userId: auth.userId,
+        refreshToken: auth.refreshToken,
+      });
+
+      if (!ok || !data) {
+        return { ok: false, data: null, error };
+      }
+
+      // Cache the new token
+      SpotifyPlatform.cachedToken = data.accessToken;
+      SpotifyPlatform.tokenExpiry = new Date(data.expiresIn);
+
+      return {
+        ok: true,
+        data: { accessToken: data.accessToken, userId: auth.userId },
+        error: null,
+      };
+    } catch (err) {
+      return { ok: false, data: null, error: err };
+    }
+  }
+
+  /**
+   * Invalidate the token cache.
+   * Useful for testing or forcing a fresh token fetch.
+   */
+  static invalidateCache(): void {
+    SpotifyPlatform.cachedToken = null;
+    SpotifyPlatform.tokenExpiry = null;
+  }
+
   static async getTokens(
     request: GetTokensRequest,
   ): Promise<{ ok: boolean; data: GetTokensResponse | null; error: unknown }> {
