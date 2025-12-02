@@ -247,7 +247,7 @@ export const inboundTextResponseTask = task({
 
       if (message === "get help") {
         data[payload.phoneNumber] = [
-          "we notified our team about your issue. they will personally reach out shortly",
+          "we notified our team about your issue. they'll personally reach out shortly",
         ];
 
         data[env.LUCAS_PHONE_NUMBER] = [
@@ -273,7 +273,7 @@ export const inboundTextResponseTask = task({
 
         data[payload.phoneNumber] = [
           [
-            "send this link to your friends to add them and start discovering music together",
+            "send this link to your friends to add them & start discovering music together",
             "",
             `if you ever forget your link, just text us "get link" and we'll send it to you`,
           ].join("\n"),

@@ -96,7 +96,7 @@ export const morningReminderTask = schedules.task({
         ];
       } else if (user.threeConsecutiveNoShare) {
         sendMessagesData[user.phoneNumber] = [
-          "hey we noticed you haven’t shared a song recently. your friends are missing out on all your great songs :) start the echo and share your song of the moment...",
+          "hey we noticed you haven’t shared a song recently. your friends are missing out on all your great songs :) start the echo and share your song of the moment",
           `https://text-echo.com/session/${user.userEchoSessionToken}`,
         ];
       } else {
