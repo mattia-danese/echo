@@ -12,6 +12,7 @@
     "format": "biome format --write .",
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
+    "migrate:prod": "drizzle-kit migrate --config=drizzle.config.prod.ts",
     "trigger:dev": "pnpm dlx trigger.dev@4.0.7 dev",
     "trigger:deploy": "pnpm dlx trigger.dev@4.0.7 deploy"
   },

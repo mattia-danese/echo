@@ -1,0 +1,45 @@
+name: Run Production Migrations
+
+on:
+  push:
+    branches:
+      - main
+    # Only run when migration files change (optional - remove if you want it to run on every push)
+    paths:
+      - "drizzle/**"
+      - "src/db/schema.ts"
+
+  # Allow manual trigger from GitHub UI
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    name: Run Drizzle Migrations
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: pnpm drizzle-kit migrate --config=drizzle.config.prod.ts
+
+      - name: Migration completed
+        run: echo "✅ Production database migrations completed successfully!"
+
