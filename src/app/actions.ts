@@ -10,11 +10,13 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lte,
   or,
 } from "drizzle-orm";
 import { UTApi } from "uploadthing/server";
 import { db } from "@/db";
 import {
+  echoSessions,
   friends,
   songLinkCacheMappings,
   songlinkCache,
@@ -240,6 +242,37 @@ export async function createUser(payload: {
           tokenExpiresAt: userAuthData.tokenExpiresAt ?? "",
         },
       });
+    }
+
+    // Check if there's an active echo session and create user_echo_sessions entry
+    // This allows new users to submit songs during onboarding if they join mid-session
+    // Only do this for truly new users (not reactivated users)
+    const isNewUser = newUser.updatedAt === newUser.createdAt;
+    if (isNewUser) {
+      const now = new Date();
+      const [activeSession] = await db
+        .select({
+          id: echoSessions.id,
+        })
+        .from(echoSessions)
+        .where(
+          and(
+            gte(echoSessions.end, now.toISOString()), // session end >= now (hasn't ended)
+            lte(echoSessions.start, now.toISOString()), // session start <= now (has started)
+          ),
+        )
+        .orderBy(desc(echoSessions.start))
+        .limit(1);
+
+      if (activeSession) {
+        const token = crypto.randomBytes(16).toString("base64url");
+        await db.insert(userEchoSessions).values({
+          userId: newUser.id,
+          sessionId: activeSession.id,
+          token: token,
+          platform: payload.platform,
+        });
+      }
     }
 
     return {
