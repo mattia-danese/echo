@@ -6,6 +6,7 @@ import { submitSong } from "@/app/actions";
 import { db } from "@/db";
 import {
   echoSessions,
+  friends,
   messages,
   spotifyAuth,
   userEchoSessions,
@@ -203,9 +204,21 @@ export const inboundTextResponseTask = task({
           if (user.whenOnboardingComplete) {
             data[payload.phoneNumber] = ["thanks for sharing :)"];
           } else {
+            const numFriends = await db
+              .select({ firstName: users.firstName })
+              .from(friends)
+              .innerJoin(users, eq(friends.friendId, users.id))
+              .where(eq(friends.userId, user.id));
+
+            const friendMessage =
+              numFriends.length === 1
+                ? `btw your only friend is ${numFriends[0].firstName} :(`
+                : `you have ${numFriends.length} friends :(`;
+
             data[payload.phoneNumber] = [
               "nice pick - that's echo :) from now on, share a song with us every few days & you'll get a playlist with the songs your friends send. if you don't send a song, you don't get the playlist",
               `the next playlist comes out in ${timeFormatted}. stay tuned, we'll text you then`,
+              `${friendMessage} text us "get link" to get your unique friend request link`,
             ];
 
             await db
