@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { logger, task } from "@trigger.dev/sdk/v3";
-import { fromZonedTime } from "date-fns-tz";
+import { fromZonedTime, toZonedTime } from "date-fns-tz";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { echoSessions, userEchoSessions, users } from "@/db/schema";
@@ -14,19 +14,21 @@ export const createNewEchoSessionTask = task({
     logger.log("create new echo session task starting ...");
 
     try {
-      // Inside the run function:
       const timezone = "America/New_York";
-      const today = new Date();
+      const now = new Date();
+
+      const nowInEST = toZonedTime(now, timezone);
 
       // Create 9:30 PM EST/EDT today
-      const startEST = new Date(today).setHours(21, 30, 0, 0);
-      const startUTC = fromZonedTime(startEST, timezone);
+      const startInEST = new Date(nowInEST);
+      startInEST.setHours(21, 30, 0, 0);
+      const startUTC = fromZonedTime(startInEST, timezone);
 
       // Create 9:00 PM EST/EDT in two days
-      const twoDaysFromNow = new Date(today);
-      twoDaysFromNow.setDate(twoDaysFromNow.getDate() + 2);
-      const endEST = new Date(twoDaysFromNow).setHours(21, 0, 0, 0);
-      const endUTC = fromZonedTime(endEST, timezone);
+      const twoDaysFromNowInEST = new Date(nowInEST);
+      twoDaysFromNowInEST.setDate(twoDaysFromNowInEST.getDate() + 2);
+      twoDaysFromNowInEST.setHours(21, 0, 0, 0);
+      const endUTC = fromZonedTime(twoDaysFromNowInEST, timezone);
 
       // create new echo session in the database
       const [echoSession] = await db
@@ -84,7 +86,7 @@ export const createNewEchoSessionTask = task({
       logger.log("user echo sessions written to database");
 
       return {
-        message: `sent echo session links to ${userEchoSessionData.length} users`,
+        message: `new echo session ${echoSession.id} created with ${userEchoSessionData.length} users`,
       };
     } catch (error: unknown) {
       logger.error("error creating new echo session", { error });
