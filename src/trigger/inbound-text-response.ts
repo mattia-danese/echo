@@ -204,8 +204,8 @@ export const inboundTextResponseTask = task({
             data[payload.phoneNumber] = ["thanks for sharing :)"];
           } else {
             data[payload.phoneNumber] = [
-              "nice pick - that’s echo :) from now on, share a song with us every few days & you’ll get a playlist with the songs your friends send. if you don’t send a song, you don’t get the playlist.",
-              `the next playlist comes out in ${timeFormatted}. stay tuned, we’ll text you then`,
+              "nice pick - that's echo :) from now on, share a song with us every few days & you'll get a playlist with the songs your friends send. if you don't send a song, you don't get the playlist",
+              `the next playlist comes out in ${timeFormatted}. stay tuned, we'll text you then`,
             ];
 
             await db
@@ -256,7 +256,7 @@ export const inboundTextResponseTask = task({
 
       if (message === "get help") {
         data[payload.phoneNumber] = [
-          "we notified our team about your issue. they will personally reach out shortly",
+          "we notified our team about your issue. they'll personally reach out shortly",
         ];
 
         data[env.LUCAS_PHONE_NUMBER] = [
