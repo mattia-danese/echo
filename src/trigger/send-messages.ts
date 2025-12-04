@@ -43,31 +43,60 @@ export const sendMessagesTask = task({
           continue;
         }
 
-        let response: any;
-        if (textMessage === CONTACT_CARD_PLACEHOLDER) {
-          // Send MMS with contact card
-          response = await client.messages.create({
-            // body: "save our contact for easy access",
-            from: fromNumber,
-            to: phoneNumber,
-            mediaUrl: [`https://text-echo.com/api/contact`],
+        try {
+          let response: any;
+          if (textMessage === CONTACT_CARD_PLACEHOLDER) {
+            // Send MMS with contact card
+            response = await client.messages.create({
+              // body: "save our contact for easy access",
+              from: fromNumber,
+              to: phoneNumber,
+              mediaUrl: [`https://text-echo.com/api/contact`],
+            });
+          } else {
+            response = await client.messages.create({
+              body: textMessage,
+              from: fromNumber,
+              to: phoneNumber,
+            });
+          }
+
+          logger.log("message sent", { response });
+
+          // check response var
+          await db.insert(messages).values({
+            userId: userId,
+            message: textMessage,
+            messageType: MessageType.OUTBOUND,
           });
-        } else {
-          response = await client.messages.create({
-            body: textMessage,
-            from: fromNumber,
-            to: phoneNumber,
-          });
+        } catch (error: any) {
+          // Handle Twilio errors gracefully
+          if (error.code === 21610) {
+            // User has unsubscribed (sent STOP)
+            logger.warn("skipping unsubscribed recipient", {
+              phoneNumber,
+              userId,
+              error: error.message,
+            });
+          } else if (error.code === 21211) {
+            // Invalid phone number
+            logger.error("invalid phone number", {
+              phoneNumber,
+              userId,
+              error: error.message,
+            });
+          } else {
+            // Log other Twilio errors but continue processing
+            logger.error("error sending message", {
+              phoneNumber,
+              userId,
+              textMessage,
+              error: error.message,
+              errorCode: error.code,
+            });
+          }
+          // Continue to next message instead of failing the entire task
         }
-
-        logger.log("message sent", { response });
-
-        // check response var
-        await db.insert(messages).values({
-          userId: userId,
-          message: textMessage,
-          messageType: MessageType.OUTBOUND,
-        });
 
         // wait for 1 second between messages to help preserve ordering
         await new Promise((resolve) =>
