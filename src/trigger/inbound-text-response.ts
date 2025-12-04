@@ -16,6 +16,7 @@ import { MessageType, Platform } from "@/db/types";
 import { env } from "@/lib/env";
 import { SpotifyPlatform } from "@/platforms";
 import { sendMessagesTask } from "./send-messages";
+import { embedLinksForInternational } from "./utils/message-helpers";
 
 export const inboundTextResponseTask = task({
   id: "inbound-text-response",
@@ -293,7 +294,7 @@ export const inboundTextResponseTask = task({
             .where(eq(users.id, user.id));
         }
 
-        data[payload.phoneNumber] = [
+        const messages = [
           [
             "share this link with friends to add them & start discovering music together - the same link works whether or not your friends are already on echo",
             "",
@@ -301,6 +302,14 @@ export const inboundTextResponseTask = task({
           ].join("\n"),
           `https://text-echo.com/${user.friendLinkToken}`,
         ];
+
+        // Embed links for international numbers
+        const processedMessages = embedLinksForInternational(
+          payload.phoneNumber,
+          messages,
+        );
+
+        data[payload.phoneNumber] = processedMessages;
 
         await sendMessagesTask.trigger({
           data: data,

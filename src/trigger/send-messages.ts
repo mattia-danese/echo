@@ -71,14 +71,17 @@ export const sendMessagesTask = task({
           });
         } catch (error: any) {
           // Handle Twilio errors gracefully
-          if (error.code === 21610) {
+          // Note: Twilio error codes can be numbers or strings
+          const errorCode = String(error.code);
+
+          if (errorCode === "21610") {
             // User has unsubscribed (sent STOP)
             logger.warn("skipping unsubscribed recipient", {
               phoneNumber,
               userId,
               error: error.message,
             });
-          } else if (error.code === 21211) {
+          } else if (errorCode === "21211") {
             // Invalid phone number
             logger.error("invalid phone number", {
               phoneNumber,

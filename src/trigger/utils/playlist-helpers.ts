@@ -215,12 +215,7 @@ export const getUserFriendships = async (
         friendId: friends.friendId,
       })
       .from(friends)
-      .where(
-        and(
-          sql`${friends.userId} = ANY(${userIds})`, // More efficient for large arrays
-          eq(friends.active, true),
-        ),
-      );
+      .where(and(inArray(friends.userId, userIds), eq(friends.active, true)));
 
     // Build lookup table: userId -> [friendId1, friendId2, ...]
     const friendshipLookup: Record<number, number[]> = {};
