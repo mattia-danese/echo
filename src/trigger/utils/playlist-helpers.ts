@@ -1,4 +1,4 @@
-import { logger } from "@trigger.dev/sdk";
+import { logger } from "@trigger.dev/sdk/v3";
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
