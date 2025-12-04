@@ -286,7 +286,7 @@ export const generatePlaylistsTask = schedules.task({
 
       logger.log("playlist created", { user, createPlaylistData });
 
-      const playlistSongs = Array.from(userPlaylist).map((song) => song[1][0]);
+      const playlistSongsData = Array.from(userPlaylist);
 
       /* 
       this matches how Spotify generates playlist images - uses first 4 track 
@@ -298,12 +298,12 @@ export const generatePlaylistsTask = schedules.task({
       NOTE: Apple Music DOES provide playlist image url, but it is boring 
       */
       const playlistImageUrl =
-        userPlaylist.size >= 4
-          ? playlistSongs
+        playlistSongsData.length >= 4
+          ? playlistSongsData
               .slice(0, 4)
               .map((song) => song[1][1])
               .join("|")
-          : playlistSongs[0][1][1];
+          : playlistSongsData[0][1][1];
 
       playlistRecords.push({
         userId: user.userId,

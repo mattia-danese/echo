@@ -1,13 +1,4 @@
 import { defineConfig } from "@trigger.dev/sdk/v3";
-import * as Sentry from "@sentry/nextjs";
-
-// Initialize Sentry for Trigger.dev tasks
-Sentry.init({
-  dsn: "https://d5f3e7d5a44bb53457c55335d21da586@o4510390037250048.ingest.us.sentry.io/4510390044983296",
-  tracesSampleRate: 1.0,
-  enableLogs: true,
-  sendDefaultPii: true,
-});
 
 export default defineConfig({
   project: "proj_wrnspfsaufpodrxlgzfg",

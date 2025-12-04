@@ -215,10 +215,12 @@ export const getUserFriendships = async (
         friendId: friends.friendId,
       })
       .from(friends)
+      .innerJoin(users, eq(friends.userId, users.id))
       .where(
         and(
-          sql`${friends.userId} = ANY(${userIds})`, // More efficient for large arrays
+          inArray(friends.userId, userIds),
           eq(friends.active, true),
+          eq(users.isDeleted, false),
         ),
       );
 
@@ -238,6 +240,7 @@ export const getUserFriendships = async (
       error: null,
     };
   } catch (error) {
+    logger.error("ERROR IN getUserFriendships", { error, userIds });
     return { ok: false, data: {}, error };
   }
 };
