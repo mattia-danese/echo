@@ -215,13 +215,11 @@ export const getUserFriendships = async (
         friendId: friends.friendId,
       })
       .from(friends)
-      .innerJoin(users, eq(friends.userId, users.id))
       .where(
         and(
           inArray(friends.userId, userIds),
           eq(friends.active, true),
           eq(friends.muted, false),
-          eq(users.isDeleted, false),
         ),
       );
 
