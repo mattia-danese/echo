@@ -136,6 +136,7 @@ export default function SessionPageClient({
       trackPlatform,
     });
     setIsPopoverOpen(false); // Close popover when song is selected
+    setSearch("");
   };
 
   // Effect to handle debounced search
