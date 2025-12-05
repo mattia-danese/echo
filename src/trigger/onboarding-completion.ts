@@ -12,6 +12,7 @@ import { env } from "@/lib/env";
 import { spotifyAdmin } from "@/lib/spotifyAdmin";
 import { AppleMusicPlatform, SpotifyPlatform } from "@/platforms";
 import { sendMessagesTask } from "./send-messages";
+import { embedLinksForInternational } from "./utils/message-helpers";
 
 type UserData = {
   userId: number;
@@ -269,7 +270,10 @@ const sendMessages = async (payload: {
 
   await sendMessagesTask.trigger({
     data: {
-      [payload.phoneNumber]: messages,
+      [payload.phoneNumber]: embedLinksForInternational(
+        payload.phoneNumber,
+        messages
+      ),
     },
   });
 

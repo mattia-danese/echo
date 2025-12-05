@@ -28,6 +28,7 @@ import {
 import { type Gender, Platform } from "@/db/types";
 import { createSession, deleteAllSessionsForUser } from "@/lib/cookieSession";
 import { lastFmAdmin } from "@/lib/lastFmAdmin";
+import { embedLinksForInternational } from "@/trigger/utils/message-helpers";
 import { songLinkAdmin } from "@/lib/songLinkAdmin";
 import { twilioAdmin } from "@/lib/twilioAdmin";
 import { isNameValid, isPhoneNumberValid, isValidDate } from "@/lib/validation";
@@ -444,21 +445,26 @@ export async function sendOnboardingMessage(payload: {
       ? "https://open.spotify.com/collection/tracks"
       : "https://music.apple.com/library";
 
+  const messages = [
+    [
+      "welcome to echo - your music sharing squad :)",
+      "",
+      "here's how it works:",
+      "",
+      "1. next time you're listening to a good song, just text us the link",
+      "2. every 2 days, we'll send you a playlist with songs your friends shared",
+      // "3. we'll text you before playlists drop so you remember to send groovy tunes",
+    ].join("\n"),
+    `let's try it together. tap the link below to share your first song. pick a track, tap "share", then "copy link", & text it here. ${lastSentence}`,
+    platformLink,
+  ];
+
   await sendMessagesTask.trigger({
     data: {
-      [payload.phoneNumber]: [
-        [
-          "welcome to echo - your music sharing squad :)",
-          "",
-          "here's how it works:",
-          "",
-          "1. next time you're listening to a good song, just text us the link",
-          "2. every 2 days, we'll send you a playlist with songs your friends shared",
-          // "3. we'll text you before playlists drop so you remember to send groovy tunes",
-        ].join("\n"),
-        `let's try it together. tap the link below to share your first song. pick a track, tap "share", then "copy link", & text it here. ${lastSentence}`,
-        platformLink,
-      ],
+      [payload.phoneNumber]: embedLinksForInternational(
+        payload.phoneNumber,
+        messages
+      ),
     },
   });
   return {
