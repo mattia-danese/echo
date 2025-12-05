@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import { defineConfig } from "@trigger.dev/sdk/v3";
 
 export default defineConfig({
@@ -20,4 +21,33 @@ export default defineConfig({
     },
   },
   dirs: ["./src/trigger"],
+
+  // Initialize Sentry when the worker starts
+  init: async () => {
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      environment:
+        process.env.NODE_ENV === "production" ? "production" : "development",
+      tracesSampleRate: 1.0,
+    });
+  },
+
+  // Capture errors to Sentry when a task fails
+  onFailure: async ({ payload, error, ctx }) => {
+    Sentry.captureException(error, {
+      extra: {
+        taskId: ctx.task.id,
+        runId: ctx.run.id,
+        attemptNumber: ctx.attempt.number,
+        payload,
+      },
+      tags: {
+        taskId: ctx.task.id,
+        source: "trigger.dev",
+      },
+    });
+
+    // Flush to ensure the error is sent before the process exits
+    await Sentry.flush(2000);
+  },
 });
