@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { searchPlatformTracks, submitSong } from "@/app/actions";
 import { useDebounce } from "@/components/Debounce";
 import Hero from "@/components/Hero";
@@ -63,6 +63,13 @@ export default function SessionPageClient({
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [submitError, setSubmitError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isSelectingRef = useRef(false);
+
+  // Scroll to top helper for mobile - restores initial page position
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
   // Debounce the search input
   const debouncedSearch = useDebounce(search, 500);
@@ -128,6 +135,7 @@ export default function SessionPageClient({
     albumImageUrl: string,
     trackPlatform: Platform,
   ) => {
+    isSelectingRef.current = true;
     setSelectedSong({
       trackId,
       trackName,
@@ -137,6 +145,14 @@ export default function SessionPageClient({
     });
     setIsPopoverOpen(false); // Close popover when song is selected
     setSearch("");
+    // Blur the input to dismiss keyboard on mobile
+    inputRef.current?.blur();
+    // Scroll back to top after song selection
+    scrollToTop();
+    // Reset selecting flag after a brief delay
+    setTimeout(() => {
+      isSelectingRef.current = false;
+    }, 100);
   };
 
   // Effect to handle debounced search
@@ -318,15 +334,32 @@ export default function SessionPageClient({
           <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
             <PopoverTrigger asChild>
               <Input
+                ref={inputRef}
                 id={searchId}
                 type="text"
                 placeholder={isSearching ? "searching..." : "search a song ..."}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                onBlur={() => {
+                  // Scroll to top when input loses focus (keyboard dismissed on mobile)
+                  // Use a small delay to allow song selection clicks to process first
+                  setTimeout(() => {
+                    if (!isSelectingRef.current) {
+                      scrollToTop();
+                    }
+                  }, 150);
+                }}
                 className="border-0 border-b border-white bg-transparent text-white placeholder-gray-500 focus:border-white focus:ring-0 rounded-none w-full"
               />
             </PopoverTrigger>
-            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 bg-black text-white border border-white/20">
+            <PopoverContent
+              className="w-[var(--radix-popover-trigger-width)] p-0 bg-black text-white border border-white/20"
+              onOpenAutoFocus={(e) => {
+                // Prevent popover from stealing focus from the input
+                // This keeps the mobile keyboard open while browsing search results
+                e.preventDefault();
+              }}
+            >
               <div className="max-h-72 overflow-y-auto scrollbar-thin scrollbar-track-black scrollbar-thumb-gray-600">
                 {searchResults.map((result) => (
                   <button
