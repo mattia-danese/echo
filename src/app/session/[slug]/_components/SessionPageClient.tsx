@@ -64,7 +64,6 @@ export default function SessionPageClient({
   const [submitError, setSubmitError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const isSelectingRef = useRef(false);
 
   // Scroll to top helper for mobile - restores initial page position
   const scrollToTop = useCallback(() => {
@@ -135,7 +134,6 @@ export default function SessionPageClient({
     albumImageUrl: string,
     trackPlatform: Platform,
   ) => {
-    isSelectingRef.current = true;
     setSelectedSong({
       trackId,
       trackName,
@@ -149,10 +147,6 @@ export default function SessionPageClient({
     inputRef.current?.blur();
     // Scroll back to top after song selection
     scrollToTop();
-    // Reset selecting flag after a brief delay
-    setTimeout(() => {
-      isSelectingRef.current = false;
-    }, 100);
   };
 
   // Effect to handle debounced search
@@ -340,20 +334,13 @@ export default function SessionPageClient({
                 placeholder={isSearching ? "searching..." : "search a song ..."}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                onBlur={() => {
-                  // Scroll to top when input loses focus (keyboard dismissed on mobile)
-                  // Use a small delay to allow song selection clicks to process first
-                  setTimeout(() => {
-                    if (!isSelectingRef.current) {
-                      scrollToTop();
-                    }
-                  }, 150);
-                }}
                 className="border-0 border-b border-white bg-transparent text-white placeholder-gray-500 focus:border-white focus:ring-0 rounded-none w-full"
               />
             </PopoverTrigger>
             <PopoverContent
               className="w-[var(--radix-popover-trigger-width)] p-0 bg-black text-white border border-white/20"
+              side="bottom"
+              align="start"
               onOpenAutoFocus={(e) => {
                 // Prevent popover from stealing focus from the input
                 // This keeps the mobile keyboard open while browsing search results
