@@ -107,7 +107,12 @@ export async function deleteSession() {
   await clearSessionCookie();
 }
 
-export async function deleteAllSessionsForUser(userId: number) {
+export async function deleteAllSessionsForUser(
+  userId: number,
+  clearCookie = true,
+) {
   await db.delete(authSessions).where(eq(authSessions.userId, userId));
-  await clearSessionCookie();
+  if (clearCookie) {
+    await clearSessionCookie();
+  }
 }

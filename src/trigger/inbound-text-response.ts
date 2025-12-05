@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import * as Sentry from "@sentry/nextjs";
 import { logger, task } from "@trigger.dev/sdk/v3";
 import { and, desc, eq } from "drizzle-orm";
-import { submitSong } from "@/app/actions";
+import { createUser, deleteUser, submitSong } from "@/app/actions";
 import { db } from "@/db";
 import {
   echoSessions,
@@ -36,16 +36,7 @@ export const inboundTextResponseTask = task({
 
     try {
       const [user] = await db
-        .select({
-          id: users.id,
-          firstName: users.firstName,
-          lastName: users.lastName,
-          receivedNoTextAlert: users.receivedNoTextAlert,
-          isDeleted: users.isDeleted,
-          friendLinkToken: users.friendLinkToken,
-          sentGetLink: users.sentGetLink,
-          whenOnboardingComplete: users.whenOnboardingComplete,
-        })
+        .select()
         .from(users)
         .where(eq(users.phoneNumber, payload.phoneNumber))
         .limit(1);
@@ -65,7 +56,44 @@ export const inboundTextResponseTask = task({
         messageType: MessageType.INBOUND,
       });
 
+      const message = payload.inboundMessage.trim();
+      const messageLower = message.toLowerCase();
+
       if (user.isDeleted) {
+        if (messageLower === "unstop" || messageLower === "start") {
+          data[payload.phoneNumber] = [
+            "login at https://text-echo.com to reactivate your account",
+          ];
+
+          await sendMessagesTask.trigger({
+            data: data,
+          });
+
+          return {
+            message: `sent login link to ${user.id}`,
+          };
+
+          /* 
+            NOTE: ideally we would call createUser() directly but need to pass 'auth' token for Apple Music users which we dont have
+            
+            // not sending a message since Twilio sends automatic START response
+            await createUser({
+              firstName: user.firstName,
+              lastName: user.lastName,
+              phoneNumber: payload.phoneNumber,
+              gender: user.gender,
+              dateOfBirth: user.dateOfBirth,
+              auth: "",
+              platform: user.platform,
+              referralFriendLinkToken: null,
+            });
+
+            return {
+              message: `recreated user ${user.id} because they sent "start/unstop"`,
+            };
+          */
+        }
+
         data[payload.phoneNumber] = [
           `your account has been deleted. Click here to reactivate: https://text-echo.com`,
         ];
@@ -78,8 +106,6 @@ export const inboundTextResponseTask = task({
           message: `responded to deleted user message from ${payload.phoneNumber}:'${payload.inboundMessage}'`,
         };
       }
-
-      let message = payload.inboundMessage.trim();
 
       if (SpotifyPlatform.isTrackLink(message)) {
         try {
@@ -265,9 +291,18 @@ export const inboundTextResponseTask = task({
       // if (AppleMusicPlatform.isSongLink(message)) {
       // }
 
-      message = message.toLowerCase();
+      if (messageLower === "stop") {
+        // not sending a message since Twilio sends automatic STOP response
 
-      if (message === "get help") {
+        // Pass false to skip cookie clearing since we're in a Trigger.dev task (no request context)
+        await deleteUser(user.id, false);
+
+        return {
+          message: `deleted user ${user.id} because they sent "stop"`,
+        };
+      }
+
+      if (messageLower === "get help") {
         data[payload.phoneNumber] = [
           "we notified our team about your issue. they'll personally reach out shortly",
         ];
@@ -285,7 +320,7 @@ export const inboundTextResponseTask = task({
         };
       }
 
-      if (message === "get link") {
+      if (messageLower === "get link") {
         if (!user.sentGetLink) {
           await db
             .update(users)

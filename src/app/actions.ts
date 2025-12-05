@@ -1131,7 +1131,7 @@ export async function unfriendFriend(userId: number, friendId: number) {
     );
 }
 
-export async function deleteUser(userId: number) {
+export async function deleteUser(userId: number, clearCookie = true) {
   "use server";
 
   const now = new Date().toISOString();
@@ -1152,7 +1152,7 @@ export async function deleteUser(userId: number) {
     );
 
   await db.delete(userAuth).where(eq(userAuth.userId, userId));
-  await deleteAllSessionsForUser(userId);
+  await deleteAllSessionsForUser(userId, clearCookie);
 }
 
 export async function logInExistingUser(phoneNumber: string) {
