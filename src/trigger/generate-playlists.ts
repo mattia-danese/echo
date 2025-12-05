@@ -356,11 +356,21 @@ export const generatePlaylistsTask = schedules.task({
         userErrors,
       });
 
+      // Serialize errors for Sentry (Error objects don't serialize to JSON)
+      const serializableUserErrors: Record<number, unknown[]> = {};
+      for (const [userId, errors] of Object.entries(userErrors)) {
+        serializableUserErrors[Number(userId)] = errors.map((err) =>
+          err instanceof Error
+            ? { name: err.name, message: err.message, stack: err.stack }
+            : err,
+        );
+      }
+
       // Manually capture in Sentry
       Sentry.captureException(
         new Error("errors encountered during generate playlists task"),
         {
-          extra: { userErrors },
+          extra: { userErrors: serializableUserErrors },
         },
       );
     }
