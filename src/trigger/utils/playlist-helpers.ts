@@ -220,6 +220,7 @@ export const getUserFriendships = async (
         and(
           inArray(friends.userId, userIds),
           eq(friends.active, true),
+          eq(friends.muted, false),
           eq(users.isDeleted, false),
         ),
       );
