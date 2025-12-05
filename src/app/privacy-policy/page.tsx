@@ -42,7 +42,10 @@ export default function PrivacyPolicy() {
                 Account Information:
               </h3>
               <p className="mb-4">
-                Your name and phone number when you create an Echo Account.
+                Your name, phone number, date of birth, and gender when you
+                create an Echo Account. We collect this information to
+                personalize your music recommendations and ensure age-appropriate
+                use of our services.
               </p>
             </div>
 
@@ -168,6 +171,37 @@ export default function PrivacyPolicy() {
             </div>
           </section>
 
+          {/* Legal Basis for Processing */}
+          <section className="mb-8">
+            <h2 className="text-2xl font-bold mb-4">
+              LEGAL BASIS FOR PROCESSING (GDPR)
+            </h2>
+            <p className="mb-4">
+              If you are located in the European Economic Area (EEA), United
+              Kingdom, or Switzerland, we process your personal data based on
+              the following legal grounds:
+            </p>
+            <ul className="list-disc pl-6 mb-4">
+              <li className="mb-2">
+                <strong>Consent:</strong> When you provide explicit consent to
+                process your data (e.g., connecting Spotify or Apple Music).
+              </li>
+              <li className="mb-2">
+                <strong>Contract Performance:</strong> To fulfill our
+                contractual obligations to provide Echo Services.
+              </li>
+              <li className="mb-2">
+                <strong>Legitimate Interests:</strong> For improvements,
+                analytics, and fraud prevention, where our interests do not
+                override your rights.
+              </li>
+              <li className="mb-2">
+                <strong>Legal Compliance:</strong> To comply with applicable
+                laws and regulations.
+              </li>
+            </ul>
+          </section>
+
           {/* Your Choices and Rights */}
           <section className="mb-8">
             <h2 className="text-2xl font-bold mb-4">YOUR CHOICES AND RIGHTS</h2>
@@ -177,8 +211,9 @@ export default function PrivacyPolicy() {
                 Access and Updates:
               </h3>
               <p className="mb-4">
-                You may access and update your account information at any time
-                via your Echo profile settings.
+                You may access and update your account information (including
+                name, phone number, date of birth, and gender) at any time via
+                your Echo profile settings.
               </p>
             </div>
 
@@ -210,6 +245,63 @@ export default function PrivacyPolicy() {
                 phone number.
               </p>
             </div>
+
+            <div className="mb-6">
+              <h3 className="text-xl font-semibold mb-3">
+                GDPR Rights (EEA, UK, and Switzerland Users):
+              </h3>
+              <p className="mb-4">If you are in the EEA, UK, or Switzerland, you have the following additional rights:</p>
+              <ul className="list-disc pl-6 mb-4">
+                <li className="mb-2">
+                  <strong>Right to Access:</strong> Request a copy of the
+                  personal data we hold about you.
+                </li>
+                <li className="mb-2">
+                  <strong>Right to Rectification:</strong> Correct inaccurate or
+                  incomplete personal data.
+                </li>
+                <li className="mb-2">
+                  <strong>Right to Erasure:</strong> Request deletion of your
+                  personal data ("right to be forgotten").
+                </li>
+                <li className="mb-2">
+                  <strong>Right to Data Portability:</strong> Receive your data
+                  in a structured, commonly used format and transmit it to
+                  another service.
+                </li>
+                <li className="mb-2">
+                  <strong>Right to Restriction:</strong> Request restriction of
+                  processing under certain circumstances.
+                </li>
+                <li className="mb-2">
+                  <strong>Right to Object:</strong> Object to processing based
+                  on legitimate interests or for direct marketing.
+                </li>
+                <li className="mb-2">
+                  <strong>Right to Withdraw Consent:</strong> Withdraw consent
+                  at any time where processing is based on consent.
+                </li>
+                <li className="mb-2">
+                  <strong>Right to Lodge a Complaint:</strong> File a complaint
+                  with your local data protection authority.
+                </li>
+              </ul>
+              <p className="mb-4">
+                To exercise these rights, contact us at support@text-echo.com.
+              </p>
+            </div>
+          </section>
+
+          {/* Data Retention */}
+          <section className="mb-8">
+            <h2 className="text-2xl font-bold mb-4">DATA RETENTION</h2>
+            <p className="mb-4">
+              We retain your personal data only as long as necessary to provide
+              Echo Services and fulfill the purposes described in this Privacy
+              Policy, or as required by law. When you close your account, we
+              delete or anonymize your data within 90 days, unless retention is
+              required for legal, accounting, or security purposes.
+            </p>
           </section>
 
           {/* Data Security */}
@@ -235,12 +327,23 @@ export default function PrivacyPolicy() {
 
           {/* International Users */}
           <section className="mb-8">
-            <h2 className="text-2xl font-bold mb-4">INTERNATIONAL USERS</h2>
+            <h2 className="text-2xl font-bold mb-4">
+              INTERNATIONAL DATA TRANSFERS
+            </h2>
             <p className="mb-4">
               Echo is based in the United States. If you access the Echo
-              Services from outside the U.S., you consent to the transfer of
-              your data to the U.S. and the processing of your data in
-              accordance with this Privacy Policy.
+              Services from outside the U.S., your personal data may be
+              transferred to, stored, and processed in the United States and
+              other countries that may have different data protection laws than
+              your country of residence.
+            </p>
+            <p className="mb-4">
+              For users in the EEA, UK, or Switzerland: We ensure appropriate
+              safeguards are in place for international data transfers,
+              including Standard Contractual Clauses approved by the European
+              Commission and other legally recognized transfer mechanisms. By
+              using Echo Services, you acknowledge and consent to these
+              transfers.
             </p>
           </section>
 

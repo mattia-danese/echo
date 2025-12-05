@@ -92,10 +92,73 @@ export default function TermsOfService() {
                 with information necessary for account setup, identity
                 verification, and delivery of Echo Services. Echo collects and
                 processes personal information including Your name, phone
-                number, listening history, and friend connections.
-                Recommendations made by You and received from friends will be
-                stored but not shared outside Your Echo friend network. See our
-                Privacy Policy for details.
+                number, date of birth, gender, listening history, and friend
+                connections. Recommendations made by You and received from
+                friends will be stored but not shared outside Your Echo friend
+                network. See our Privacy Policy for details on how we collect,
+                use, and protect your personal data, including your rights under
+                GDPR if applicable.
+              </p>
+            </div>
+          </section>
+
+          {/* DATA PROTECTION AND PRIVACY */}
+          <section className="mb-8">
+            <h2 className="text-2xl font-bold mb-4">
+              DATA PROTECTION AND PRIVACY
+            </h2>
+
+            <div className="mb-6">
+              <h3 className="text-xl font-semibold mb-3">Privacy Policy</h3>
+              <p className="mb-4">
+                Your use of Echo Services is governed by our Privacy Policy,
+                which is incorporated into these Terms of Service by reference.
+                Please review our Privacy Policy to understand how we collect,
+                use, and protect your personal information.
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <h3 className="text-xl font-semibold mb-3">
+                GDPR Compliance (EEA, UK, and Switzerland Users)
+              </h3>
+              <p className="mb-4">
+                If you are located in the European Economic Area (EEA), United
+                Kingdom, or Switzerland, you have specific rights under the
+                General Data Protection Regulation (GDPR) and equivalent laws,
+                including:
+              </p>
+              <ul className="list-disc pl-6 mb-4">
+                <li className="mb-2">
+                  Right to access, rectify, erase, and port your personal data
+                </li>
+                <li className="mb-2">
+                  Right to restrict or object to processing of your data
+                </li>
+                <li className="mb-2">
+                  Right to withdraw consent at any time
+                </li>
+                <li className="mb-2">
+                  Right to lodge a complaint with a supervisory authority
+                </li>
+              </ul>
+              <p className="mb-4">
+                For detailed information about these rights and how to exercise
+                them, please refer to our Privacy Policy or contact us at
+                support@text-echo.com.
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <h3 className="text-xl font-semibold mb-3">
+                Consent and Legal Basis
+              </h3>
+              <p className="mb-4">
+                By creating an Echo Account, you consent to the collection and
+                processing of your personal data as described in our Privacy
+                Policy. For EEA, UK, and Switzerland users, we process your data
+                based on consent, contract performance, legitimate interests,
+                and legal compliance as detailed in our Privacy Policy.
               </p>
             </div>
           </section>
