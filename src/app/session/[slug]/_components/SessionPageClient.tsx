@@ -341,6 +341,7 @@ export default function SessionPageClient({
               className="w-[var(--radix-popover-trigger-width)] p-0 bg-black text-white border border-white/20"
               side="bottom"
               align="start"
+              avoidCollisions={false}
               onOpenAutoFocus={(e) => {
                 // Prevent popover from stealing focus from the input
                 // This keeps the mobile keyboard open while browsing search results
