@@ -135,9 +135,7 @@ export default function TermsOfService() {
                 <li className="mb-2">
                   Right to restrict or object to processing of your data
                 </li>
-                <li className="mb-2">
-                  Right to withdraw consent at any time
-                </li>
+                <li className="mb-2">Right to withdraw consent at any time</li>
                 <li className="mb-2">
                   Right to lodge a complaint with a supervisory authority
                 </li>

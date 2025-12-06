@@ -44,8 +44,8 @@ export default function PrivacyPolicy() {
               <p className="mb-4">
                 Your name, phone number, date of birth, and gender when you
                 create an Echo Account. We collect this information to
-                personalize your music recommendations and ensure age-appropriate
-                use of our services.
+                personalize your music recommendations and ensure
+                age-appropriate use of our services.
               </p>
             </div>
 
@@ -250,7 +250,10 @@ export default function PrivacyPolicy() {
               <h3 className="text-xl font-semibold mb-3">
                 GDPR Rights (EEA, UK, and Switzerland Users):
               </h3>
-              <p className="mb-4">If you are in the EEA, UK, or Switzerland, you have the following additional rights:</p>
+              <p className="mb-4">
+                If you are in the EEA, UK, or Switzerland, you have the
+                following additional rights:
+              </p>
               <ul className="list-disc pl-6 mb-4">
                 <li className="mb-2">
                   <strong>Right to Access:</strong> Request a copy of the
