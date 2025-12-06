@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { messages, users } from "@/db/schema";
 import { CONTACT_CARD_PLACEHOLDER, MessageType } from "@/db/types";
 import { twilioAdmin } from "@/lib/twilioAdmin";
+import { embedLinksForInternational } from "./utils/message-helpers";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const twilio = require("twilio");
@@ -36,7 +37,12 @@ export const sendMessagesTask = task({
     }
 
     for (const [phoneNumber, textMessages] of Object.entries(payload.data)) {
-      for (const textMessage of textMessages) {
+      const testMessagesCleaned = embedLinksForInternational(
+        phoneNumber,
+        textMessages,
+      );
+
+      for (const textMessage of testMessagesCleaned) {
         const userId = phoneNumberToUserIdLookup.get(phoneNumber);
         if (!userId) {
           logger.error("user not found for phone number", { phoneNumber });
@@ -61,7 +67,7 @@ export const sendMessagesTask = task({
             });
           }
 
-          logger.log("message sent", { response });
+          logger.log("message sent", { textMessage, response });
 
           // check response var
           await db.insert(messages).values({
