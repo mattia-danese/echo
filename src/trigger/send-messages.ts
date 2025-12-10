@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { messages, users } from "@/db/schema";
 import { CONTACT_CARD_PLACEHOLDER, MessageType } from "@/db/types";
 import { twilioAdmin } from "@/lib/twilioAdmin";
+import { selectSenderId } from "@/lib/senderIdSelector";
 import { embedLinksForInternational } from "./utils/message-helpers";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -11,7 +12,6 @@ const twilio = require("twilio");
 
 const accountSid = twilioAdmin.accountSid;
 const authToken = twilioAdmin.authToken;
-const fromNumber = twilioAdmin.phoneNumber;
 const client = twilio(accountSid, authToken);
 
 const INTER_MESSAGE_DELAY_MS = 1000;
@@ -37,6 +37,15 @@ export const sendMessagesTask = task({
     }
 
     for (const [phoneNumber, textMessages] of Object.entries(payload.data)) {
+      const { senderId, isAlphanumeric, country } = selectSenderId(phoneNumber);
+
+      logger.log("Selected sender ID", {
+        phoneNumber,
+        senderId,
+        isAlphanumeric,
+        country,
+      });
+
       const testMessagesCleaned = embedLinksForInternational(
         phoneNumber,
         textMessages,
@@ -55,14 +64,14 @@ export const sendMessagesTask = task({
             // Send MMS with contact card
             response = await client.messages.create({
               // body: "save our contact for easy access",
-              from: fromNumber,
+              from: senderId,
               to: phoneNumber,
               mediaUrl: [`https://text-echo.com/api/contact`],
             });
           } else {
             response = await client.messages.create({
               body: textMessage,
-              from: fromNumber,
+              from: senderId,
               to: phoneNumber,
             });
           }
@@ -77,7 +86,48 @@ export const sendMessagesTask = task({
           });
         } catch (error: any) {
           // Handle Twilio errors gracefully
-          if (error.code === 21610) {
+          if (error.code === 21612) {
+            // Alphanumeric sender ID not supported - retry with phone number
+            logger.warn(
+              "Alphanumeric sender not supported, retrying with phone number",
+              {
+                phoneNumber,
+                originalSender: senderId,
+                error: error.message,
+              },
+            );
+
+            try {
+              const fallbackResponse = await client.messages.create({
+                body:
+                  textMessage === CONTACT_CARD_PLACEHOLDER
+                    ? undefined
+                    : textMessage,
+                from: twilioAdmin.phoneNumber,
+                to: phoneNumber,
+                ...(textMessage === CONTACT_CARD_PLACEHOLDER
+                  ? { mediaUrl: [`https://text-echo.com/api/contact`] }
+                  : {}),
+              });
+
+              logger.log("Fallback message sent", { fallbackResponse });
+
+              // Log successful fallback to database
+              await db.insert(messages).values({
+                userId: userId,
+                message: textMessage,
+                messageType: MessageType.OUTBOUND,
+              });
+            } catch (fallbackError: any) {
+              logger.error("Fallback message also failed", {
+                phoneNumber,
+                userId,
+                textMessage,
+                error: fallbackError.message,
+                errorCode: fallbackError.code,
+              });
+            }
+          } else if (error.code === 21610) {
             // User has unsubscribed (sent STOP)
             logger.warn("skipping unsubscribed recipient", {
               phoneNumber,

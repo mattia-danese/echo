@@ -23,6 +23,8 @@ const envSchema = z.object({
   TWILIO_ACCOUNT_SID: z.string().min(1),
   TWILIO_AUTH_TOKEN: z.string().min(1),
   TWILIO_VERIFY_SERVICE_SID: z.string().min(1),
+  TWILIO_ALPHANUMERIC_SENDER_ID: z.string().optional(),
+  TWILIO_ALPHANUMERIC_ENABLED_COUNTRIES: z.string().optional(),
 
   LAST_FM_API_KEY: z.string().min(1),
   LAST_FM_SECRET_KEY: z.string().min(1),
@@ -60,6 +62,9 @@ export const env = envSchema.parse({
   TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
   TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
   TWILIO_VERIFY_SERVICE_SID: process.env.TWILIO_VERIFY_SERVICE_SID,
+  TWILIO_ALPHANUMERIC_SENDER_ID: process.env.TWILIO_ALPHANUMERIC_SENDER_ID,
+  TWILIO_ALPHANUMERIC_ENABLED_COUNTRIES:
+    process.env.TWILIO_ALPHANUMERIC_ENABLED_COUNTRIES,
 
   LAST_FM_API_KEY: process.env.LAST_FM_API_KEY,
   LAST_FM_SECRET_KEY: process.env.LAST_FM_SECRET_KEY,

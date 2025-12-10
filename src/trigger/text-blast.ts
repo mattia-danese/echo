@@ -4,13 +4,13 @@ import { db } from "@/db";
 import { messages, users } from "@/db/schema";
 import { MessageType } from "@/db/types";
 import { twilioAdmin } from "@/lib/twilioAdmin";
+import { selectSenderId } from "@/lib/senderIdSelector";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const twilio = require("twilio");
 
 const accountSid = twilioAdmin.accountSid;
 const authToken = twilioAdmin.authToken;
-const fromNumber = twilioAdmin.phoneNumber;
 const client = twilio(accountSid, authToken);
 
 export const textBlastTask = task({
@@ -29,10 +29,12 @@ export const textBlastTask = task({
       .where(eq(users.isDeleted, false));
 
     for (const user of userData) {
+      const { senderId } = selectSenderId(user.phoneNumber);
+
       for (const message of payload.messages) {
         const response = await client.messages.create({
           body: message,
-          from: fromNumber,
+          from: senderId,
           to: user.phoneNumber,
         });
 

@@ -30,10 +30,20 @@ export default async function RootPage({ searchParams }: PageProps) {
   const accountStatus = resolvedSearchParams.accountStatus;
 
   // Fetch Apple developer token to pass to client when needed (MusicKit config)
-  const [dev] = await db.select().from(appleDevToken).limit(1);
-  const appleDeveloperToken = dev?.token ?? "";
+  let appleDeveloperToken = "";
+  try {
+    const [dev] = await db.select().from(appleDevToken).limit(1);
+    appleDeveloperToken = dev?.token ?? "";
+  } catch (error) {
+    console.log("Database connection failed - using empty token for development");
+  }
 
-  const user = await getCurrentUser();
+  let user = null;
+  try {
+    user = await getCurrentUser();
+  } catch (error) {
+    console.log("Failed to get current user - treating as logged out");
+  }
   if (!user) {
     return (
       <LogInSignUp
