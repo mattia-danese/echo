@@ -12,8 +12,8 @@ export default function HowItWorks() {
             <Image
               src="/how_it_works_texts_1.png"
               alt="invite friends via your echo link"
-              width={100}
-              height={75}
+              width={200}
+              height={150}
               className="object-contain"
               priority
             />
@@ -39,8 +39,8 @@ export default function HowItWorks() {
             <Image
               src="/how_it_works_texts_2.png"
               alt="share a spotify song link by text"
-              width={100}
-              height={75}
+              width={200}
+              height={150}
               className="object-contain"
             />
           </div>
@@ -52,8 +52,8 @@ export default function HowItWorks() {
             <Image
               src="/how_it_works_texts_3.png"
               alt="discover the playlist from your friends"
-              width={100}
-              height={150}
+              width={150}
+              height={112.5}
               className="object-contain"
             />
           </div>
