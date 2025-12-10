@@ -228,7 +228,7 @@ export default function ProfilePage({
 
         {/* Streak */}
         {streak >= 3 && (
-          <div className="text-white text-2xl text-center">
+          <div className="text-white text-2xl text-center whitespace-pre-line">
             {formatStreak(streak)}
           </div>
         )}

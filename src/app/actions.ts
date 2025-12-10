@@ -702,23 +702,27 @@ export async function submitSong(payload: {
       }
 
       for (const track of similarTracksData) {
-        const { ok, data, error } =
-          await SpotifyPlatform.searchTrackByNameAndArtist(
-            track.trackName,
-            track.artists,
-            payload.platformAccessToken,
-          );
+        try {
+          const { ok, data, error } =
+            await SpotifyPlatform.searchTrackByNameAndArtist(
+              track.trackName,
+              track.artists,
+              payload.platformAccessToken,
+            );
 
-        if (!ok || !data || error) continue;
+          if (!ok || !data || error) continue;
 
-        spotifySimilarTracks.push({
-          userId: payload.userId,
-          trackId: data.tracks[0].trackId,
-          trackName: data.tracks[0].trackName,
-          trackArtists: data.tracks[0].artists,
-          trackAlbumImageUrl: data.tracks[0].albumImageUrl,
-          platform: Platform.SPOTIFY,
-        });
+          spotifySimilarTracks.push({
+            userId: payload.userId,
+            trackId: data.tracks[0].trackId,
+            trackName: data.tracks[0].trackName,
+            trackArtists: data.tracks[0].artists,
+            trackAlbumImageUrl: data.tracks[0].albumImageUrl,
+            platform: Platform.SPOTIFY,
+          });
+        } catch (error: unknown) {
+          console.error("Error in submitSong (non-blocking):", error);
+        }
       }
 
       await db.transaction(async (tx) => {
