@@ -59,10 +59,27 @@ export default function ProfilePage({
   userId,
   streak,
 }: ProfilePageProps) {
+  const getTabsFromLocation = () => {
+    if (typeof window === "undefined") {
+      return { main: "friends", past: "songs" };
+    }
+
+    const hash = window.location.hash.replace("#", "");
+    const tabParam = new URLSearchParams(window.location.search).get("tab");
+    const target = (hash || tabParam || "").toLowerCase();
+    if (target === "playlists" || target === "your-playlists") {
+      return { main: "past", past: "playlists" };
+    }
+    return { main: "friends", past: "songs" };
+  };
+
   const [uploadedProfilePictureUrl, setUploadedProfilePictureUrl] = useState<
     string | null
   >(profilePictureUrl);
   const previewUrlRef = useRef<string | null>(null);
+  const initialTabsRef = useRef(getTabsFromLocation());
+  const [mainTab, setMainTab] = useState(initialTabsRef.current.main);
+  const [pastTab, setPastTab] = useState(initialTabsRef.current.past);
   const { data: friendsData } = useFriends(userId, friendsList); // initialData = SSR list
   const { toggleMute, unfriend } = useFriendMutations(userId);
 
@@ -78,6 +95,27 @@ export default function ProfilePage({
       document.documentElement.scrollTop = 0;
       document.body.scrollTop = 0;
     } catch {}
+  }, []);
+
+  // After hydration, re-read the URL to apply tab deep-linking (SSR can't see hash/query)
+  useEffect(() => {
+    const readTabsFromLocation = () => {
+      if (typeof window === "undefined") {
+        return { main: "friends", past: "songs" };
+      }
+
+      const hash = window.location.hash.replace("#", "");
+      const tabParam = new URLSearchParams(window.location.search).get("tab");
+      const target = (hash || tabParam || "").toLowerCase();
+      if (target === "playlists" || target === "your-playlists") {
+        return { main: "past", past: "playlists" };
+      }
+      return { main: "friends", past: "songs" };
+    };
+
+    const tabs = readTabsFromLocation();
+    setMainTab(tabs.main);
+    setPastTab(tabs.past);
   }, []);
 
   const getPlaylistImage = (playlistImageUrl: string) => {
@@ -234,7 +272,11 @@ export default function ProfilePage({
         )}
 
         {/* Tabs */}
-        <Tabs defaultValue="friends" className="w-full">
+        <Tabs
+          value={mainTab}
+          onValueChange={(val) => setMainTab(val)}
+          className="w-full"
+        >
           <TabsList className="w-full max-w-2xl mx-auto">
             <TabsTrigger
               className=" data-[state=active]:border data-[state=active]:border-white"
@@ -327,7 +369,11 @@ export default function ProfilePage({
           </TabsContent>
 
           <TabsContent value="past" className="mt-4">
-            <Tabs defaultValue="songs" className="w-full">
+            <Tabs
+              value={pastTab}
+              onValueChange={(val) => setPastTab(val)}
+              className="w-full"
+            >
               <TabsList className="w-full max-w-2xl mx-auto">
                 <TabsTrigger
                   className=" data-[state=active]:border data-[state=active]:border-white"
