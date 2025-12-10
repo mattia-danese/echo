@@ -43,6 +43,7 @@ interface ProfilePageProps {
     playlistUrl: string;
   }[];
   userId: number;
+  streak: number;
 }
 
 export default function ProfilePage({
@@ -56,6 +57,7 @@ export default function ProfilePage({
   sharedSongs,
   userPlaylists,
   userId,
+  streak,
 }: ProfilePageProps) {
   const [uploadedProfilePictureUrl, setUploadedProfilePictureUrl] = useState<
     string | null
@@ -107,6 +109,23 @@ export default function ProfilePage({
         className="rounded-md"
       />
     );
+  };
+
+  const formatStreak = (streak: number) => {
+    if (streak < 3) return "";
+
+    const mod10 = streak % 10;
+    const mod100 = streak % 100;
+    const ending =
+      mod10 === 1 && mod100 !== 11
+        ? "st"
+        : mod10 === 2 && mod100 !== 12
+          ? "nd"
+          : mod10 === 3 && mod100 !== 13
+            ? "rd"
+            : "th";
+
+    return `🔥 ${streak}${ending} echo in a row 🔥\nkeep up your streak`;
   };
 
   return (
@@ -202,10 +221,17 @@ export default function ProfilePage({
           </div>
         </div>
 
-        {/* Name under the avatar if available */}
+        {/* Name under the avatar */}
         <div className="text-white text-2xl text-center">
           {`${firstName} ${lastName}`.trim().toLowerCase()}
         </div>
+
+        {/* Streak */}
+        {streak >= 3 && (
+          <div className="text-white text-2xl text-center">
+            {formatStreak(streak)}
+          </div>
+        )}
 
         {/* Tabs */}
         <Tabs defaultValue="friends" className="w-full">

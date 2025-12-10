@@ -7,6 +7,7 @@ import Profile from "@/components/Profile";
 import { db } from "@/db";
 import {
   appleDevToken,
+  echoSessions,
   friends,
   playlistSongs,
   playlists,
@@ -133,6 +134,45 @@ export default async function RootPage({ searchParams }: PageProps) {
     );
   }
 
+  // Streak
+  const userSharedSessions = await db
+    .select({ sessionId: userEchoSessions.sessionId })
+    .from(userEchoSessions)
+    .where(
+      and(
+        eq(userEchoSessions.userId, user.id),
+        isNotNull(userEchoSessions.trackId),
+      ),
+    )
+    .orderBy(desc(userEchoSessions.createdAt));
+
+  const sharedSessionIds = new Set(
+    userSharedSessions.map((row) => row.sessionId),
+  );
+
+  let streak = 0;
+  if (sharedSessionIds.size > 0) {
+    const maxSessionsToCheck = sharedSessionIds.size + 1; // +1 to detect the first miss
+
+    const sessionsToCheck =
+      maxSessionsToCheck > 0
+        ? await db
+            .select({ id: echoSessions.id })
+            .from(echoSessions)
+            .orderBy(desc(echoSessions.createdAt))
+            .offset(1) // skip the most recent session
+            .limit(maxSessionsToCheck)
+        : [];
+
+    for (const session of sessionsToCheck) {
+      if (sharedSessionIds.has(session.id)) {
+        streak += 1;
+      } else {
+        break;
+      }
+    }
+  }
+
   return (
     <Profile
       phoneNumber={user.phoneNumber}
@@ -154,6 +194,7 @@ export default async function RootPage({ searchParams }: PageProps) {
       }
       userPlaylists={userPlaylists}
       userId={user.id}
+      streak={streak}
     />
   );
 }
