@@ -4,6 +4,7 @@ import Script from "next/script";
 import { useEffect, useState } from "react";
 import { createFriendships } from "@/app/actions";
 import Hero from "@/components/Hero";
+import HowItWorks from "@/components/HowItWorks";
 import PhoneNumberChecker from "@/components/PhoneNumberChecker";
 import RegistrationForm, { type FormData } from "@/components/RegistrationForm";
 import { Button } from "@/components/ui/button";
@@ -179,6 +180,8 @@ export default function FriendRequest({
                     : ""}
             </div>
           )}
+
+        <HowItWorks />
       </main>
     </div>
   );

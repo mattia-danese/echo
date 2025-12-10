@@ -4,6 +4,7 @@ import Script from "next/script";
 import { useEffect, useState } from "react";
 import { logInExistingUser, sendOTP, verifyOTP } from "@/app/actions";
 import Hero from "@/components/Hero";
+import HowItWorks from "@/components/HowItWorks";
 import PhoneNumberChecker from "@/components/PhoneNumberChecker";
 import RegistrationForm, { type FormData } from "@/components/RegistrationForm";
 import {
@@ -205,6 +206,9 @@ export default function LogInSignUp({
             setConsentChecked={setConsentChecked}
           />
         )}
+
+        {/* How It Works */}
+        <HowItWorks />
 
         {/* Login OTP Dialog */}
         {phoneNumberChecked && !showRegistration && (
