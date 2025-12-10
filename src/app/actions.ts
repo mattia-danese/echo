@@ -721,7 +721,10 @@ export async function submitSong(payload: {
             platform: Platform.SPOTIFY,
           });
         } catch (error: unknown) {
-          console.error("Error in submitSong (non-blocking):", error);
+          console.error(
+            "Error adding similar track to userRecommendedSongs (non-blocking):",
+            error,
+          );
         }
       }
 
