@@ -2,7 +2,7 @@ import Image from "next/image";
 
 export default function HowItWorks() {
   return (
-    <section className="w-full max-w-3xl text-white flex flex-col items-center gap-12 mt-24 pt-12">
+    <section className="w-full max-w-3xl text-white flex flex-col items-center gap-12 mt-24 pt-12 mb-24 pb-12">
       <div className="text-3xl text-center">how it works</div>
 
       <div className="flex flex-col w-full gap-20">
