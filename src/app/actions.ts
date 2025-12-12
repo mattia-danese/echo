@@ -1307,18 +1307,28 @@ export async function verifyOTP(phoneNumber: string, code: string) {
 
 export async function submitPlaylistRanking({
   userId,
+  userName,
   playlistId,
   rankedUserId,
+  submittedByPhoneNumber,
 }: {
   userId: number;
+  userName: string;
   playlistId: number;
   rankedUserId: number;
+  submittedByPhoneNumber: string;
 }) {
   try {
     await db.insert(userRankings).values({
       userId,
       playlistId,
       rankedUserId,
+    });
+
+    await sendMessagesTask.trigger({
+      data: {
+        [submittedByPhoneNumber]: [`${userName} liked your song`],
+      },
     });
 
     return { ok: true };

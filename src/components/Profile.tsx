@@ -56,6 +56,7 @@ interface ProfilePageProps {
       submittedByUserId: number;
       submittedByFirstName: string;
       submittedByLastName: string;
+      submittedByPhoneNumber: string;
     }>
   >;
   userId: number;
@@ -82,7 +83,7 @@ export default function ProfilePage({
 }: ProfilePageProps) {
   const getTabsFromLocation = () => {
     if (typeof window === "undefined") {
-      return { main: "friends", past: "songs" };
+      return { main: "friends", past: "playlists" };
     }
 
     const hash = window.location.hash.replace("#", "");
@@ -91,7 +92,7 @@ export default function ProfilePage({
     if (target === "playlists" || target === "your-playlists") {
       return { main: "past", past: "playlists" };
     }
-    return { main: "friends", past: "songs" };
+    return { main: "friends", past: "playlists" };
   };
 
   const [uploadedProfilePictureUrl, setUploadedProfilePictureUrl] = useState<
@@ -107,6 +108,7 @@ export default function ProfilePage({
   const [selectedSongForRanking, setSelectedSongForRanking] = useState<{
     trackId: string;
     submittedByUserId: number;
+    submittedByPhoneNumber: string;
   } | null>(null);
   const [rankedPlaylists, setRankedPlaylists] = useState<Set<number>>(rankings);
   const [isSubmittingRanking, setIsSubmittingRanking] = useState(false);
@@ -131,7 +133,7 @@ export default function ProfilePage({
   useEffect(() => {
     const readTabsFromLocation = () => {
       if (typeof window === "undefined") {
-        return { main: "friends", past: "songs" };
+        return { main: "friends", past: "playlists" };
       }
 
       const hash = window.location.hash.replace("#", "");
@@ -140,7 +142,7 @@ export default function ProfilePage({
       if (target === "playlists" || target === "your-playlists") {
         return { main: "past", past: "playlists" };
       }
-      return { main: "friends", past: "songs" };
+      return { main: "friends", past: "playlists" };
     };
 
     const tabs = readTabsFromLocation();
@@ -310,15 +312,15 @@ export default function ProfilePage({
           <TabsList className="w-full max-w-2xl mx-auto">
             <TabsTrigger
               className=" data-[state=active]:border data-[state=active]:border-white"
-              value="friends"
-            >
-              friends
-            </TabsTrigger>
-            <TabsTrigger
-              className=" data-[state=active]:border data-[state=active]:border-white"
               value="past"
             >
               past echoes
+            </TabsTrigger>
+            <TabsTrigger
+              className=" data-[state=active]:border data-[state=active]:border-white"
+              value="friends"
+            >
+              friends
             </TabsTrigger>
             <TabsTrigger
               className=" data-[state=active]:border data-[state=active]:border-white"
@@ -328,128 +330,27 @@ export default function ProfilePage({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="friends" className="mt-4">
-            <div className="flex flex-col gap-4 w-full max-w-2xl mx-auto">
-              {friendsData?.length === 0 && (
-                <div className="text-white/80 text-center">no friends yet</div>
-              )}
-              {friendsData?.map((friend) => {
-                const fullName = `${friend.firstName} ${friend.lastName}`
-                  .trim()
-                  .toLowerCase();
-                return (
-                  <div
-                    key={friend.id}
-                    className="flex items-center justify-between gap-4 w-full"
-                  >
-                    <div className="flex items-center gap-4">
-                      {friend.profilePic ? (
-                        <Image
-                          src={friend.profilePic}
-                          alt={`${fullName} avatar`}
-                          width={32}
-                          height={32}
-                          className="object-cover shrink-0 rounded-full overflow-hidden size-10 md:size-12"
-                        />
-                      ) : (
-                        <div className="shrink-0 rounded-full bg-gray-800 flex items-center justify-center size-10 md:size-12">
-                          <UserPlus className="text-gray-400" size={20} />
-                        </div>
-                      )}
-                      <div className="text-white text-lg">{fullName}</div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {friend.isMuted ? (
-                        <Button
-                          variant="outline"
-                          onClick={() =>
-                            toggleMute.mutate({
-                              friendId: friend.id,
-                              nextMuted: false,
-                            })
-                          }
-                        >
-                          unmute
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          onClick={() =>
-                            toggleMute.mutate({
-                              friendId: friend.id,
-                              nextMuted: true,
-                            })
-                          }
-                        >
-                          mute
-                        </Button>
-                      )}
-
-                      <Button
-                        variant="outline"
-                        onClick={() => unfriend.mutate({ friendId: friend.id })}
-                      >
-                        unfriend
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </TabsContent>
-
           <TabsContent value="past" className="mt-4">
             <Tabs
               value={pastTab}
+              defaultValue="playlists"
               onValueChange={(val) => setPastTab(val)}
               className="w-full"
             >
               <TabsList className="w-full max-w-2xl mx-auto">
                 <TabsTrigger
                   className=" data-[state=active]:border data-[state=active]:border-white"
-                  value="songs"
-                >
-                  songs you've shared
-                </TabsTrigger>
-                <TabsTrigger
-                  className=" data-[state=active]:border data-[state=active]:border-white"
                   value="playlists"
                 >
                   your playlists
                 </TabsTrigger>
+                <TabsTrigger
+                  className=" data-[state=active]:border data-[state=active]:border-white"
+                  value="songs"
+                >
+                  songs you've shared
+                </TabsTrigger>
               </TabsList>
-
-              <TabsContent value="songs" className="mt-4">
-                <div className="flex flex-col gap-4 w-full max-w-2xl mx-auto">
-                  {sharedSongs.length === 0 && (
-                    <div className="text-white/80 text-center">
-                      no songs yet
-                    </div>
-                  )}
-                  {sharedSongs.map((row) => (
-                    <div
-                      key={`${row.platform}:${row.trackId}`}
-                      className="flex items-center gap-4"
-                    >
-                      {/* <Skeleton className="size-10 rounded-md bg-gray-800" /> */}
-                      <Image
-                        src={row.trackAlbumImageUrl
-                          .replace("{w}", String(40))
-                          .replace("{h}", String(40))}
-                        alt={row.trackName as string}
-                        width={40}
-                        height={40}
-                        className="rounded-md"
-                      />
-                      <div className="text-white">
-                        <div className="text-base">
-                          {row.trackName} - {row.trackArtists}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </TabsContent>
 
               <TabsContent value="playlists" className="mt-4">
                 <div className="flex flex-col gap-4 w-full max-w-2xl mx-auto">
@@ -574,6 +475,8 @@ export default function ProfilePage({
                                             trackId: song.trackId,
                                             submittedByUserId:
                                               song.submittedByUserId,
+                                            submittedByPhoneNumber:
+                                              song.submittedByPhoneNumber,
                                           });
                                         },
                                         onKeyDown: (e: React.KeyboardEvent) => {
@@ -587,6 +490,8 @@ export default function ProfilePage({
                                               trackId: song.trackId,
                                               submittedByUserId:
                                                 song.submittedByUserId,
+                                              submittedByPhoneNumber:
+                                                song.submittedByPhoneNumber,
                                             });
                                           }
                                         },
@@ -615,11 +520,15 @@ export default function ProfilePage({
                                         )}
                                         <div className="text-white min-w-0">
                                           <div className="text-sm truncate">
-                                            {song.trackName ?? "Unknown title"}
+                                            {(
+                                              song.trackName ?? "unknown title"
+                                            ).toLowerCase()}
                                           </div>
                                           <div className="text-xs text-white/70 truncate">
-                                            {song.trackArtists ??
-                                              "Unknown artist"}
+                                            {(
+                                              song.trackArtists ??
+                                              "unknown artist"
+                                            ).toLowerCase()}
                                           </div>
                                         </div>
                                       </div>
@@ -636,7 +545,7 @@ export default function ProfilePage({
                                 {isFirstCard &&
                                   needsToRank &&
                                   !rankedPlaylists.has(pl.id) && (
-                                    // biome-ignore lint/a11y/useSemanticElements: <explanation>
+                                    // biome-ignore lint/a11y/useSemanticElements: using div with role button for custom styling
                                     <div
                                       role="button"
                                       aria-label="Submit ranking"
@@ -662,9 +571,12 @@ export default function ProfilePage({
                                         const result =
                                           await submitPlaylistRanking({
                                             userId,
+                                            userName: `${firstName} ${lastName}`,
                                             playlistId: pl.id,
                                             rankedUserId:
                                               selectedSongForRanking.submittedByUserId,
+                                            submittedByPhoneNumber:
+                                              selectedSongForRanking.submittedByPhoneNumber,
                                           });
                                         setIsSubmittingRanking(false);
 
@@ -734,7 +646,110 @@ export default function ProfilePage({
                   })}
                 </div>
               </TabsContent>
+
+              <TabsContent value="songs" className="mt-4">
+                <div className="flex flex-col gap-4 w-full max-w-2xl mx-auto">
+                  {sharedSongs.length === 0 && (
+                    <div className="text-white/80 text-center">
+                      no songs yet
+                    </div>
+                  )}
+                  {sharedSongs.map((row) => (
+                    <div
+                      key={`${row.platform}:${row.trackId}`}
+                      className="flex items-center gap-4"
+                    >
+                      {/* <Skeleton className="size-10 rounded-md bg-gray-800" /> */}
+                      <Image
+                        src={row.trackAlbumImageUrl
+                          .replace("{w}", String(40))
+                          .replace("{h}", String(40))}
+                        alt={row.trackName as string}
+                        width={40}
+                        height={40}
+                        className="rounded-md"
+                      />
+                      <div className="text-white">
+                        <div className="text-base">
+                          {row.trackName.toLowerCase()} -{" "}
+                          {row.trackArtists.toLowerCase()}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </TabsContent>
             </Tabs>
+          </TabsContent>
+
+          <TabsContent value="friends" className="mt-4">
+            <div className="flex flex-col gap-4 w-full max-w-2xl mx-auto">
+              {friendsData?.length === 0 && (
+                <div className="text-white/80 text-center">no friends yet</div>
+              )}
+              {friendsData?.map((friend) => {
+                const fullName = `${friend.firstName} ${friend.lastName}`
+                  .trim()
+                  .toLowerCase();
+                return (
+                  <div
+                    key={friend.id}
+                    className="flex items-center justify-between gap-4 w-full"
+                  >
+                    <div className="flex items-center gap-4">
+                      {friend.profilePic ? (
+                        <Image
+                          src={friend.profilePic}
+                          alt={`${fullName} avatar`}
+                          width={32}
+                          height={32}
+                          className="object-cover shrink-0 rounded-full overflow-hidden size-10 md:size-12"
+                        />
+                      ) : (
+                        <div className="shrink-0 rounded-full bg-gray-800 flex items-center justify-center size-10 md:size-12">
+                          <UserPlus className="text-gray-400" size={20} />
+                        </div>
+                      )}
+                      <div className="text-white text-lg">{fullName}</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {friend.isMuted ? (
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            toggleMute.mutate({
+                              friendId: friend.id,
+                              nextMuted: false,
+                            })
+                          }
+                        >
+                          unmute
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            toggleMute.mutate({
+                              friendId: friend.id,
+                              nextMuted: true,
+                            })
+                          }
+                        >
+                          mute
+                        </Button>
+                      )}
+
+                      <Button
+                        variant="outline"
+                        onClick={() => unfriend.mutate({ friendId: friend.id })}
+                      >
+                        unfriend
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </TabsContent>
 
           <TabsContent value="settings" className="mt-4">

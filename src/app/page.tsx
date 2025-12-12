@@ -130,6 +130,7 @@ export default async function RootPage({ searchParams }: PageProps) {
       submittedByUserId: playlistSongs.submittedByUserId,
       submittedByFirstName: users.firstName,
       submittedByLastName: users.lastName,
+      submittedByPhoneNumber: users.phoneNumber,
     })
     .from(playlistSongs)
     .innerJoin(
@@ -150,6 +151,7 @@ export default async function RootPage({ searchParams }: PageProps) {
       submittedByUserId: number;
       submittedByFirstName: string;
       submittedByLastName: string;
+      submittedByPhoneNumber: string;
     }>
   > = {};
 
@@ -166,6 +168,7 @@ export default async function RootPage({ searchParams }: PageProps) {
       submittedByUserId: row.submittedByUserId,
       submittedByFirstName: row.submittedByFirstName,
       submittedByLastName: row.submittedByLastName,
+      submittedByPhoneNumber: row.submittedByPhoneNumber,
     });
   }
 
@@ -298,7 +301,7 @@ export default async function RootPage({ searchParams }: PageProps) {
       userId={user.id}
       streak={streak}
       rankings={rankingsSet}
-      needsToRank={true}
+      needsToRank={needsToRank}
     />
   );
 }
