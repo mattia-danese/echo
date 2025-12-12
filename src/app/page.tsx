@@ -12,6 +12,7 @@ import {
   playlistSongs,
   playlists,
   userEchoSessions,
+  userRankings,
   users,
 } from "@/db/schema";
 import { Platform } from "@/db/types";
@@ -110,36 +111,45 @@ export default async function RootPage({ searchParams }: PageProps) {
       playlistName: playlists.playlistName,
       playlistImageUrl: playlists.playlistImageUrl,
       playlistUrl: sql<string>`''`,
+      echoSessionId: playlists.sessionId,
     })
     .from(playlists)
     .where(eq(playlists.userId, user.id))
     .orderBy(desc(playlists.createdAt));
 
-  // Playlist songs joined with user echo sessions to get track metadata
+  // Playlist songs joined with user echo sessions to get track metadata and submitter info
+  // Use distinctOn to get only one row per playlist song (in case multiple users submitted the same track)
   const playlistSongsRows = await db
-    .select({
+    .selectDistinctOn([playlistSongs.id], {
       playlistId: playlistSongs.playlistId,
       trackId: playlistSongs.trackId,
       trackName: userEchoSessions.trackName,
       trackArtists: userEchoSessions.trackArtists,
       trackAlbumImageUrl: userEchoSessions.trackAlbumImageUrl,
       platform: userEchoSessions.platform,
+      submittedByUserId: playlistSongs.submittedByUserId,
+      submittedByFirstName: users.firstName,
+      submittedByLastName: users.lastName,
     })
     .from(playlistSongs)
-    .leftJoin(
+    .innerJoin(
       userEchoSessions,
       eq(playlistSongs.trackId, userEchoSessions.trackId),
     )
+    .innerJoin(users, eq(playlistSongs.submittedByUserId, users.id))
     .where(inArray(playlistSongs.playlistId, playlistIdsSubquery));
 
   const playlistSongsByPlaylist: Record<
     number,
     Array<{
       trackId: string;
-      platform: Platform | null;
+      platform: Platform;
       trackName: string | null;
       trackArtists: string | null;
       trackAlbumImageUrl: string | null;
+      submittedByUserId: number;
+      submittedByFirstName: string;
+      submittedByLastName: string;
     }>
   > = {};
 
@@ -149,10 +159,13 @@ export default async function RootPage({ searchParams }: PageProps) {
     }
     playlistSongsByPlaylist[row.playlistId].push({
       trackId: row.trackId,
-      platform: row.platform ?? null,
+      platform: row.platform,
       trackName: row.trackName ?? null,
       trackArtists: row.trackArtists ?? null,
       trackAlbumImageUrl: row.trackAlbumImageUrl ?? null,
+      submittedByUserId: row.submittedByUserId,
+      submittedByFirstName: row.submittedByFirstName,
+      submittedByLastName: row.submittedByLastName,
     });
   }
 
@@ -214,6 +227,53 @@ export default async function RootPage({ searchParams }: PageProps) {
     }
   }
 
+  // User rankings
+  const rankings = await db
+    .select({
+      playlistId: userRankings.playlistId,
+    })
+    .from(userRankings)
+    .where(eq(userRankings.userId, user.id))
+    .orderBy(desc(userRankings.createdAt));
+
+  const rankingsSet = new Set(rankings.map((row) => row.playlistId));
+
+  // Does user need to rank
+  let needsToRank = false;
+
+  if (userPlaylists.length > 0) {
+    const lastPlaylist = userPlaylists[0];
+    const lastPlaylistId = lastPlaylist.id;
+    const lastPlaylistEchoSessionId = lastPlaylist.echoSessionId;
+
+    const [endOfLastEchoSessionThatGeneratedPlaylist] = await db
+      .select({ end: echoSessions.end })
+      .from(echoSessions)
+      .where(eq(echoSessions.id, lastPlaylistEchoSessionId))
+      .offset(1)
+      .limit(1);
+
+    if (!rankingsSet.has(lastPlaylistId)) {
+      if (endOfLastEchoSessionThatGeneratedPlaylist) {
+        const endOfLastEchoSessionThatGeneratedPlaylistDate = new Date(
+          endOfLastEchoSessionThatGeneratedPlaylist.end,
+        );
+
+        const now = new Date();
+
+        // 1 day after the end of the last echo session that generated a playlist
+        const endOfRankingPeriod = new Date(
+          endOfLastEchoSessionThatGeneratedPlaylistDate,
+        );
+        endOfRankingPeriod.setDate(endOfRankingPeriod.getDate() + 1);
+
+        if (now < endOfRankingPeriod) {
+          needsToRank = true;
+        }
+      }
+    }
+  }
+
   return (
     <Profile
       phoneNumber={user.phoneNumber}
@@ -237,6 +297,8 @@ export default async function RootPage({ searchParams }: PageProps) {
       playlistSongsByPlaylist={playlistSongsByPlaylist}
       userId={user.id}
       streak={streak}
+      rankings={rankingsSet}
+      needsToRank={true}
     />
   );
 }

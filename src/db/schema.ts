@@ -422,3 +422,39 @@ export const userRecommendedSongs = pgTable(
       .onDelete("cascade"),
   ],
 );
+
+export const userRankings = pgTable(
+  "user_rankings",
+  {
+    id: integer().primaryKey().generatedByDefaultAsIdentity(),
+    userId: integer("user_id").notNull(),
+
+    rankedUserId: integer("ranked_user_id").notNull(),
+    playlistId: integer("playlist_id").notNull(),
+
+    createdAt: timestamps.createdAt,
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "user_rankings_user_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    foreignKey({
+      columns: [table.rankedUserId],
+      foreignColumns: [users.id],
+      name: "user_rankings_ranked_user_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    foreignKey({
+      columns: [table.playlistId],
+      foreignColumns: [playlists.id],
+      name: "user_rankings_playlist_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ],
+);

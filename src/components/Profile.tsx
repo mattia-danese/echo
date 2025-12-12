@@ -4,9 +4,11 @@ import { UserPlus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { submitPlaylistRanking } from "@/app/actions";
 import NavBar from "@/components/NavBar";
 import SettingsPanel from "@/components/SettingsPanel";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Platform } from "@/db/types";
 import { Platform as PlatformEnum } from "@/db/types";
@@ -47,14 +49,19 @@ interface ProfilePageProps {
     number,
     Array<{
       trackId: string;
-      platform: Platform | null;
+      platform: Platform;
       trackName: string | null;
       trackArtists: string | null;
       trackAlbumImageUrl: string | null;
+      submittedByUserId: number;
+      submittedByFirstName: string;
+      submittedByLastName: string;
     }>
   >;
   userId: number;
   streak: number;
+  rankings: Set<number>;
+  needsToRank: boolean;
 }
 
 export default function ProfilePage({
@@ -70,6 +77,8 @@ export default function ProfilePage({
   playlistSongsByPlaylist,
   userId,
   streak,
+  rankings,
+  needsToRank,
 }: ProfilePageProps) {
   const getTabsFromLocation = () => {
     if (typeof window === "undefined") {
@@ -95,6 +104,12 @@ export default function ProfilePage({
   const [expandedPlaylists, setExpandedPlaylists] = useState<Set<number>>(
     new Set(),
   );
+  const [selectedSongForRanking, setSelectedSongForRanking] = useState<{
+    trackId: string;
+    submittedByUserId: number;
+  } | null>(null);
+  const [rankedPlaylists, setRankedPlaylists] = useState<Set<number>>(rankings);
+  const [isSubmittingRanking, setIsSubmittingRanking] = useState(false);
   const { data: friendsData } = useFriends(userId, friendsList); // initialData = SSR list
   const { toggleMute, unfriend } = useFriendMutations(userId);
 
@@ -476,13 +491,14 @@ export default function ProfilePage({
                             <div
                               className={`rounded-xl border border-white/20 bg-black p-4 flex flex-col [backface-visibility:hidden] ${isFlipped ? "absolute inset-0 invisible" : "relative visible"}`}
                             >
-                              {isFirstCard && (
+                              {isFirstCard && needsToRank && (
                                 <div
                                   className="text-xs text-white/50 rounded-lg p-3 mb-3"
                                   style={{ backgroundColor: "#212121" }}
                                 >
-                                  submit your favorite song of the echo to see
-                                  who shared what song
+                                  {rankedPlaylists.has(pl.id)
+                                    ? "thanks for submitting - you can now see who shared what"
+                                    : "submit your favorite song of the echo to see who shared what song"}
                                 </div>
                               )}
                               <div className="flex items-center gap-4">
@@ -510,13 +526,14 @@ export default function ProfilePage({
                             <div
                               className={`rounded-xl border border-white/20 bg-black p-4 [transform:rotateY(180deg)] [backface-visibility:hidden] flex flex-col ${isFlipped ? "relative visible" : "absolute inset-0 invisible"}`}
                             >
-                              {isFirstCard && (
+                              {isFirstCard && needsToRank && (
                                 <div
                                   className="text-xs text-white/50 rounded-lg p-3 mb-3"
                                   style={{ backgroundColor: "#212121" }}
                                 >
-                                  submit your favorite song of the echo to see
-                                  who shared what song
+                                  {rankedPlaylists.has(pl.id)
+                                    ? "thanks for voting - you can now see who shared what"
+                                    : "submit your favorite song of the echo to see who shared what song"}
                                 </div>
                               )}
                               <div className="text-white font-semibold text-base mb-3">
@@ -535,34 +552,162 @@ export default function ProfilePage({
                                         .replace("{w}", String(40))
                                         .replace("{h}", String(40))
                                     : null;
+                                  const submitterName =
+                                    `${song.submittedByFirstName} ${song.submittedByLastName}`.toLowerCase();
+                                  const canSelectForRanking =
+                                    isFirstCard &&
+                                    needsToRank &&
+                                    !rankedPlaylists.has(pl.id);
+                                  const isSelected =
+                                    selectedSongForRanking?.trackId ===
+                                    song.trackId;
+
                                   return (
                                     <div
                                       key={`${pl.id}:${song.trackId}`}
-                                      className="flex items-center gap-3 shrink-0"
+                                      {...(canSelectForRanking && {
+                                        role: "button",
+                                        tabIndex: 0,
+                                        onClick: (e: React.MouseEvent) => {
+                                          e.stopPropagation();
+                                          setSelectedSongForRanking({
+                                            trackId: song.trackId,
+                                            submittedByUserId:
+                                              song.submittedByUserId,
+                                          });
+                                        },
+                                        onKeyDown: (e: React.KeyboardEvent) => {
+                                          if (
+                                            e.key === "Enter" ||
+                                            e.key === " "
+                                          ) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setSelectedSongForRanking({
+                                              trackId: song.trackId,
+                                              submittedByUserId:
+                                                song.submittedByUserId,
+                                            });
+                                          }
+                                        },
+                                      })}
+                                      className={`flex items-center justify-between gap-3 shrink-0 w-full ${
+                                        canSelectForRanking
+                                          ? `cursor-pointer rounded-lg p-1.5 transition-all ${
+                                              isSelected
+                                                ? "border-2 border-white"
+                                                : "border-2 border-transparent hover:border-white/30"
+                                            }`
+                                          : ""
+                                      }`}
                                     >
-                                      {albumImg ? (
-                                        <Image
-                                          src={albumImg}
-                                          alt={song.trackName ?? song.trackId}
-                                          width={40}
-                                          height={40}
-                                          className="rounded-md object-cover"
-                                        />
-                                      ) : (
-                                        <div className="size-10 rounded-md bg-gray-800" />
-                                      )}
-                                      <div className="text-white">
-                                        <div className="text-sm">
-                                          {song.trackName ?? "Unknown title"}
-                                        </div>
-                                        <div className="text-xs text-white/70">
-                                          {song.trackArtists ??
-                                            "Unknown artist"}
+                                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                                        {albumImg ? (
+                                          <Image
+                                            src={albumImg}
+                                            alt={song.trackName ?? song.trackId}
+                                            width={40}
+                                            height={40}
+                                            className="rounded-md object-cover shrink-0"
+                                          />
+                                        ) : (
+                                          <div className="size-10 rounded-md bg-gray-800 shrink-0" />
+                                        )}
+                                        <div className="text-white min-w-0">
+                                          <div className="text-sm truncate">
+                                            {song.trackName ?? "Unknown title"}
+                                          </div>
+                                          <div className="text-xs text-white/70 truncate">
+                                            {song.trackArtists ??
+                                              "Unknown artist"}
+                                          </div>
                                         </div>
                                       </div>
+                                      {rankedPlaylists.has(pl.id) && (
+                                        <div className="text-xs text-white/50 shrink-0">
+                                          {submitterName}
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 })}
+
+                                {/* Submit ranking button - only show for first card when needsToRank */}
+                                {isFirstCard &&
+                                  needsToRank &&
+                                  !rankedPlaylists.has(pl.id) && (
+                                    // biome-ignore lint/a11y/useSemanticElements: <explanation>
+                                    <div
+                                      role="button"
+                                      aria-label="Submit ranking"
+                                      tabIndex={
+                                        !selectedSongForRanking ||
+                                        isSubmittingRanking
+                                          ? -1
+                                          : 0
+                                      }
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (
+                                          !selectedSongForRanking ||
+                                          isSubmittingRanking
+                                        ) {
+                                          if (!selectedSongForRanking) {
+                                            alert("Please select a song first");
+                                          }
+                                          return;
+                                        }
+
+                                        setIsSubmittingRanking(true);
+                                        const result =
+                                          await submitPlaylistRanking({
+                                            userId,
+                                            playlistId: pl.id,
+                                            rankedUserId:
+                                              selectedSongForRanking.submittedByUserId,
+                                          });
+                                        setIsSubmittingRanking(false);
+
+                                        if (result.ok) {
+                                          setRankedPlaylists(
+                                            (prev) => new Set([...prev, pl.id]),
+                                          );
+                                          setSelectedSongForRanking(null);
+                                        } else {
+                                          alert(
+                                            result.message ??
+                                              "Failed to submit ranking",
+                                          );
+                                        }
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (
+                                          (e.key === "Enter" ||
+                                            e.key === " ") &&
+                                          selectedSongForRanking &&
+                                          !isSubmittingRanking
+                                        ) {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          (
+                                            e.currentTarget as HTMLElement
+                                          ).click();
+                                        }
+                                      }}
+                                      className={`w-full bg-white text-black hover:bg-gray-100 rounded-md px-4 py-2 text-center font-medium transition-colors ${
+                                        !selectedSongForRanking ||
+                                        isSubmittingRanking
+                                          ? "opacity-50 cursor-not-allowed"
+                                          : "cursor-pointer"
+                                      }`}
+                                    >
+                                      {isSubmittingRanking ? (
+                                        <Spinner className="mx-auto" />
+                                      ) : (
+                                        "submit"
+                                      )}
+                                    </div>
+                                  )}
                               </div>
                               <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10">
                                 <div className="text-xs text-white/50">
