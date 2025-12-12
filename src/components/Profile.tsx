@@ -9,6 +9,7 @@ import SettingsPanel from "@/components/SettingsPanel";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Platform } from "@/db/types";
+import { Platform as PlatformEnum } from "@/db/types";
 import { useFriendMutations, useFriends } from "@/hooks/useFriends";
 import { UploadButton } from "@/src/utils/uploadthing";
 
@@ -42,6 +43,16 @@ interface ProfilePageProps {
     playlistImageUrl: string;
     playlistUrl: string;
   }[];
+  playlistSongsByPlaylist: Record<
+    number,
+    Array<{
+      trackId: string;
+      platform: Platform | null;
+      trackName: string | null;
+      trackArtists: string | null;
+      trackAlbumImageUrl: string | null;
+    }>
+  >;
   userId: number;
   streak: number;
 }
@@ -56,6 +67,7 @@ export default function ProfilePage({
   friendsList,
   sharedSongs,
   userPlaylists,
+  playlistSongsByPlaylist,
   userId,
   streak,
 }: ProfilePageProps) {
@@ -80,6 +92,9 @@ export default function ProfilePage({
   const initialTabsRef = useRef(getTabsFromLocation());
   const [mainTab, setMainTab] = useState(initialTabsRef.current.main);
   const [pastTab, setPastTab] = useState(initialTabsRef.current.past);
+  const [expandedPlaylists, setExpandedPlaylists] = useState<Set<number>>(
+    new Set(),
+  );
   const { data: friendsData } = useFriends(userId, friendsList); // initialData = SSR list
   const { toggleMute, unfriend } = useFriendMutations(userId);
 
@@ -428,22 +443,142 @@ export default function ProfilePage({
                       no playlists yet
                     </div>
                   )}
-                  {userPlaylists.map((pl) => {
-                    return (
-                      <div key={pl.id} className="flex items-center gap-4">
-                        {getPlaylistImage(pl.playlistImageUrl)}
+                  {userPlaylists.map((pl, idx) => {
+                    const songsForPlaylist =
+                      playlistSongsByPlaylist[pl.id] ?? [];
+                    const isFlipped = expandedPlaylists.has(pl.id);
+                    const isFirstCard = idx === 0;
 
-                        <div className="text-white">
-                          <Link
-                            href={pl.playlistUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-base underline underline-offset-2 hover:opacity-90"
+                    return (
+                      <button
+                        key={pl.id}
+                        type="button"
+                        className="relative w-full group [perspective:1600px] border-0 p-0 text-left bg-transparent"
+                        onClick={() => {
+                          setExpandedPlaylists((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(pl.id)) {
+                              next.delete(pl.id);
+                            } else {
+                              next.add(pl.id);
+                            }
+                            return next;
+                          });
+                        }}
+                      >
+                        {/* Outer container for overflow clipping */}
+                        <div className="relative w-full overflow-hidden">
+                          {/* Inner container for 3D flip */}
+                          <div
+                            className={`relative w-full transition-transform duration-500 ease-in-out [transform-style:preserve-3d] ${isFlipped ? "[transform:rotateY(180deg)]" : "[transform:rotateY(0deg)]"}`}
                           >
-                            {pl.playlistName}
-                          </Link>
+                            {/* Front */}
+                            <div
+                              className={`rounded-xl border border-white/20 bg-black p-4 flex flex-col [backface-visibility:hidden] ${isFlipped ? "absolute inset-0 invisible" : "relative visible"}`}
+                            >
+                              {isFirstCard && (
+                                <div className="text-xs text-blue-500 bg-blue-500/20 border border-blue-500/30 rounded-lg p-3 mb-3">
+                                  💡 submit your favorite song of the echo to
+                                  see who shared what song
+                                </div>
+                              )}
+                              <div className="flex items-center gap-4">
+                                <div className="shrink-0">
+                                  {getPlaylistImage(pl.playlistImageUrl)}
+                                </div>
+                                <div className="flex flex-col text-white">
+                                  <div className="text-lg font-semibold">
+                                    {pl.playlistName}
+                                  </div>
+                                  <div className="text-sm text-white/70">
+                                    {songsForPlaylist.length}{" "}
+                                    {songsForPlaylist.length === 1
+                                      ? "song"
+                                      : "songs"}
+                                  </div>
+                                  <div className="text-xs text-white/50 mt-1">
+                                    tap to flip
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Back */}
+                            <div
+                              className={`rounded-xl border border-white/20 bg-black p-4 [transform:rotateY(180deg)] [backface-visibility:hidden] flex flex-col ${isFlipped ? "relative visible" : "absolute inset-0 invisible"}`}
+                            >
+                              {isFirstCard && (
+                                <div className="text-xs text-blue-500 bg-blue-500/20 border border-blue-500/30 rounded-lg p-3 mb-3">
+                                  💡 submit your favorite song of the echo to
+                                  see who shared what song
+                                </div>
+                              )}
+                              <div className="text-white font-semibold text-base mb-3">
+                                songs
+                              </div>
+
+                              <div className="flex flex-col gap-3 mb-3">
+                                {songsForPlaylist.length === 0 && (
+                                  <div className="text-white/70 text-sm">
+                                    no songs yet
+                                  </div>
+                                )}
+                                {songsForPlaylist.map((song) => {
+                                  const albumImg = song.trackAlbumImageUrl
+                                    ? song.trackAlbumImageUrl
+                                        .replace("{w}", String(40))
+                                        .replace("{h}", String(40))
+                                    : null;
+                                  return (
+                                    <div
+                                      key={`${pl.id}:${song.trackId}`}
+                                      className="flex items-center gap-3 shrink-0"
+                                    >
+                                      {albumImg ? (
+                                        <Image
+                                          src={albumImg}
+                                          alt={song.trackName ?? song.trackId}
+                                          width={40}
+                                          height={40}
+                                          className="rounded-md object-cover"
+                                        />
+                                      ) : (
+                                        <div className="size-10 rounded-md bg-gray-800" />
+                                      )}
+                                      <div className="text-white">
+                                        <div className="text-sm">
+                                          {song.trackName ?? "Unknown title"}
+                                        </div>
+                                        <div className="text-xs text-white/70">
+                                          {song.trackArtists ??
+                                            "Unknown artist"}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10">
+                                <div className="text-xs text-white/50">
+                                  tap to flip back
+                                </div>
+                                <Link
+                                  href={pl.playlistUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-white/50 hover:text-white/70"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  go to{" "}
+                                  {pl.platform === PlatformEnum.SPOTIFY
+                                    ? "spotify"
+                                    : "apple music"}
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>

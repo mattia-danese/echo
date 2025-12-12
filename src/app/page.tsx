@@ -115,6 +115,47 @@ export default async function RootPage({ searchParams }: PageProps) {
     .where(eq(playlists.userId, user.id))
     .orderBy(desc(playlists.createdAt));
 
+  // Playlist songs joined with user echo sessions to get track metadata
+  const playlistSongsRows = await db
+    .select({
+      playlistId: playlistSongs.playlistId,
+      trackId: playlistSongs.trackId,
+      trackName: userEchoSessions.trackName,
+      trackArtists: userEchoSessions.trackArtists,
+      trackAlbumImageUrl: userEchoSessions.trackAlbumImageUrl,
+      platform: userEchoSessions.platform,
+    })
+    .from(playlistSongs)
+    .leftJoin(
+      userEchoSessions,
+      eq(playlistSongs.trackId, userEchoSessions.trackId),
+    )
+    .where(inArray(playlistSongs.playlistId, playlistIdsSubquery));
+
+  const playlistSongsByPlaylist: Record<
+    number,
+    Array<{
+      trackId: string;
+      platform: Platform | null;
+      trackName: string | null;
+      trackArtists: string | null;
+      trackAlbumImageUrl: string | null;
+    }>
+  > = {};
+
+  for (const row of playlistSongsRows) {
+    if (!playlistSongsByPlaylist[row.playlistId]) {
+      playlistSongsByPlaylist[row.playlistId] = [];
+    }
+    playlistSongsByPlaylist[row.playlistId].push({
+      trackId: row.trackId,
+      platform: row.platform ?? null,
+      trackName: row.trackName ?? null,
+      trackArtists: row.trackArtists ?? null,
+      trackAlbumImageUrl: row.trackAlbumImageUrl ?? null,
+    });
+  }
+
   const getPlaylistUrl = (platform: Platform, platformPlaylistId: string) => {
     if (platform === Platform.SPOTIFY) {
       return SpotifyPlatform.createPlaylistLink(platformPlaylistId);
@@ -193,6 +234,7 @@ export default async function RootPage({ searchParams }: PageProps) {
         }>
       }
       userPlaylists={userPlaylists}
+      playlistSongsByPlaylist={playlistSongsByPlaylist}
       userId={user.id}
       streak={streak}
     />
