@@ -477,9 +477,12 @@ export default function ProfilePage({
                               className={`rounded-xl border border-white/20 bg-black p-4 flex flex-col [backface-visibility:hidden] ${isFlipped ? "absolute inset-0 invisible" : "relative visible"}`}
                             >
                               {isFirstCard && (
-                                <div className="text-xs text-blue-500 bg-blue-500/20 border border-blue-500/30 rounded-lg p-3 mb-3">
-                                  💡 submit your favorite song of the echo to
-                                  see who shared what song
+                                <div
+                                  className="text-xs text-white/50 rounded-lg p-3 mb-3"
+                                  style={{ backgroundColor: "#212121" }}
+                                >
+                                  submit your favorite song of the echo to see
+                                  who shared what song
                                 </div>
                               )}
                               <div className="flex items-center gap-4">
@@ -508,9 +511,12 @@ export default function ProfilePage({
                               className={`rounded-xl border border-white/20 bg-black p-4 [transform:rotateY(180deg)] [backface-visibility:hidden] flex flex-col ${isFlipped ? "relative visible" : "absolute inset-0 invisible"}`}
                             >
                               {isFirstCard && (
-                                <div className="text-xs text-blue-500 bg-blue-500/20 border border-blue-500/30 rounded-lg p-3 mb-3">
-                                  💡 submit your favorite song of the echo to
-                                  see who shared what song
+                                <div
+                                  className="text-xs text-white/50 rounded-lg p-3 mb-3"
+                                  style={{ backgroundColor: "#212121" }}
+                                >
+                                  submit your favorite song of the echo to see
+                                  who shared what song
                                 </div>
                               )}
                               <div className="text-white font-semibold text-base mb-3">
