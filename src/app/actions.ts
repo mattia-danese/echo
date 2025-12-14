@@ -21,6 +21,7 @@ import {
   spotifyAuth,
   userAuth,
   userEchoSessions,
+  userRankings,
   userRecommendedSongs,
   users,
   userTrackPlays,
@@ -1301,5 +1302,38 @@ export async function verifyOTP(phoneNumber: string, code: string) {
       data: { verified: false },
       message: "Failed to verify OTP",
     };
+  }
+}
+
+export async function submitPlaylistRanking({
+  userId,
+  userName,
+  playlistId,
+  rankedUserId,
+  submittedByPhoneNumber,
+}: {
+  userId: number;
+  userName: string;
+  playlistId: number;
+  rankedUserId: number;
+  submittedByPhoneNumber: string;
+}) {
+  try {
+    await db.insert(userRankings).values({
+      userId,
+      playlistId,
+      rankedUserId,
+    });
+
+    await sendMessagesTask.trigger({
+      data: {
+        [submittedByPhoneNumber]: [`${userName} liked your song`],
+      },
+    });
+
+    return { ok: true };
+  } catch (error) {
+    console.error("Error submitting playlist ranking:", error);
+    return { ok: false, message: "Failed to submit ranking" };
   }
 }

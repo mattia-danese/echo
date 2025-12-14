@@ -4,11 +4,14 @@ import { UserPlus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { submitPlaylistRanking } from "@/app/actions";
 import NavBar from "@/components/NavBar";
 import SettingsPanel from "@/components/SettingsPanel";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Platform } from "@/db/types";
+import { Platform as PlatformEnum } from "@/db/types";
 import { useFriendMutations, useFriends } from "@/hooks/useFriends";
 import { UploadButton } from "@/src/utils/uploadthing";
 
@@ -42,8 +45,24 @@ interface ProfilePageProps {
     playlistImageUrl: string;
     playlistUrl: string;
   }[];
+  playlistSongsByPlaylist: Record<
+    number,
+    Array<{
+      trackId: string;
+      platform: Platform;
+      trackName: string | null;
+      trackArtists: string | null;
+      trackAlbumImageUrl: string | null;
+      submittedByUserId: number;
+      submittedByFirstName: string;
+      submittedByLastName: string;
+      submittedByPhoneNumber: string;
+    }>
+  >;
   userId: number;
   streak: number;
+  rankings: Set<number>;
+  needsToRank: boolean;
 }
 
 export default function ProfilePage({
@@ -56,13 +75,43 @@ export default function ProfilePage({
   friendsList,
   sharedSongs,
   userPlaylists,
+  playlistSongsByPlaylist,
   userId,
   streak,
+  rankings,
+  needsToRank,
 }: ProfilePageProps) {
+  const getTabsFromLocation = () => {
+    if (typeof window === "undefined") {
+      return { main: "friends", past: "playlists" };
+    }
+
+    const hash = window.location.hash.replace("#", "");
+    const tabParam = new URLSearchParams(window.location.search).get("tab");
+    const target = (hash || tabParam || "").toLowerCase();
+    if (target === "playlists" || target === "your-playlists") {
+      return { main: "past", past: "playlists" };
+    }
+    return { main: "friends", past: "playlists" };
+  };
+
   const [uploadedProfilePictureUrl, setUploadedProfilePictureUrl] = useState<
     string | null
   >(profilePictureUrl);
   const previewUrlRef = useRef<string | null>(null);
+  const initialTabsRef = useRef(getTabsFromLocation());
+  const [mainTab, setMainTab] = useState(initialTabsRef.current.main);
+  const [pastTab, setPastTab] = useState(initialTabsRef.current.past);
+  const [expandedPlaylists, setExpandedPlaylists] = useState<Set<number>>(
+    new Set(),
+  );
+  const [selectedSongForRanking, setSelectedSongForRanking] = useState<{
+    trackId: string;
+    submittedByUserId: number;
+    submittedByPhoneNumber: string;
+  } | null>(null);
+  const [rankedPlaylists, setRankedPlaylists] = useState<Set<number>>(rankings);
+  const [isSubmittingRanking, setIsSubmittingRanking] = useState(false);
   const { data: friendsData } = useFriends(userId, friendsList); // initialData = SSR list
   const { toggleMute, unfriend } = useFriendMutations(userId);
 
@@ -78,6 +127,27 @@ export default function ProfilePage({
       document.documentElement.scrollTop = 0;
       document.body.scrollTop = 0;
     } catch {}
+  }, []);
+
+  // After hydration, re-read the URL to apply tab deep-linking (SSR can't see hash/query)
+  useEffect(() => {
+    const readTabsFromLocation = () => {
+      if (typeof window === "undefined") {
+        return { main: "friends", past: "playlists" };
+      }
+
+      const hash = window.location.hash.replace("#", "");
+      const tabParam = new URLSearchParams(window.location.search).get("tab");
+      const target = (hash || tabParam || "").toLowerCase();
+      if (target === "playlists" || target === "your-playlists") {
+        return { main: "past", past: "playlists" };
+      }
+      return { main: "friends", past: "playlists" };
+    };
+
+    const tabs = readTabsFromLocation();
+    setMainTab(tabs.main);
+    setPastTab(tabs.past);
   }, []);
 
   const getPlaylistImage = (playlistImageUrl: string) => {
@@ -234,14 +304,12 @@ export default function ProfilePage({
         )}
 
         {/* Tabs */}
-        <Tabs defaultValue="friends" className="w-full">
+        <Tabs
+          value={mainTab}
+          onValueChange={(val) => setMainTab(val)}
+          className="w-full"
+        >
           <TabsList className="w-full max-w-2xl mx-auto">
-            <TabsTrigger
-              className=" data-[state=active]:border data-[state=active]:border-white"
-              value="friends"
-            >
-              friends
-            </TabsTrigger>
             <TabsTrigger
               className=" data-[state=active]:border data-[state=active]:border-white"
               value="past"
@@ -250,11 +318,369 @@ export default function ProfilePage({
             </TabsTrigger>
             <TabsTrigger
               className=" data-[state=active]:border data-[state=active]:border-white"
+              value="friends"
+            >
+              friends
+            </TabsTrigger>
+            <TabsTrigger
+              className=" data-[state=active]:border data-[state=active]:border-white"
               value="settings"
             >
               settings
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="past" className="mt-4">
+            <Tabs
+              value={pastTab}
+              defaultValue="playlists"
+              onValueChange={(val) => setPastTab(val)}
+              className="w-full"
+            >
+              <TabsList className="w-full max-w-2xl mx-auto">
+                <TabsTrigger
+                  className=" data-[state=active]:border data-[state=active]:border-white"
+                  value="playlists"
+                >
+                  your playlists
+                </TabsTrigger>
+                <TabsTrigger
+                  className=" data-[state=active]:border data-[state=active]:border-white"
+                  value="songs"
+                >
+                  songs you've shared
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="playlists" className="mt-4">
+                <div className="flex flex-col gap-4 w-full max-w-2xl mx-auto">
+                  {userPlaylists.length === 0 && (
+                    <div className="text-white/80 text-center">
+                      no playlists yet
+                    </div>
+                  )}
+                  {userPlaylists.map((pl, idx) => {
+                    const songsForPlaylist =
+                      playlistSongsByPlaylist[pl.id] ?? [];
+                    const isFlipped = expandedPlaylists.has(pl.id);
+                    const isFirstCard = idx === 0;
+
+                    return (
+                      <button
+                        key={pl.id}
+                        type="button"
+                        className="relative w-full group [perspective:1600px] border-0 p-0 text-left bg-transparent"
+                        onClick={() => {
+                          setExpandedPlaylists((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(pl.id)) {
+                              next.delete(pl.id);
+                            } else {
+                              next.add(pl.id);
+                            }
+                            return next;
+                          });
+                        }}
+                      >
+                        {/* Outer container for overflow clipping */}
+                        <div className="relative w-full overflow-hidden">
+                          {/* Inner container for 3D flip */}
+                          <div
+                            className={`relative w-full transition-transform duration-500 ease-in-out [transform-style:preserve-3d] ${isFlipped ? "[transform:rotateY(180deg)]" : "[transform:rotateY(0deg)]"}`}
+                          >
+                            {/* Front */}
+                            <div
+                              className={`rounded-xl border border-white/20 bg-black p-4 flex flex-col [backface-visibility:hidden] ${isFlipped ? "absolute inset-0 invisible" : "relative visible"}`}
+                            >
+                              {isFirstCard && needsToRank && (
+                                <div
+                                  className="text-xs text-white/50 rounded-lg p-3 mb-3"
+                                  style={{ backgroundColor: "#212121" }}
+                                >
+                                  {rankedPlaylists.has(pl.id)
+                                    ? "thanks for submitting - you can now see who shared what"
+                                    : "submit your favorite song of the echo to see who shared what song"}
+                                </div>
+                              )}
+                              <div className="flex items-center gap-4">
+                                <div className="shrink-0">
+                                  {getPlaylistImage(pl.playlistImageUrl)}
+                                </div>
+                                <div className="flex flex-col text-white">
+                                  <div className="text-lg font-semibold">
+                                    {pl.playlistName}
+                                  </div>
+                                  <div className="text-sm text-white/70">
+                                    {songsForPlaylist.length}{" "}
+                                    {songsForPlaylist.length === 1
+                                      ? "song"
+                                      : "songs"}
+                                  </div>
+                                  <div className="text-xs text-white/50 mt-1">
+                                    tap to flip
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Back */}
+                            <div
+                              className={`rounded-xl border border-white/20 bg-black p-4 [transform:rotateY(180deg)] [backface-visibility:hidden] flex flex-col ${isFlipped ? "relative visible" : "absolute inset-0 invisible"}`}
+                            >
+                              {isFirstCard && needsToRank && (
+                                <div
+                                  className="text-xs text-white/50 rounded-lg p-3 mb-3"
+                                  style={{ backgroundColor: "#212121" }}
+                                >
+                                  {rankedPlaylists.has(pl.id)
+                                    ? "thanks for voting - you can now see who shared what"
+                                    : "submit your favorite song of the echo to see who shared what song"}
+                                </div>
+                              )}
+                              <div className="text-white font-semibold text-base mb-3">
+                                songs
+                              </div>
+
+                              <div className="flex flex-col gap-3 mb-3">
+                                {songsForPlaylist.length === 0 && (
+                                  <div className="text-white/70 text-sm">
+                                    no songs yet
+                                  </div>
+                                )}
+                                {songsForPlaylist.map((song) => {
+                                  const albumImg = song.trackAlbumImageUrl
+                                    ? song.trackAlbumImageUrl
+                                        .replace("{w}", String(40))
+                                        .replace("{h}", String(40))
+                                    : null;
+                                  const submitterName =
+                                    `${song.submittedByFirstName} ${song.submittedByLastName}`.toLowerCase();
+                                  const canSelectForRanking =
+                                    isFirstCard &&
+                                    needsToRank &&
+                                    !rankedPlaylists.has(pl.id);
+                                  const isSelected =
+                                    selectedSongForRanking?.trackId ===
+                                    song.trackId;
+
+                                  return (
+                                    <div
+                                      key={`${pl.id}:${song.trackId}`}
+                                      {...(canSelectForRanking && {
+                                        role: "button",
+                                        tabIndex: 0,
+                                        onClick: (e: React.MouseEvent) => {
+                                          e.stopPropagation();
+                                          setSelectedSongForRanking({
+                                            trackId: song.trackId,
+                                            submittedByUserId:
+                                              song.submittedByUserId,
+                                            submittedByPhoneNumber:
+                                              song.submittedByPhoneNumber,
+                                          });
+                                        },
+                                        onKeyDown: (e: React.KeyboardEvent) => {
+                                          if (
+                                            e.key === "Enter" ||
+                                            e.key === " "
+                                          ) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setSelectedSongForRanking({
+                                              trackId: song.trackId,
+                                              submittedByUserId:
+                                                song.submittedByUserId,
+                                              submittedByPhoneNumber:
+                                                song.submittedByPhoneNumber,
+                                            });
+                                          }
+                                        },
+                                      })}
+                                      className={`flex items-center justify-between gap-3 shrink-0 w-full ${
+                                        canSelectForRanking
+                                          ? `cursor-pointer rounded-lg p-1.5 transition-all ${
+                                              isSelected
+                                                ? "border-2 border-white"
+                                                : "border-2 border-transparent hover:border-white/30"
+                                            }`
+                                          : ""
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                                        {albumImg ? (
+                                          <Image
+                                            src={albumImg}
+                                            alt={song.trackName ?? song.trackId}
+                                            width={40}
+                                            height={40}
+                                            className="rounded-md object-cover shrink-0"
+                                          />
+                                        ) : (
+                                          <div className="size-10 rounded-md bg-gray-800 shrink-0" />
+                                        )}
+                                        <div className="text-white min-w-0">
+                                          <div className="text-sm truncate">
+                                            {(
+                                              song.trackName ?? "unknown title"
+                                            ).toLowerCase()}
+                                          </div>
+                                          <div className="text-xs text-white/70 truncate">
+                                            {(
+                                              song.trackArtists ??
+                                              "unknown artist"
+                                            ).toLowerCase()}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      {rankedPlaylists.has(pl.id) && (
+                                        <div className="text-xs text-white/50 shrink-0">
+                                          {submitterName}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+
+                                {/* Submit ranking button - only show for first card when needsToRank */}
+                                {isFirstCard &&
+                                  needsToRank &&
+                                  !rankedPlaylists.has(pl.id) && (
+                                    // biome-ignore lint/a11y/useSemanticElements: using div with role button for custom styling
+                                    <div
+                                      role="button"
+                                      aria-label="Submit ranking"
+                                      tabIndex={
+                                        !selectedSongForRanking ||
+                                        isSubmittingRanking
+                                          ? -1
+                                          : 0
+                                      }
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (
+                                          !selectedSongForRanking ||
+                                          isSubmittingRanking
+                                        ) {
+                                          if (!selectedSongForRanking) {
+                                            alert("Please select a song first");
+                                          }
+                                          return;
+                                        }
+
+                                        setIsSubmittingRanking(true);
+                                        const result =
+                                          await submitPlaylistRanking({
+                                            userId,
+                                            userName: `${firstName} ${lastName}`,
+                                            playlistId: pl.id,
+                                            rankedUserId:
+                                              selectedSongForRanking.submittedByUserId,
+                                            submittedByPhoneNumber:
+                                              selectedSongForRanking.submittedByPhoneNumber,
+                                          });
+                                        setIsSubmittingRanking(false);
+
+                                        if (result.ok) {
+                                          setRankedPlaylists(
+                                            (prev) => new Set([...prev, pl.id]),
+                                          );
+                                          setSelectedSongForRanking(null);
+                                        } else {
+                                          alert(
+                                            result.message ??
+                                              "Failed to submit ranking",
+                                          );
+                                        }
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (
+                                          (e.key === "Enter" ||
+                                            e.key === " ") &&
+                                          selectedSongForRanking &&
+                                          !isSubmittingRanking
+                                        ) {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          (
+                                            e.currentTarget as HTMLElement
+                                          ).click();
+                                        }
+                                      }}
+                                      className={`w-full bg-white text-black hover:bg-gray-100 rounded-md px-4 py-2 text-center font-medium transition-colors ${
+                                        !selectedSongForRanking ||
+                                        isSubmittingRanking
+                                          ? "opacity-50 cursor-not-allowed"
+                                          : "cursor-pointer"
+                                      }`}
+                                    >
+                                      {isSubmittingRanking ? (
+                                        <Spinner className="mx-auto" />
+                                      ) : (
+                                        "submit"
+                                      )}
+                                    </div>
+                                  )}
+                              </div>
+                              <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10">
+                                <div className="text-xs text-white/50">
+                                  tap to flip back
+                                </div>
+                                <Link
+                                  href={pl.playlistUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-white/50 hover:text-white/70"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  go to{" "}
+                                  {pl.platform === PlatformEnum.SPOTIFY
+                                    ? "spotify"
+                                    : "apple music"}
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="songs" className="mt-4">
+                <div className="flex flex-col gap-4 w-full max-w-2xl mx-auto">
+                  {sharedSongs.length === 0 && (
+                    <div className="text-white/80 text-center">
+                      no songs yet
+                    </div>
+                  )}
+                  {sharedSongs.map((row) => (
+                    <div
+                      key={`${row.platform}:${row.trackId}`}
+                      className="flex items-center gap-4"
+                    >
+                      {/* <Skeleton className="size-10 rounded-md bg-gray-800" /> */}
+                      <Image
+                        src={row.trackAlbumImageUrl
+                          .replace("{w}", String(40))
+                          .replace("{h}", String(40))}
+                        alt={row.trackName as string}
+                        width={40}
+                        height={40}
+                        className="rounded-md"
+                      />
+                      <div className="text-white">
+                        <div className="text-base">
+                          {row.trackName.toLowerCase()} -{" "}
+                          {row.trackArtists.toLowerCase()}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </TabsContent>
 
           <TabsContent value="friends" className="mt-4">
             <div className="flex flex-col gap-4 w-full max-w-2xl mx-auto">
@@ -324,85 +750,6 @@ export default function ProfilePage({
                 );
               })}
             </div>
-          </TabsContent>
-
-          <TabsContent value="past" className="mt-4">
-            <Tabs defaultValue="songs" className="w-full">
-              <TabsList className="w-full max-w-2xl mx-auto">
-                <TabsTrigger
-                  className=" data-[state=active]:border data-[state=active]:border-white"
-                  value="songs"
-                >
-                  songs you've shared
-                </TabsTrigger>
-                <TabsTrigger
-                  className=" data-[state=active]:border data-[state=active]:border-white"
-                  value="playlists"
-                >
-                  your playlists
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="songs" className="mt-4">
-                <div className="flex flex-col gap-4 w-full max-w-2xl mx-auto">
-                  {sharedSongs.length === 0 && (
-                    <div className="text-white/80 text-center">
-                      no songs yet
-                    </div>
-                  )}
-                  {sharedSongs.map((row) => (
-                    <div
-                      key={`${row.platform}:${row.trackId}`}
-                      className="flex items-center gap-4"
-                    >
-                      {/* <Skeleton className="size-10 rounded-md bg-gray-800" /> */}
-                      <Image
-                        src={row.trackAlbumImageUrl
-                          .replace("{w}", String(40))
-                          .replace("{h}", String(40))}
-                        alt={row.trackName as string}
-                        width={40}
-                        height={40}
-                        className="rounded-md"
-                      />
-                      <div className="text-white">
-                        <div className="text-base">
-                          {row.trackName} - {row.trackArtists}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </TabsContent>
-
-              <TabsContent value="playlists" className="mt-4">
-                <div className="flex flex-col gap-4 w-full max-w-2xl mx-auto">
-                  {userPlaylists.length === 0 && (
-                    <div className="text-white/80 text-center">
-                      no playlists yet
-                    </div>
-                  )}
-                  {userPlaylists.map((pl) => {
-                    return (
-                      <div key={pl.id} className="flex items-center gap-4">
-                        {getPlaylistImage(pl.playlistImageUrl)}
-
-                        <div className="text-white">
-                          <Link
-                            href={pl.playlistUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-base underline underline-offset-2 hover:opacity-90"
-                          >
-                            {pl.playlistName}
-                          </Link>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </TabsContent>
-            </Tabs>
           </TabsContent>
 
           <TabsContent value="settings" className="mt-4">
