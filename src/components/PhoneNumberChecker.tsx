@@ -1,5 +1,7 @@
 "use client";
 
+import { getCountryCallingCode } from "libphonenumber-js";
+import type { CountryCode } from "libphonenumber-js/core";
 import { CircleArrowRight, CircleCheck, Loader2 } from "lucide-react";
 import { useId, useState } from "react";
 import PhoneInput from "react-phone-number-input";
@@ -30,6 +32,9 @@ export default function PhoneNumberChecker({
   handleCreateFriendship,
 }: PhoneNumberCheckerProps) {
   const [isCheckingPhoneNumber, setIsCheckingPhoneNumber] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState<
+    CountryCode | undefined
+  >("US");
 
   const phoneNumberInputId = useId();
 
@@ -87,9 +92,31 @@ export default function PhoneNumberChecker({
           id={phoneNumberInputId}
           international
           defaultCountry="US"
+          country={selectedCountry}
           value={phoneNumber}
+          onCountryChange={(country) => {
+            setSelectedCountry(country ?? "US");
+          }}
           onChange={(value) => {
-            setPhoneNumber(value || "");
+            if (!value) {
+              setPhoneNumber("");
+              setPhoneNumberChecked(false);
+              return;
+            }
+
+            const countryCode = selectedCountry
+              ? getCountryCallingCode(selectedCountry)
+              : "1";
+            const expectedPrefix = `+${countryCode}`;
+
+            // If value doesn't start with the expected country code, add it
+            if (!value.startsWith(expectedPrefix)) {
+              const digits = value.replace(/\D/g, "");
+              setPhoneNumber(`${expectedPrefix}${digits}`);
+            } else {
+              setPhoneNumber(value);
+            }
+
             setPhoneNumberChecked(false);
           }}
           className="flex-1 phone-input-custom"
