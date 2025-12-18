@@ -102,8 +102,20 @@ export default function ProfilePage({
   const initialTabsRef = useRef(getTabsFromLocation());
   const [mainTab, setMainTab] = useState(initialTabsRef.current.main);
   const [pastTab, setPastTab] = useState(initialTabsRef.current.past);
+  const initialExpandedPlaylists = (): Set<number> => {
+    const initialTabs = getTabsFromLocation();
+    if (
+      initialTabs.main === "past" &&
+      initialTabs.past === "playlists" &&
+      userPlaylists.length > 0
+    ) {
+      return new Set([userPlaylists[0].id]);
+    }
+    return new Set();
+  };
+
   const [expandedPlaylists, setExpandedPlaylists] = useState<Set<number>>(
-    new Set(),
+    initialExpandedPlaylists(),
   );
   const [selectedSongForRanking, setSelectedSongForRanking] = useState<{
     trackId: string;
