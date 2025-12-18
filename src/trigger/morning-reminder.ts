@@ -157,6 +157,7 @@ export const morningReminderTask = schedules.task({
     const nowEST = toZonedTime(now, timezone);
 
     if (isSameDay(sessionEndDateEST, nowEST)) {
+      logger.log("running morning reminder text");
       return morningReminderText(echoSession.id);
     }
 
@@ -164,6 +165,7 @@ export const morningReminderTask = schedules.task({
     const yesterdayEST = subDays(nowEST, 1);
 
     if (isSameDay(sessionStartDateEST, yesterdayEST)) {
+      logger.log("running ranking text");
       return rankingText();
     }
 

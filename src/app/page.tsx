@@ -245,32 +245,26 @@ export default async function RootPage({ searchParams }: PageProps) {
   let needsToRank = false;
 
   if (userPlaylists.length > 0) {
-    const lastPlaylist = userPlaylists[0];
-    const lastPlaylistId = lastPlaylist.id;
-    const lastPlaylistEchoSessionId = lastPlaylist.echoSessionId;
+    const mostRecentPlaylist = userPlaylists[0];
+    const mostRecentPlaylistId = mostRecentPlaylist.id;
+    const mostRecentPlaylistEchoSessionId = mostRecentPlaylist.echoSessionId;
 
-    const [endOfLastEchoSessionThatGeneratedPlaylist] = await db
-      .select({ end: echoSessions.end })
-      .from(echoSessions)
-      .where(eq(echoSessions.id, lastPlaylistEchoSessionId))
-      .offset(1)
-      .limit(1);
+    // Check if user hasn't ranked their most recent playlist
+    if (!rankingsSet.has(mostRecentPlaylistId)) {
+      // Get the most recent two echo sessions to check if the playlist's session is the second most recent
+      const recentEchoSessions = await db
+        .select({ id: echoSessions.id })
+        .from(echoSessions)
+        .orderBy(desc(echoSessions.createdAt))
+        .limit(2);
 
-    if (!rankingsSet.has(lastPlaylistId)) {
-      if (endOfLastEchoSessionThatGeneratedPlaylist) {
-        const endOfLastEchoSessionThatGeneratedPlaylistDate = new Date(
-          endOfLastEchoSessionThatGeneratedPlaylist.end,
-        );
+      if (recentEchoSessions.length >= 2) {
+        const secondMostRecentEchoSession = recentEchoSessions[1];
 
-        const now = new Date();
-
-        // 1 day after the end of the last echo session that generated a playlist
-        const endOfRankingPeriod = new Date(
-          endOfLastEchoSessionThatGeneratedPlaylistDate,
-        );
-        endOfRankingPeriod.setDate(endOfRankingPeriod.getDate() + 1);
-
-        if (now < endOfRankingPeriod) {
+        // Check if the playlist's echo session is the second most recent
+        if (
+          secondMostRecentEchoSession.id === mostRecentPlaylistEchoSessionId
+        ) {
           needsToRank = true;
         }
       }
