@@ -20,9 +20,7 @@ export function useCountdown(endTime: string | null): string | null {
       }
 
       const hours = Math.floor(difference / (1000 * 60 * 60));
-      const minutes = Math.floor(
-        (difference % (1000 * 60 * 60)) / (1000 * 60),
-      );
+      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((difference % (1000 * 60)) / 1000);
 
       const formatted = `${hours}h ${minutes}min ${seconds}sec`;
@@ -46,13 +44,9 @@ export function useCountdown(endTime: string | null): string | null {
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener(
-        "visibilitychange",
-        handleVisibilityChange,
-      );
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [endTime]);
 
   return timeRemaining;
 }
-
