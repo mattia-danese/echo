@@ -29,14 +29,18 @@ import { Spinner } from "@/components/ui/spinner";
 interface LogInSignUpProps {
   accountStatus?: string;
   appleDeveloperToken: string;
+  initialPhoneNumber?: string;
 }
 
 export default function LogInSignUp({
   accountStatus,
   appleDeveloperToken,
+  initialPhoneNumber,
 }: LogInSignUpProps) {
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [phoneNumberChecked, setPhoneNumberChecked] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState(initialPhoneNumber ?? "");
+  const [phoneNumberChecked, setPhoneNumberChecked] = useState(
+    !!initialPhoneNumber,
+  );
   const [showRegistration, setShowRegistration] = useState(false);
   const [otpOpen, setOtpOpen] = useState(false);
   const [otpValue, setOtpValue] = useState("");
@@ -54,8 +58,15 @@ export default function LogInSignUp({
   const [consentChecked, setConsentChecked] = useState(false);
 
   useEffect(() => {
-    const newUrl = window.location.origin + window.location.pathname;
-    window.history.replaceState({}, document.title, newUrl);
+    // Clean up URL, preserving tab parameter if present
+    const url = new URL(window.location.href);
+    const tabParam = url.searchParams.get("tab");
+    url.searchParams.delete("token");
+    url.searchParams.delete("accountStatus");
+    if (tabParam) {
+      url.searchParams.set("tab", tabParam);
+    }
+    window.history.replaceState({}, document.title, url.toString());
   }, []);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: phoneNumber is a valid dependency

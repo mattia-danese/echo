@@ -23,16 +23,31 @@ import { SpotifyPlatform } from "@/platforms/spotify_platform";
 interface PageProps {
   searchParams: Promise<{
     accountStatus?: string;
+    token?: string;
   }>;
 }
 
 export default async function RootPage({ searchParams }: PageProps) {
   const resolvedSearchParams = await searchParams;
   const accountStatus = resolvedSearchParams.accountStatus;
+  const token = resolvedSearchParams.token;
 
   // Fetch Apple developer token to pass to client when needed (MusicKit config)
   const [dev] = await db.select().from(appleDevToken).limit(1);
   const appleDeveloperToken = dev?.token ?? "";
+
+  let initialPhoneNumber: string | undefined;
+  if (token) {
+    const [userWithToken] = await db
+      .select({ phoneNumber: users.phoneNumber })
+      .from(users)
+      .where(and(eq(users.friendLinkToken, token), eq(users.isDeleted, false)))
+      .limit(1);
+
+    if (userWithToken) {
+      initialPhoneNumber = userWithToken.phoneNumber;
+    }
+  }
 
   const user = await getCurrentUser();
   if (!user) {
@@ -40,6 +55,7 @@ export default async function RootPage({ searchParams }: PageProps) {
       <LogInSignUp
         accountStatus={accountStatus}
         appleDeveloperToken={appleDeveloperToken}
+        initialPhoneNumber={initialPhoneNumber}
       />
     );
   }

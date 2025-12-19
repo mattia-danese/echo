@@ -88,6 +88,7 @@ const rankingText = async () => {
     .select({
       userId: users.id,
       phoneNumber: users.phoneNumber,
+      friendLinkToken: users.friendLinkToken,
     })
     .from(users)
     .innerJoin(playlists, eq(users.id, playlists.userId))
@@ -110,7 +111,7 @@ const rankingText = async () => {
   for (const user of userData) {
     sendMessagesData[user.phoneNumber] = [
       "curious to see who shared what song? check it out here",
-      `https://text-echo.com/?tab=playlists`,
+      `https://text-echo.com/?tab=playlists&token=${user.friendLinkToken}`,
     ];
   }
 
