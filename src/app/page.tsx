@@ -287,6 +287,15 @@ export default async function RootPage({ searchParams }: PageProps) {
     }
   }
 
+  // Ranking Countdown
+  const [currentSession] = await db
+    .select({ end: echoSessions.end })
+    .from(echoSessions)
+    .orderBy(desc(echoSessions.createdAt))
+    .limit(1);
+
+  const currentSessionEndTime = currentSession?.end ?? null;
+
   return (
     <Profile
       phoneNumber={user.phoneNumber}
@@ -312,6 +321,7 @@ export default async function RootPage({ searchParams }: PageProps) {
       streak={streak}
       rankings={rankingsSet}
       needsToRank={needsToRank}
+      currentSessionEndTime={currentSessionEndTime}
     />
   );
 }

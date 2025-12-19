@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { submitPlaylistRanking } from "@/app/actions";
+import { useCountdown } from "@/components/Countdown";
 import NavBar from "@/components/NavBar";
 import SettingsPanel from "@/components/SettingsPanel";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,7 @@ interface ProfilePageProps {
   streak: number;
   rankings: Set<number>;
   needsToRank: boolean;
+  currentSessionEndTime: string | null;
 }
 
 export default function ProfilePage({
@@ -80,6 +82,7 @@ export default function ProfilePage({
   streak,
   rankings,
   needsToRank,
+  currentSessionEndTime,
 }: ProfilePageProps) {
   const getTabsFromLocation = () => {
     if (typeof window === "undefined") {
@@ -208,6 +211,22 @@ export default function ProfilePage({
             : "th";
 
     return `🔥 ${streak}${ending} echo in a row 🔥\nkeep up your streak`;
+  };
+
+  const countdown = useCountdown(currentSessionEndTime);
+
+  const rankingInfoCard = (alreadyRanked: boolean) => {
+    return (
+      <div className="text-xs text-white rounded-lg p-3 mb-3 text-center">
+        {countdown && !alreadyRanked && (
+          <div className="text-sm font-semibold mb-2">{countdown}</div>
+        )}
+
+        {alreadyRanked
+          ? "thanks for submitting - you can now see who shared what"
+          : "to submit your favorite song of the echo & see who shared what song"}
+      </div>
+    );
   };
 
   return (
@@ -404,16 +423,9 @@ export default function ProfilePage({
                             <div
                               className={`rounded-xl border border-white/20 bg-black p-4 flex flex-col [backface-visibility:hidden] ${isFlipped ? "absolute inset-0 invisible" : "relative visible"}`}
                             >
-                              {isFirstCard && needsToRank && (
-                                <div
-                                  className="text-xs text-white/50 rounded-lg p-3 mb-3"
-                                  style={{ backgroundColor: "#212121" }}
-                                >
-                                  {rankedPlaylists.has(pl.id)
-                                    ? "thanks for submitting - you can now see who shared what"
-                                    : "submit your favorite song of the echo to see who shared what song"}
-                                </div>
-                              )}
+                              {isFirstCard &&
+                                needsToRank &&
+                                rankingInfoCard(rankedPlaylists.has(pl.id))}
                               <div className="flex items-center gap-4">
                                 <div className="shrink-0">
                                   {getPlaylistImage(pl.playlistImageUrl)}
@@ -439,16 +451,9 @@ export default function ProfilePage({
                             <div
                               className={`rounded-xl border border-white/20 bg-black p-4 [transform:rotateY(180deg)] [backface-visibility:hidden] flex flex-col ${isFlipped ? "relative visible" : "absolute inset-0 invisible"}`}
                             >
-                              {isFirstCard && needsToRank && (
-                                <div
-                                  className="text-xs text-white/50 rounded-lg p-3 mb-3"
-                                  style={{ backgroundColor: "#212121" }}
-                                >
-                                  {rankedPlaylists.has(pl.id)
-                                    ? "thanks for voting - you can now see who shared what"
-                                    : "submit your favorite song of the echo to see who shared what song"}
-                                </div>
-                              )}
+                              {isFirstCard &&
+                                needsToRank &&
+                                rankingInfoCard(rankedPlaylists.has(pl.id))}
                               <div className="text-white font-semibold text-base mb-3">
                                 songs
                               </div>
@@ -561,6 +566,10 @@ export default function ProfilePage({
                                     <div
                                       role="button"
                                       aria-label="Submit ranking"
+                                      aria-disabled={
+                                        !selectedSongForRanking ||
+                                        isSubmittingRanking
+                                      }
                                       tabIndex={
                                         !selectedSongForRanking ||
                                         isSubmittingRanking
@@ -573,9 +582,6 @@ export default function ProfilePage({
                                           !selectedSongForRanking ||
                                           isSubmittingRanking
                                         ) {
-                                          if (!selectedSongForRanking) {
-                                            alert("Please select a song first");
-                                          }
                                           return;
                                         }
 
@@ -618,11 +624,11 @@ export default function ProfilePage({
                                           ).click();
                                         }
                                       }}
-                                      className={`w-full bg-white text-black hover:bg-gray-100 rounded-md px-4 py-2 text-center font-medium transition-colors ${
+                                      className={`w-full bg-white text-black rounded-md px-4 py-2 text-center font-medium transition-colors relative z-10 ${
                                         !selectedSongForRanking ||
                                         isSubmittingRanking
                                           ? "opacity-50 cursor-not-allowed"
-                                          : "cursor-pointer"
+                                          : "hover:bg-gray-100 cursor-pointer"
                                       }`}
                                     >
                                       {isSubmittingRanking ? (
