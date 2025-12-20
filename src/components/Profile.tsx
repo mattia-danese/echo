@@ -216,15 +216,18 @@ export default function ProfilePage({
   const countdown = useCountdown(currentSessionEndTime);
 
   const rankingInfoCard = (alreadyRanked: boolean) => {
+    if (!alreadyRanked) {
+      return (
+        <div className="text-xs text-white rounded-lg p-3 mb-3 text-center">
+          <div className="text-sm font-semibold mb-2">{countdown}</div>
+          to submit your favorite song of the echo & see who shared what song
+        </div>
+      );
+    }
+
     return (
       <div className="text-xs text-white rounded-lg p-3 mb-3 text-center">
-        {countdown && !alreadyRanked && (
-          <div className="text-sm font-semibold mb-2">{countdown}</div>
-        )}
-
-        {alreadyRanked
-          ? "thanks for submitting - you can now see who shared what"
-          : "to submit your favorite song of the echo & see who shared what song"}
+        thanks for submitting - you can now see who shared what
       </div>
     );
   };

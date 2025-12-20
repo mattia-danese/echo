@@ -11,7 +11,7 @@ export function useCountdown(endTime: string | null): string | null {
 
     const calculateTimeRemaining = () => {
       const now = Date.now();
-      const end = new Date(endTime).getTime();
+      const end = new Date(endTime).getTime() + 30 * 60 * 1000; // Add 30 minutes
       const difference = end - now;
 
       if (difference <= 0) {
