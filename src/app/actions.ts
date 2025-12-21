@@ -805,6 +805,7 @@ export async function submitSong(payload: {
       .onConflictDoUpdate({
         target: userEchoSessions.token,
         set: {
+          platform: payload.platform,
           trackId: payload.trackId,
           trackName: payload.trackName,
           trackArtists: payload.artists,

@@ -1,0 +1,1 @@
+ALTER TABLE "user_echo_sessions" ALTER COLUMN "platform" DROP NOT NULL;

@@ -189,7 +189,7 @@ export const userEchoSessions = pgTable(
     sessionId: integer("session_id").notNull(),
     token: varchar("token").notNull(),
 
-    platform: platform("platform").notNull(),
+    platform: platform("platform"), //nullable if user never submits a song
     trackId: varchar("track_id"), //nullable if user never submits a song
     trackName: varchar("track_name"), //nullable if user never submits a song
     trackArtists: varchar("track_artists"), //nullable if user never submits a song
