@@ -12,8 +12,10 @@ import {
   isNotNull,
   isNull,
   ne,
+  not,
   or,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { UTApi } from "uploadthing/server";
 import { db } from "@/db";
 import {
@@ -1184,12 +1186,53 @@ export async function unfriendFriend(userId: number, friendId: number) {
         eq(friends.active, true),
       ),
     );
+
+  const friendUserAlias = alias(users, "friendUser");
+
+  await db
+    .update(users)
+    .set({ hasCrossPlatformFriends: false })
+    .where(
+      and(
+        inArray(users.id, [userId, friendId]),
+        eq(users.hasCrossPlatformFriends, true),
+        not(
+          exists(
+            db
+              .select()
+              .from(friends)
+              .innerJoin(
+                friendUserAlias,
+                eq(friends.friendId, friendUserAlias.id),
+              )
+              .where(
+                and(
+                  eq(friends.userId, users.id),
+                  eq(friends.active, true),
+                  ne(friendUserAlias.platform, users.platform),
+                  eq(friendUserAlias.isDeleted, false),
+                ),
+              ),
+          ),
+        ),
+      ),
+    );
 }
 
 export async function deleteUser(userId: number, clearCookie = true) {
   "use server";
 
   const now = new Date().toISOString();
+
+  // Get all friend IDs before deactivating friendships
+  const friendsOfDeletedUser = await db
+    .select({
+      friendId: friends.friendId,
+    })
+    .from(friends)
+    .where(and(eq(friends.userId, userId), eq(friends.active, true)));
+
+  const friendIds = friendsOfDeletedUser.map((f) => f.friendId);
 
   await db
     .update(users)
@@ -1208,6 +1251,41 @@ export async function deleteUser(userId: number, clearCookie = true) {
 
   await db.delete(userAuth).where(eq(userAuth.userId, userId));
   await deleteAllSessionsForUser(userId, clearCookie);
+
+  // Update hasCrossPlatformFriends for all friends (query will only update those who need it)
+  if (friendIds.length > 0) {
+    const friendUserAlias = alias(users, "friendUser");
+
+    // Set to false if no cross-platform friends remain
+    await db
+      .update(users)
+      .set({ hasCrossPlatformFriends: false })
+      .where(
+        and(
+          inArray(users.id, friendIds),
+          eq(users.hasCrossPlatformFriends, true),
+          not(
+            exists(
+              db
+                .select()
+                .from(friends)
+                .innerJoin(
+                  friendUserAlias,
+                  eq(friends.friendId, friendUserAlias.id),
+                )
+                .where(
+                  and(
+                    eq(friends.userId, users.id),
+                    eq(friends.active, true),
+                    ne(friendUserAlias.platform, users.platform),
+                    eq(friendUserAlias.isDeleted, false),
+                  ),
+                ),
+            ),
+          ),
+        ),
+      );
+  }
 }
 
 export async function logInExistingUser(phoneNumber: string) {
