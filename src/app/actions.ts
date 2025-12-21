@@ -6,10 +6,12 @@ import {
   count,
   desc,
   eq,
+  exists,
   gte,
   inArray,
   isNotNull,
   isNull,
+  ne,
   or,
 } from "drizzle-orm";
 import { UTApi } from "uploadthing/server";
@@ -194,8 +196,8 @@ export async function createUser(payload: {
         createdAt: users.createdAt,
       });
 
-    // Reactivate all prior friends for the user (if any)
-    await db
+    // Reactivate all prior friends for the user (if any) and get their IDs
+    const reactivatedFriends = await db
       .update(friends)
       .set({ active: true, muted: false, updatedAt: new Date().toISOString() })
       .where(
@@ -203,7 +205,52 @@ export async function createUser(payload: {
           or(eq(friends.userId, newUser.id), eq(friends.friendId, newUser.id)),
           eq(friends.active, false),
         ),
-      );
+      )
+      .returning({
+        userId: friends.userId,
+        friendId: friends.friendId,
+      });
+
+    // Extract the actual friend user IDs (bidirectional relationship)
+    const friendUserIds = reactivatedFriends.map((f) =>
+      f.userId === newUser.id ? f.friendId : f.userId,
+    );
+
+    // Update hasCrossPlatformFriends if any reactivated friend has different platform
+    if (friendUserIds.length > 0) {
+      await db
+        .update(users)
+        .set({ hasCrossPlatformFriends: true })
+        .where(
+          and(
+            eq(users.id, newUser.id),
+            exists(
+              db
+                .select()
+                .from(users)
+                .where(
+                  and(
+                    inArray(users.id, friendUserIds),
+                    ne(users.platform, payload.platform),
+                    eq(users.isDeleted, false),
+                  ),
+                ),
+            ),
+          ),
+        );
+
+      // Also update friends' hasCrossPlatformFriends if user has different platform
+      await db
+        .update(users)
+        .set({ hasCrossPlatformFriends: true })
+        .where(
+          and(
+            inArray(users.id, friendUserIds),
+            ne(users.platform, payload.platform),
+            eq(users.isDeleted, false),
+          ),
+        );
+    }
 
     userAuthData.userId = newUser.id;
 
