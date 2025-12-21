@@ -215,4 +215,80 @@ export class AppleMusicPlatform extends Platform {
       .replace("{w}", String(size))
       .replace("{h}", String(size));
   }
+
+  static isTrackLink(link: string): boolean {
+    // https://music.apple.com/us/album/lighter/1835751221?i=1835751222
+    if (!link) return false;
+
+    if (!link.startsWith("https://")) return false;
+
+    if (!link.includes("music.apple.com/us/album/")) return false;
+
+    // Track links must have the ?i= parameter (track ID)
+    // Album links don't have this parameter
+    if (!link.includes("?i=") && !link.includes("&i=")) return false;
+
+    return true;
+  }
+
+  static async getTrackFromLink(
+    link: string,
+    developerToken: string,
+  ): Promise<{
+    ok: boolean;
+    data: {
+      trackId: string;
+      trackName: string;
+      artists: string;
+      albumImageUrl: string;
+    } | null;
+    error: unknown;
+  }> {
+    try {
+      const trackId = AppleMusicPlatform.extractTrackId(link);
+
+      const response = await fetch(
+        `https://api.music.apple.com/v1/catalog/us/songs/${trackId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${developerToken}`,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return {
+          ok: false,
+          data: null,
+          error: `Failed to get Apple Music track: ${errorText}`,
+        };
+      }
+
+      const data = await response.json();
+      const track = data.data?.[0];
+
+      if (!track) {
+        return {
+          ok: false,
+          data: null,
+          error: "Track not found in API response",
+        };
+      }
+
+      return {
+        ok: true,
+        data: {
+          trackId: track.id,
+          trackName: track.attributes.name,
+          artists: track.attributes.artistName,
+          albumImageUrl: track.attributes.artwork.url,
+        },
+        error: null,
+      };
+    } catch (err) {
+      return { ok: false, data: null, error: err };
+    }
+  }
 }

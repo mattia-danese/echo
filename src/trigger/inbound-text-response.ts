@@ -5,16 +5,16 @@ import { and, desc, eq } from "drizzle-orm";
 import { createUser, deleteUser, submitSong } from "@/app/actions";
 import { db } from "@/db";
 import {
+  appleDevToken,
   echoSessions,
   friends,
   messages,
-  spotifyAuth,
   userEchoSessions,
   users,
 } from "@/db/schema";
 import { MessageType, Platform } from "@/db/types";
 import { env } from "@/lib/env";
-import { SpotifyPlatform } from "@/platforms";
+import { AppleMusicPlatform, SpotifyPlatform } from "@/platforms";
 import { sendMessagesTask } from "./send-messages";
 
 export const inboundTextResponseTask = task({
@@ -107,60 +107,97 @@ export const inboundTextResponseTask = task({
         };
       }
 
-      if (SpotifyPlatform.isTrackLink(message)) {
+      if (isLink(message)) {
+        let trackData: {
+          trackId: string;
+          trackName: string;
+          artists: string;
+          albumImageUrl: string;
+        } | null = null;
+
+        let plaformAccessToken: string | null = null;
+        let platform: Platform | null = null;
+
         try {
-          const [spotifyAuthData] = await db
-            .select({
-              accessToken: spotifyAuth.accessToken,
-              refreshToken: spotifyAuth.refreshToken,
-              tokenExpiresAt: spotifyAuth.tokenExpiresAt,
-              platformUserId: spotifyAuth.userId,
-            })
-            .from(spotifyAuth)
-            .limit(1);
-
-          if (new Date(spotifyAuthData.tokenExpiresAt) < new Date()) {
+          if (SpotifyPlatform.isTrackLink(message)) {
             const {
-              ok: refreshTokensOk,
-              data: refreshTokensData,
-              error: refreshTokensError,
-            } = await SpotifyPlatform.refreshTokens({
-              userId: spotifyAuthData.platformUserId,
-              refreshToken: spotifyAuthData.refreshToken,
-            });
+              ok: spotifyAuthOk,
+              data: spotifyAuthData,
+              error: spotifyAuthError,
+            } = await SpotifyPlatform.getValidToken();
 
-            if (!refreshTokensOk || !refreshTokensData || refreshTokensError) {
+            if (!spotifyAuthOk || !spotifyAuthData) {
+              logger.error("Failed to get Spotify auth token", {
+                error: spotifyAuthError,
+              });
+              throw new Error("Failed to get Spotify auth token");
+            }
+
+            plaformAccessToken = spotifyAuthData.accessToken;
+            platform = Platform.SPOTIFY;
+
+            const { ok, data, error } = await SpotifyPlatform.getTrackFromLink(
+              message,
+              spotifyAuthData.accessToken,
+            );
+
+            if (!ok || !data || error) {
               throw new Error(
-                `error refreshing spotify token: ${refreshTokensError}`,
+                `error getting spotify track from link: ${error}`,
                 {
                   cause: {
-                    refreshTokensError: refreshTokensError,
+                    link: message,
+                    error: error,
                   },
                 },
               );
             }
 
-            spotifyAuthData.accessToken = refreshTokensData.accessToken;
-            spotifyAuthData.refreshToken = refreshTokensData.refreshToken;
-            spotifyAuthData.tokenExpiresAt = refreshTokensData.expiresIn;
-          }
+            trackData = data;
+          } else if (AppleMusicPlatform.isTrackLink(message)) {
+            const [appleMusicAuthRecord] = await db
+              .select({
+                token: appleDevToken.token,
+              })
+              .from(appleDevToken)
+              .limit(1);
 
-          const {
-            ok,
-            data: trackData,
-            error,
-          } = await SpotifyPlatform.getTrackFromLink(
-            message,
-            spotifyAuthData.accessToken,
-          );
+            if (!appleMusicAuthRecord) {
+              throw new Error("Apple Music developer token not found");
+            }
 
-          if (!ok || !trackData || error) {
-            throw new Error(`error getting spotify track from link: ${error}`, {
-              cause: {
-                link: message,
-                error: error,
-              },
+            plaformAccessToken = appleMusicAuthRecord.token;
+            platform = Platform.APPLE_MUSIC;
+
+            const { ok, data, error } =
+              await AppleMusicPlatform.getTrackFromLink(
+                message,
+                appleMusicAuthRecord.token,
+              );
+
+            if (!ok || !data || error) {
+              throw new Error(
+                `error getting apple music track from link: ${error}`,
+                {
+                  cause: {
+                    link: message,
+                    error: error,
+                  },
+                },
+              );
+            }
+
+            trackData = data;
+          } else {
+            data[payload.phoneNumber] = ["we cannot regonize this link"];
+
+            await sendMessagesTask.trigger({
+              data: data,
             });
+
+            return {
+              message: `could not recognize link from ${payload.phoneNumber}: '${payload.inboundMessage}'`,
+            };
           }
 
           const [recentSession] = await db
@@ -194,24 +231,33 @@ export const inboundTextResponseTask = task({
             recentSession.userEchoSessionToken ||
             crypto.randomBytes(16).toString("base64url");
 
+          if (!trackData || !platform || !plaformAccessToken) {
+            throw new Error("Missing track data, platform, or access token", {
+              cause: {
+                trackData: trackData,
+                platform: platform,
+                plaformAccessToken: plaformAccessToken,
+              },
+            });
+          }
+
           const { ok: submitSongOk, message: submitSongMessage } =
             await submitSong({
               userId: user.id,
               userEchoSessionToken: userEchoSessionToken,
               sessionId: recentSession.sessionId,
-              platform: Platform.SPOTIFY,
+              platform: platform,
               trackId: trackData.trackId,
               trackName: trackData.trackName,
               artists: trackData.artists,
               albumImageUrl: trackData.albumImageUrl,
-              platformAccessToken: spotifyAuthData.accessToken,
+              platformAccessToken: plaformAccessToken,
             });
 
           if (!submitSongOk) {
             throw new Error(`error submitting song: ${submitSongMessage}`, {
               cause: {
                 message: submitSongMessage,
-                error: error,
               },
             });
           }
@@ -261,35 +307,27 @@ export const inboundTextResponseTask = task({
             message: `responded to spotify song submission from ${payload.phoneNumber}: '${payload.inboundMessage}'`,
           };
         } catch (error) {
-          logger.error("error submitting song", { error });
-
-          // Manually capture in Sentry
-          Sentry.captureException(error, {
-            extra: {
-              phoneNumber: payload.phoneNumber,
-              inboundMessage: payload.inboundMessage,
-              context: "spotify_link_submission_failed",
-            },
-            tags: {
-              taskId: "inbound-text-response",
-              errorType: "spotify_link_error",
-            },
-          });
-
-          data[payload.phoneNumber] = ["we cannot regonize this link"];
+          data[payload.phoneNumber] = [
+            `we cannot regonize this ${platform?.replace("-", " ") ?? ""} link`,
+          ];
 
           await sendMessagesTask.trigger({
             data: data,
           });
 
+          // Manually capture in Sentry
+          Sentry.captureException(
+            new Error("errors encountered during generate playlists task"),
+            {
+              extra: { user: user, platform: platform, error: error },
+            },
+          );
+
           return {
-            message: `could not recognize spotify link from ${payload.phoneNumber}: '${payload.inboundMessage}'`,
+            message: `could not recognize link from ${payload.phoneNumber}: '${payload.inboundMessage}'`,
           };
         }
       }
-
-      // if (AppleMusicPlatform.isSongLink(message)) {
-      // }
 
       if (messageLower === "stop") {
         // not sending a message since Twilio sends automatic STOP response
@@ -375,3 +413,18 @@ export const inboundTextResponseTask = task({
     }
   },
 });
+
+const isLink = (message: string) => {
+  if (!message) return false;
+  if (!message.startsWith("https://")) return false;
+
+  return true;
+};
+
+const handleSongSubmission = async (message: string) => {
+  if (SpotifyPlatform.isTrackLink(message)) {
+  } else if (AppleMusicPlatform.isTrackLink(message)) {
+  }
+
+  throw new Error(`unknown link type: ${message}`);
+};
