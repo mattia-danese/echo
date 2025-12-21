@@ -160,7 +160,7 @@ export default async function RootPage({ searchParams }: PageProps) {
     number,
     Array<{
       trackId: string;
-      platform: Platform;
+      platform: Platform | null;
       trackName: string | null;
       trackArtists: string | null;
       trackAlbumImageUrl: string | null;
@@ -177,7 +177,7 @@ export default async function RootPage({ searchParams }: PageProps) {
     }
     playlistSongsByPlaylist[row.playlistId].push({
       trackId: row.trackId,
-      platform: row.platform,
+      platform: row.platform ?? null,
       trackName: row.trackName ?? null,
       trackArtists: row.trackArtists ?? null,
       trackAlbumImageUrl: row.trackAlbumImageUrl ?? null,

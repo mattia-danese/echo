@@ -50,7 +50,7 @@ interface ProfilePageProps {
     number,
     Array<{
       trackId: string;
-      platform: Platform;
+      platform: Platform | null;
       trackName: string | null;
       trackArtists: string | null;
       trackAlbumImageUrl: string | null;

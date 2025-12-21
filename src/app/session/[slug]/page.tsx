@@ -40,7 +40,7 @@ export default async function SessionPage({ params }: PageProps) {
     const [userEchoSession] = await db
       .select({
         userId: userEchoSessions.userId,
-        platform: userEchoSessions.platform,
+        platform: users.platform,
         trackId: userEchoSessions.trackId,
         sessionId: userEchoSessions.sessionId,
         echoSessionsEnd: echoSessions.end,
