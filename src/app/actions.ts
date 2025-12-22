@@ -506,7 +506,12 @@ export async function sendOnboardingMessage(payload: {
           "2. every 2 days, we'll send you a playlist with songs your friends shared",
           // "3. we'll text you before playlists drop so you remember to send groovy tunes",
         ].join("\n"),
-        `let's try it together. tap the link below to share your first song. pick a track, tap "share", then "copy link", & text it here. ${lastSentence}`,
+        [
+          "let's try it together.",
+          "- tap the link below to share your first song",
+          "- pick a track, tap 'share', then 'copy link', & text it here",
+          `- ${lastSentence}`,
+        ].join("\n"),
         platformLink,
       ],
     },
