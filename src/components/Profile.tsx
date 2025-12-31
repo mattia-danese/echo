@@ -62,7 +62,7 @@ interface ProfilePageProps {
   >;
   userId: number;
   streak: number;
-  rankings: Set<number>;
+  rankings: Map<number, number>;
   needsToRank: boolean;
   currentSessionEndTime: string | null;
 }
@@ -125,7 +125,8 @@ export default function ProfilePage({
     submittedByUserId: number;
     submittedByPhoneNumber: string;
   } | null>(null);
-  const [rankedPlaylists, setRankedPlaylists] = useState<Set<number>>(rankings);
+  const [rankedPlaylists, setRankedPlaylists] =
+    useState<Map<number, number>>(rankings);
   const [isSubmittingRanking, setIsSubmittingRanking] = useState(false);
   const { data: friendsData } = useFriends(userId, friendsList); // initialData = SSR list
   const { toggleMute, unfriend } = useFriendMutations(userId);
@@ -482,6 +483,9 @@ export default function ProfilePage({
                                   const isSelected =
                                     selectedSongForRanking?.trackId ===
                                     song.trackId;
+                                  const isFavoriteSong =
+                                    rankedPlaylists.get(pl.id) ===
+                                    song.submittedByUserId;
 
                                   return (
                                     <div
@@ -553,8 +557,11 @@ export default function ProfilePage({
                                         </div>
                                       </div>
                                       {rankedPlaylists.has(pl.id) && (
-                                        <div className="text-xs text-white/50 shrink-0">
-                                          {submitterName}
+                                        <div className="text-xs">
+                                          {isFavoriteSong && "⭐ "}
+                                          <span className="text-white/50 shrink-0">
+                                            {submitterName}
+                                          </span>
                                         </div>
                                       )}
                                     </div>
@@ -603,7 +610,14 @@ export default function ProfilePage({
 
                                         if (result.ok) {
                                           setRankedPlaylists(
-                                            (prev) => new Set([...prev, pl.id]),
+                                            (prev) =>
+                                              new Map([
+                                                ...prev,
+                                                [
+                                                  pl.id,
+                                                  selectedSongForRanking.submittedByUserId,
+                                                ],
+                                              ]),
                                           );
                                           setSelectedSongForRanking(null);
                                         } else {

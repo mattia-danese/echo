@@ -250,12 +250,15 @@ export default async function RootPage({ searchParams }: PageProps) {
   const rankings = await db
     .select({
       playlistId: userRankings.playlistId,
+      rankedUserId: userRankings.rankedUserId,
     })
     .from(userRankings)
     .where(eq(userRankings.userId, user.id))
     .orderBy(desc(userRankings.createdAt));
 
-  const rankingsSet = new Set(rankings.map((row) => row.playlistId));
+  const rankingsMap = new Map(
+    rankings.map((row) => [row.playlistId, row.rankedUserId]),
+  );
 
   // Does user need to rank
   let needsToRank = false;
@@ -266,7 +269,7 @@ export default async function RootPage({ searchParams }: PageProps) {
     const mostRecentPlaylistEchoSessionId = mostRecentPlaylist.echoSessionId;
 
     // Check if user hasn't ranked their most recent playlist
-    if (!rankingsSet.has(mostRecentPlaylistId)) {
+    if (!rankingsMap.has(mostRecentPlaylistId)) {
       // Get the most recent two echo sessions to check if the playlist's session is the second most recent
       const recentEchoSessions = await db
         .select({ id: echoSessions.id })
@@ -319,7 +322,7 @@ export default async function RootPage({ searchParams }: PageProps) {
       playlistSongsByPlaylist={playlistSongsByPlaylist}
       userId={user.id}
       streak={streak}
-      rankings={rankingsSet}
+      rankings={rankingsMap}
       needsToRank={needsToRank}
       currentSessionEndTime={currentSessionEndTime}
     />
