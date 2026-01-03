@@ -170,8 +170,11 @@ export const generatePlaylistsTask = schedules.task({
         NUM_SONGS_PER_PLAYLIST,
       );
 
-      if (playlist.size === 0) {
+      if (playlist.size === 0 && user.firstSharedSessionId !== echoSession.id) {
         usersWithNoFriendSongs.push(user.userId);
+      }
+
+      if (playlist.size === 0) {
         continue;
       }
 

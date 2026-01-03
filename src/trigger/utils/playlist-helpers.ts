@@ -508,10 +508,8 @@ export const persistPlaylistsToDatabase = async (
   newPlaylistSongs: PlaylistSongRecord[],
 ) => {
   try {
-    if (newPlaylists.length === 0 || newPlaylistSongs.length === 0) {
-      logger.info(
-        "no playlists or playlist songs to save to database, skipping",
-      );
+    if (newPlaylists.length === 0) {
+      logger.info("no playlists to save to database, skipping");
       return { ok: true, error: null };
     }
 
@@ -534,19 +532,23 @@ export const persistPlaylistsToDatabase = async (
     });
 
     // save each playlistSong to database
-    for (const playlistSong of newPlaylistSongs) {
-      playlistSong.playlistId = playlistIdByPlatformPlaylistId.get(
-        playlistSong.platformPlaylistId,
-      ) as number;
+    if (newPlaylistSongs.length > 0) {
+      for (const playlistSong of newPlaylistSongs) {
+        playlistSong.playlistId = playlistIdByPlatformPlaylistId.get(
+          playlistSong.platformPlaylistId,
+        ) as number;
+      }
+
+      logger.log("saving playlist songs to database");
+
+      await db.insert(playlistSongs).values(newPlaylistSongs);
+
+      logger.log("saving playlist songs to database done", {
+        numPlaylistSongs: newPlaylistSongs.length,
+      });
+    } else {
+      logger.log("no playlist songs to save (playlists are generic)");
     }
-
-    logger.log("saving playlist songs to database");
-
-    await db.insert(playlistSongs).values(newPlaylistSongs);
-
-    logger.log("saving playlist songs to database done", {
-      numPlaylistSongs: newPlaylistSongs.length,
-    });
 
     return { ok: true, error: null };
   } catch (error) {
@@ -587,7 +589,9 @@ export const textUsers = async (
 
     switch (playlist.platform) {
       case Platform.SPOTIFY:
-        playlistLink = `https://open.spotify.com/playlist/${playlist.platformPlaylistId}`;
+        playlistLink = SpotifyPlatform.createPlaylistLink(
+          playlist.platformPlaylistId,
+        );
         break;
       case Platform.APPLE_MUSIC:
         playlistLink = AppleMusicPlatform.createPlaylistLink(
