@@ -8,7 +8,7 @@ import {
   users,
 } from "@/db/schema";
 import { Platform } from "@/db/types";
-import { env } from "@/lib/env";
+import { appleMusicAdmin } from "@/lib/appleMusicAdmin";
 import { spotifyAdmin } from "@/lib/spotifyAdmin";
 import { AppleMusicPlatform, SpotifyPlatform } from "@/platforms";
 import { sendMessagesTask } from "./send-messages";
@@ -55,7 +55,7 @@ export const onboardingCompletionTask = task({
       const genericPlaylistLink =
         payload.user.platform === Platform.SPOTIFY
           ? spotifyAdmin.genericPlaylistLink
-          : env.ONBOARDING_COMPLETION_GENERIC_APPLE_MUSIC_PLAYLIST;
+          : appleMusicAdmin.genericPlaylistLink;
 
       // get user friends' most recent shared songs (1 song per friend, max 15 friends)
 

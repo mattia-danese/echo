@@ -2,7 +2,7 @@ import { logger, task } from "@trigger.dev/sdk/v3";
 import * as jose from "jose";
 import { db } from "@/db";
 import { appleDevToken } from "@/db/schema";
-import { env } from "@/lib/env";
+import { appleMusicAdmin } from "@/lib/appleMusicAdmin";
 
 export const refreshAppleDevTokenTask = task({
   id: "refresh-apple-dev-token",
@@ -12,7 +12,7 @@ export const refreshAppleDevTokenTask = task({
     logger.log("send messages task starting", { payload, ctx });
 
     const applePrivateKey = await jose.importPKCS8(
-      env.APPLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      appleMusicAdmin.privateKey.replace(/\\n/g, "\n"),
       "ES256",
     );
 
@@ -25,11 +25,11 @@ export const refreshAppleDevTokenTask = task({
     const expiresAt = new Date(exp * 1000).toISOString();
 
     const developerToken = await new jose.SignJWT({
-      iss: env.APPLE_TEAM_ID,
+      iss: appleMusicAdmin.teamId,
       iat,
       exp,
     })
-      .setProtectedHeader({ alg: "ES256", kid: env.APPLE_KEY_ID })
+      .setProtectedHeader({ alg: "ES256", kid: appleMusicAdmin.keyId })
       .sign(applePrivateKey);
 
     await db
