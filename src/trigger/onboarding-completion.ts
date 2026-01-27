@@ -27,6 +27,15 @@ type UserData = {
 
 const NUM_SONGS_PER_PLAYLIST = 10;
 
+/**
+ * @deprecated This task is no longer used. Onboarding completion logic has been moved to
+ * `inbound-text-response.ts`. When a user submits their first song via text message,
+ * the onboarding completion is handled inline in that task (lines 276-300).
+ *
+ * This task was previously responsible for creating playlists with friends' songs
+ * and sending playlist links to new users, but that functionality has been replaced
+ * with simpler text-based onboarding messages.
+ */
 export const onboardingCompletionTask = task({
   id: "onboarding-completion",
   // Set an optional maxDuration to prevent tasks from running indefinitely
@@ -366,7 +375,6 @@ const handleSpotifyUser = async (
     userId: user.platformUserId,
     accessToken: user.accessToken,
     playlistName: `${user.firstName}${playlistNameAbbreviation} echo ${playlistDate}`,
-    // TODO: possibly change description?
     playlistDescription: playlistDescription,
     playlistDate: playlistDate,
   });

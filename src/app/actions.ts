@@ -39,7 +39,7 @@ import { isNameValid, isPhoneNumberValid, isValidDate } from "@/lib/validation";
 import { AppleMusicPlatform, SpotifyPlatform } from "@/platforms";
 import {
   getRecentPlaysTask,
-  onboardingCompletionTask,
+  // onboardingCompletionTask,
   sendMessagesTask,
 } from "@/trigger";
 
@@ -88,27 +88,24 @@ export async function createUser(payload: {
   referralFriendLinkToken: string | null;
 }) {
   try {
-    // First, check if user already exists
+    // Check if user already exists
     const [existingUser] = await db
-      .select({ id: users.id })
+      .select({ id: users.id, isDeleted: users.isDeleted })
       .from(users)
-      .where(
-        and(
-          eq(users.phoneNumber, payload.phoneNumber),
-          eq(users.isDeleted, false),
-        ),
-      )
+      .where(eq(users.phoneNumber, payload.phoneNumber))
       .limit(1);
 
-    if (existingUser) {
-      // User already exists, return early
+    if (existingUser && !existingUser.isDeleted) {
       return {
         ok: true,
         userId: existingUser.id.toString(),
-        created: false,
+        isNewUser: false,
         message: "User with this phone number already exists.",
       };
     }
+
+    // Determine if this is a new user or reactivation
+    const isNewUser = !existingUser;
 
     const userAuthData: UserAuthInsert = {
       userId: 0,
@@ -158,7 +155,7 @@ export async function createUser(payload: {
       return {
         ok: false,
         userId: null,
-        created: false,
+        isNewUser: false,
         message: "Invalid platform",
       };
     }
@@ -295,7 +292,7 @@ export async function createUser(payload: {
     return {
       ok: true,
       user: { ...newUser, friendFirstName: friendFirstName },
-      created: true,
+      isNewUser: isNewUser,
       message: "User created successfully with Spotify tokens.",
     };
   } catch (error: unknown) {
@@ -303,7 +300,7 @@ export async function createUser(payload: {
     return {
       ok: false,
       userId: null,
-      created: false,
+      isNewUser: false,
       message: `An error occurred while creating the user: ${error}`,
     };
   }

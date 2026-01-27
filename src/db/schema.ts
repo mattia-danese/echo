@@ -163,7 +163,6 @@ export const userTrackPlays = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
-    // FIXME: might need to change for apple music if we dont get the played at time
     unique("unique_user_track_play").on(
       table.userId,
       table.trackId,

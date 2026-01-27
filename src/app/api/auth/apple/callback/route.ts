@@ -79,26 +79,19 @@ export async function POST(req: Request) {
         );
       }
 
-      if (result.created) {
-        // TODO: come back to this - this may break if updatedAt is changed in other places
-        // if user was created in the same request, send onboarding message
-        // filters out returning users
-        if (user.updatedAt === user.createdAt) {
-          await sendOnboardingMessage({
-            phoneNumber: phoneNumber,
-            friendFirstName: user.friendFirstName,
-            userPlatform: platform,
-          });
-        } else {
-          await sendWelcomeMessage({
-            phoneNumber: phoneNumber,
-          });
-        }
-
-        accountStatus = "created";
+      if (result.isNewUser) {
+        await sendOnboardingMessage({
+          phoneNumber: phoneNumber,
+          friendFirstName: user.friendFirstName,
+          userPlatform: platform,
+        });
       } else {
-        accountStatus = "error";
+        await sendWelcomeMessage({
+          phoneNumber: phoneNumber,
+        });
       }
+
+      accountStatus = "created";
     } else {
       console.error("Error creating user:", result.message);
       accountStatus = "error";
