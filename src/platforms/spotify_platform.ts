@@ -621,12 +621,14 @@ export class SpotifyPlatform extends Platform {
       const data = await response.json();
       console.log("recommendations response", data);
 
-      const recommendedSongs = data.tracks.map((track: any) => ({
-        trackId: track.id,
-        trackName: track.name,
-        artists: track.artists.map((artist: any) => artist.name).join(", "),
-        albumImageUrl: track.album.images[0]?.url || "",
-      }));
+      const recommendedSongs = data.tracks.map(
+        (track: SpotifySearchResultTrack) => ({
+          trackId: track.id,
+          trackName: track.name,
+          artists: track.artists.map((artist) => artist.name).join(", "),
+          albumImageUrl: track.album.images[0]?.url || "",
+        }),
+      );
 
       return { ok: true, data: recommendedSongs, error: null };
     } catch (err) {
@@ -673,13 +675,13 @@ export class SpotifyPlatform extends Platform {
         return { ok: false, data: null, error: errorData };
       }
 
-      const data = await response.json();
+      const data: SpotifySearchResultTrack = await response.json();
       return {
         ok: true,
         data: {
           trackId,
           trackName: data.name,
-          artists: data.artists.map((artist: any) => artist.name).join(", "),
+          artists: data.artists.map((artist) => artist.name).join(", "),
           albumImageUrl: data.album.images[0]?.url || "",
         },
         error: null,

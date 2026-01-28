@@ -422,11 +422,3 @@ const isLink = (message: string) => {
 
   return true;
 };
-
-const handleSongSubmission = async (message: string) => {
-  if (SpotifyPlatform.isTrackLink(message)) {
-  } else if (AppleMusicPlatform.isTrackLink(message)) {
-  }
-
-  throw new Error(`unknown link type: ${message}`);
-};

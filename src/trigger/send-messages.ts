@@ -13,6 +13,14 @@ import { embedLinksForInternational } from "./utils/message-helpers";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const twilio = require("twilio");
 
+type TwilioMessageResponse = {
+  sid: string;
+  body: string;
+  from: string;
+  to: string;
+  status: string;
+};
+
 const accountSid = twilioAdmin.accountSid;
 const authToken = twilioAdmin.authToken;
 const fromNumber = twilioAdmin.phoneNumber;
@@ -54,7 +62,7 @@ export const sendMessagesTask = task({
         }
 
         try {
-          let response: any;
+          let response: TwilioMessageResponse;
           if (textMessage === CONTACT_CARD_PLACEHOLDER) {
             // Send MMS with contact card
             response = await client.messages.create({
@@ -81,30 +89,31 @@ export const sendMessagesTask = task({
           };
 
           await db.insert(messages).values(messageInsert);
-        } catch (error: any) {
+        } catch (error: unknown) {
           // Handle Twilio errors gracefully
-          if (error.code === 21610) {
+          const errorObj = error as { code?: number; message?: string };
+          if (errorObj.code === 21610) {
             // User has unsubscribed (sent STOP)
             logger.warn("skipping unsubscribed recipient", {
               phoneNumber,
               userId,
-              error: error.message,
+              error: errorObj.message,
             });
-          } else if (error.code === 21211) {
+          } else if (errorObj.code === 21211) {
             // Invalid phone number
             logger.error("invalid phone number", {
               phoneNumber,
               userId,
-              error: error.message,
+              error: errorObj.message,
             });
           } else {
-            // Log other Twilio errors but continue processing
+            // Log all other errors but continue processing
             logger.error("error sending message", {
               phoneNumber,
               userId,
               textMessage,
-              error: error.message,
-              errorCode: error.code,
+              error: errorObj.message || error,
+              errorCode: errorObj.code,
             });
           }
           // Continue to next message instead of failing the entire task

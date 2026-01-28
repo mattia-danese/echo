@@ -21,7 +21,7 @@ interface ProfilePageProps {
   firstName: string;
   lastName: string;
   profilePictureUrl: string | null;
-  platform: Platform;
+  // platform: Platform;
   songsShared: number;
   songsDiscovered: number;
   friendsList: {
@@ -71,7 +71,7 @@ export default function ProfilePage({
   firstName,
   lastName,
   profilePictureUrl,
-  platform,
+  // platform,
   songsShared,
   songsDiscovered,
   friendsList,
@@ -789,7 +789,7 @@ export default function ProfilePage({
 
           <TabsContent value="settings" className="mt-4">
             <SettingsPanel
-              currentPlatform={platform}
+              // currentPlatform={platform}
               userId={userId}
               setUploadedProfilePictureUrl={setUploadedProfilePictureUrl}
               profilePictureUrl={uploadedProfilePictureUrl}

@@ -31,7 +31,7 @@ export interface SessionPageClientProps {
   token: string;
   isOnboarding: boolean;
   userId: number;
-  sessionId?: number; // Optional - only needed for non-onboarding sessions
+  sessionId: number;
   platformAccessToken?: string;
 }
 
@@ -112,7 +112,7 @@ export default function SessionPageClient({
         trackName: selectedSong.trackName,
         artists: selectedSong.artists,
         albumImageUrl: selectedSong.albumImageUrl,
-        sessionId: sessionId!, // Safe to use ! here because submitSong is only called when not onboarding
+        sessionId: sessionId,
         platformAccessToken: platformAccessToken || undefined,
       });
 

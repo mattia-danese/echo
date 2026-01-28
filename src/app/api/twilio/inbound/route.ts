@@ -64,7 +64,7 @@ async function verifyTwilioSignature(
   if (!isValid) {
     console.error("[Twilio Webhook] Signature validation failed", {
       url,
-      signature: signature.substring(0, 10) + "...", // Log partial signature for debugging
+      signature: `${signature.substring(0, 10)}...`, // Log partial signature for debugging
       paramsKeys: Object.keys(params),
     });
   }

@@ -1,7 +1,14 @@
 import * as Sentry from "@sentry/nextjs";
 import { env } from "./env";
 
-// TOOD: see if multiple arrists can be supplied
+interface LastFmTrack {
+  name: string;
+  artist: {
+    name: string;
+  };
+}
+
+// TODO: see if multiple arrists can be supplied
 export const getSimilarTracks = async (
   trackName: string,
   artistName: string,
@@ -48,7 +55,7 @@ export const getSimilarTracks = async (
     return { ok: true, data: [], error: errorMessage };
   }
 
-  const similarTracks = data.similartracks.track.map((track: any) => ({
+  const similarTracks = data.similartracks.track.map((track: LastFmTrack) => ({
     trackName: track.name,
     artists: track.artist.name,
   }));

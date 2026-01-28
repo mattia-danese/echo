@@ -13,6 +13,17 @@ import type {
 } from "@/types";
 import { Platform } from "./platform";
 
+interface AppleMusicTrack {
+  id: string;
+  attributes: {
+    name: string;
+    artistName: string;
+    artwork: {
+      url: string;
+    };
+  };
+}
+
 export class AppleMusicPlatform extends Platform {
   // TODO: Implement refresh tokens (look at docs, access token expires yearly)
   static async refreshTokens(): Promise<{
@@ -122,15 +133,17 @@ export class AppleMusicPlatform extends Platform {
       const data = await response.json();
       const now = new Date();
 
-      const tracks: UserTrackPlay[] = data.data.map((track: any) => ({
-        userId: userId,
-        platform: PlatformEnum.APPLE_MUSIC,
-        trackId: track.id,
-        trackName: track.attributes.name,
-        artists: track.attributes.artistName,
-        albumImageUrl: track.attributes.artwork.url,
-        playedAt: now.toISOString(),
-      }));
+      const tracks: UserTrackPlay[] = data.data.map(
+        (track: AppleMusicTrack) => ({
+          userId: userId,
+          platform: PlatformEnum.APPLE_MUSIC,
+          trackId: track.id,
+          trackName: track.attributes.name,
+          artists: track.attributes.artistName,
+          albumImageUrl: track.attributes.artwork.url,
+          playedAt: now.toISOString(),
+        }),
+      );
       return { ok: true, data: { tracks }, error: null };
     } catch (err) {
       return { ok: false, data: null, error: err };
@@ -184,7 +197,7 @@ export class AppleMusicPlatform extends Platform {
 
       // Format tracks to match SearchResultTrack interface
       const tracks: SearchResultTrack[] =
-        searchData.results?.songs?.data?.map((track: any) => ({
+        searchData.results?.songs?.data?.map((track: AppleMusicTrack) => ({
           trackId: track.id,
           trackName: track.attributes.name,
           artists: track.attributes.artistName,

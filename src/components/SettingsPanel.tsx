@@ -26,17 +26,17 @@ import { Button } from "@/components/ui/button";
 //   SelectTrigger,
 //   SelectValue,
 // } from "@/components/ui/select";
-import type { Platform } from "@/db/types";
+// import type { Platform } from "@/db/types";
 
 export interface SettingsPanelProps {
-  currentPlatform: Platform;
+  // currentPlatform: Platform;
   userId: number;
   profilePictureUrl: string | null;
   setUploadedProfilePictureUrl: (url: string | null) => void;
 }
 
 export default function SettingsPanel({
-  currentPlatform,
+  // currentPlatform,
   userId,
   profilePictureUrl,
   setUploadedProfilePictureUrl,

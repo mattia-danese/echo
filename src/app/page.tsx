@@ -305,7 +305,7 @@ export default async function RootPage({ searchParams }: PageProps) {
       firstName={user.firstName}
       lastName={user.lastName}
       profilePictureUrl={user.profilePictureUrl}
-      platform={user.platform}
+      // platform={user.platform}
       songsShared={songsShared}
       songsDiscovered={songsDiscovered}
       friendsList={friendsList}
