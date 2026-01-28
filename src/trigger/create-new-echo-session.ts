@@ -4,6 +4,7 @@ import { fromZonedTime, toZonedTime } from "date-fns-tz";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { echoSessions, userEchoSessions, users } from "@/db/schema";
+import type { EchoSessionInsert, UserEchoSessionInsert } from "@/types";
 
 export const createNewEchoSessionTask = task({
   id: "create-new-echo-session",
@@ -31,12 +32,14 @@ export const createNewEchoSessionTask = task({
       const endUTC = fromZonedTime(twoDaysFromNowInEST, timezone);
 
       // create new echo session in the database
+      const echoSessionInsert: EchoSessionInsert = {
+        start: startUTC.toISOString(),
+        end: endUTC.toISOString(),
+      };
+
       const [echoSession] = await db
         .insert(echoSessions)
-        .values({
-          start: startUTC.toISOString(),
-          end: endUTC.toISOString(),
-        })
+        .values(echoSessionInsert)
         .returning({ id: echoSessions.id });
 
       logger.log("new echo session created", { echoSession });
@@ -63,7 +66,7 @@ export const createNewEchoSessionTask = task({
       logger.log("users fetched", { numUsers: fetchedUsers.length });
 
       // for each user, create echo session token
-      const userEchoSessionData = [];
+      const userEchoSessionData: UserEchoSessionInsert[] = [];
 
       for (const user of fetchedUsers) {
         const token = crypto.randomBytes(16).toString("base64url");

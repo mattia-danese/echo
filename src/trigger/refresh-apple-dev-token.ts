@@ -3,6 +3,7 @@ import * as jose from "jose";
 import { db } from "@/db";
 import { appleDevToken } from "@/db/schema";
 import { appleMusicAdmin } from "@/lib/appleMusicAdmin";
+import type { AppleDevTokenInsert } from "@/types";
 
 export const refreshAppleDevTokenTask = task({
   id: "refresh-apple-dev-token",
@@ -32,9 +33,15 @@ export const refreshAppleDevTokenTask = task({
       .setProtectedHeader({ alg: "ES256", kid: appleMusicAdmin.keyId })
       .sign(applePrivateKey);
 
+    const appleDevTokenInsert: AppleDevTokenInsert = {
+      id: 1,
+      token: developerToken,
+      expiresAt,
+    };
+
     await db
       .insert(appleDevToken)
-      .values({ id: 1, token: developerToken, expiresAt })
+      .values(appleDevTokenInsert)
       .onConflictDoUpdate({
         target: appleDevToken.id,
         set: {

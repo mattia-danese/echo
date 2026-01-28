@@ -2,8 +2,8 @@ import { logger, task } from "@trigger.dev/sdk/v3";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { messages, users } from "@/db/schema";
-import { MessageType } from "@/db/types";
 import { twilioAdmin } from "@/lib/twilioAdmin";
+import { type MessageInsert, MessageType } from "@/types";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const twilio = require("twilio");
@@ -38,11 +38,13 @@ export const textBlastTask = task({
 
         logger.log("message sent", { response });
 
-        await db.insert(messages).values({
+        const messageInsert: MessageInsert = {
           userId: user.id,
           message: message,
           messageType: MessageType.OUTBOUND,
-        });
+        };
+
+        await db.insert(messages).values(messageInsert);
       }
     }
 

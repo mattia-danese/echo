@@ -2,8 +2,12 @@ import { logger, task } from "@trigger.dev/sdk/v3";
 import { inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { messages, users } from "@/db/schema";
-import { CONTACT_CARD_PLACEHOLDER, MessageType } from "@/db/types";
 import { twilioAdmin } from "@/lib/twilioAdmin";
+import {
+  CONTACT_CARD_PLACEHOLDER,
+  type MessageInsert,
+  MessageType,
+} from "@/types";
 import { embedLinksForInternational } from "./utils/message-helpers";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -70,11 +74,13 @@ export const sendMessagesTask = task({
           logger.log("message sent", { textMessage, response });
 
           // check response var
-          await db.insert(messages).values({
+          const messageInsert: MessageInsert = {
             userId: userId,
             message: textMessage,
             messageType: MessageType.OUTBOUND,
-          });
+          };
+
+          await db.insert(messages).values(messageInsert);
         } catch (error: any) {
           // Handle Twilio errors gracefully
           if (error.code === 21610) {

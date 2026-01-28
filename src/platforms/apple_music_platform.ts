@@ -5,11 +5,11 @@ import type {
   CreatePlaylistResponse,
   createAndPopulatePlaylistRequest,
   GetTracksResponse,
-  RecentTrackPlay,
   RefreshTokensResponse,
   SearchResultTrack,
   SearchTracksRequest,
   SearchTracksResponse,
+  UserTrackPlay,
 } from "@/types";
 import { Platform } from "./platform";
 
@@ -122,7 +122,7 @@ export class AppleMusicPlatform extends Platform {
       const data = await response.json();
       const now = new Date();
 
-      const tracks: RecentTrackPlay[] = data.data.map((track: any) => ({
+      const tracks: UserTrackPlay[] = data.data.map((track: any) => ({
         userId: userId,
         platform: PlatformEnum.APPLE_MUSIC,
         trackId: track.id,

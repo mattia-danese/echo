@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { spotifyAuth, userAuth } from "@/db/schema";
+import { spotifyAuth } from "@/db/schema";
 import { Platform as PlatformEnum } from "@/db/types";
 import { spotifyAdmin } from "@/lib/spotifyAdmin";
 import { Platform } from "@/platforms/platform";
@@ -13,12 +13,12 @@ import type {
   GetUserIdRequest,
   GetUserIdResponse,
   PopulatePlaylistRequest,
-  RecentTrackPlay,
   RefreshTokensRequest,
   RefreshTokensResponse,
   SearchResultTrack,
   SearchTracksRequest,
   SearchTracksResponse,
+  UserTrackPlay,
 } from "@/types";
 
 type SpotifyRecentTrackPlay = {
@@ -361,7 +361,7 @@ export class SpotifyPlatform extends Platform {
       const data = await response.json();
 
       // Transform data to match GetTracksResponse
-      const tracks: RecentTrackPlay[] = (data.items || []).map(
+      const tracks: UserTrackPlay[] = (data.items || []).map(
         (play: SpotifyRecentTrackPlay) => ({
           userId: request.userId,
           platform: PlatformEnum.SPOTIFY,

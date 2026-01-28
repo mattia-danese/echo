@@ -2,16 +2,24 @@ import { logger, task } from "@trigger.dev/sdk/v3";
 import { ne } from "drizzle-orm";
 import { db } from "@/db";
 import { userAuth, userTrackPlays } from "@/db/schema";
-import { Platform } from "@/db/types";
 import { AppleMusicPlatform } from "@/platforms";
-import type { RecentTrackPlay, User } from "@/types";
+import { Platform, type UserTrackPlay } from "@/types";
 
 export const getRecentPlaysTask = task({
   id: "get-recent-plays",
   // Set an optional maxDuration to prevent tasks from running indefinitely
   maxDuration: 300, // Stop executing after 300 secs (5 mins) of compute
 
-  run: async (payload: { user?: User }) => {
+  run: async (payload: {
+    user?: {
+      userId: number;
+      platform: Platform;
+      platformUserId: string | null;
+      accessToken: string;
+      refreshToken: string | null;
+      tokenExpiresAt: string | null;
+    };
+  }) => {
     logger.log("get recent plays task starting ...");
 
     const data = payload.user
@@ -250,7 +258,7 @@ const handleAppleMusicUser = async (userId: number, accessToken: string) => {
   return { ok: true, error: null };
 };
 
-const storeTracks = async (trackPlays: RecentTrackPlay[], userId: number) => {
+const storeTracks = async (trackPlays: UserTrackPlay[], userId: number) => {
   try {
     logger.log("Attempting to store tracks", {
       userId,

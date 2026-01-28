@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { db } from "@/db";
 import { authSessions, users } from "@/db/schema";
 import { env } from "@/lib/env";
+import type { AuthSessionInsert } from "@/types";
 
 const SESSION_COOKIE_NAME = "echo_session";
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -46,11 +47,13 @@ export async function createSession(userId: number) {
   const tokenHash = hashToken(token);
   const expiresAt = new Date(Date.now() + ONE_DAY_MS);
 
-  await db.insert(authSessions).values({
+  const authSessionInsert: AuthSessionInsert = {
     userId,
     tokenHash,
     expiresAt: expiresAt.toISOString(),
-  });
+  };
+
+  await db.insert(authSessions).values(authSessionInsert);
 
   await setSessionCookie(token, expiresAt);
 }

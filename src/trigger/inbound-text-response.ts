@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import * as Sentry from "@sentry/nextjs";
 import { logger, task } from "@trigger.dev/sdk/v3";
 import { and, desc, eq } from "drizzle-orm";
-import { createUser, deleteUser, submitSong } from "@/app/actions";
+import { deleteUser, submitSong } from "@/app/actions";
 import { db } from "@/db";
 import {
   appleDevToken,
@@ -12,9 +12,9 @@ import {
   userEchoSessions,
   users,
 } from "@/db/schema";
-import { MessageType, Platform } from "@/db/types";
 import { env } from "@/lib/env";
 import { AppleMusicPlatform, SpotifyPlatform } from "@/platforms";
+import { type MessageInsert, MessageType, Platform } from "@/types";
 import { sendMessagesTask } from "./send-messages";
 
 export const inboundTextResponseTask = task({
@@ -50,11 +50,13 @@ export const inboundTextResponseTask = task({
         });
       }
 
-      await db.insert(messages).values({
+      const messageInsert: MessageInsert = {
         userId: user.id,
         message: payload.inboundMessage,
         messageType: MessageType.INBOUND,
-      });
+      };
+
+      await db.insert(messages).values(messageInsert);
 
       const message = payload.inboundMessage.trim();
       const messageLower = message.toLowerCase();

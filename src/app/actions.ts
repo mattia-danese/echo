@@ -30,7 +30,6 @@ import {
   users,
   userTrackPlays,
 } from "@/db/schema";
-import { type Gender, Platform } from "@/db/types";
 import { createSession, deleteAllSessionsForUser } from "@/lib/cookieSession";
 import { lastFmAdmin } from "@/lib/lastFmAdmin";
 import { songLinkAdmin } from "@/lib/songLinkAdmin";
@@ -42,6 +41,17 @@ import {
   // onboardingCompletionTask,
   sendMessagesTask,
 } from "@/trigger";
+import {
+  type FriendInsert,
+  type Gender,
+  Platform,
+  type SongLinkCacheMappingInsert,
+  type SonglinkCacheInsert,
+  type UserAuthInsert,
+  type UserEchoSessionInsert,
+  type UserInsert,
+  type UserRankingInsert,
+} from "@/types";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const twilio = require("twilio");
@@ -49,8 +59,6 @@ const twilio = require("twilio");
 const accountSid = twilioAdmin.accountSid;
 const authToken = twilioAdmin.authToken;
 const client = twilio(accountSid, authToken);
-
-type UserAuthInsert = typeof userAuth.$inferInsert;
 
 export async function checkRegistrationData(payload: {
   firstName: string;
@@ -164,18 +172,20 @@ export async function createUser(payload: {
     const friendLinkToken = crypto.randomBytes(16).toString("base64url");
 
     // Create or reactivate user (upsert on phone number)
+    const userInsert: UserInsert = {
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      phoneNumber: payload.phoneNumber,
+      gender: payload.gender,
+      dateOfBirth: payload.dateOfBirth,
+      friendLinkToken: friendLinkToken,
+      whenOnboardingComplete: null,
+      platform: payload.platform,
+    };
+
     const [newUser] = await db
       .insert(users)
-      .values({
-        firstName: payload.firstName,
-        lastName: payload.lastName,
-        phoneNumber: payload.phoneNumber,
-        gender: payload.gender,
-        dateOfBirth: payload.dateOfBirth,
-        friendLinkToken: friendLinkToken,
-        whenOnboardingComplete: null,
-        platform: payload.platform,
-      })
+      .values(userInsert)
       .onConflictDoUpdate({
         target: users.phoneNumber,
         set: {
@@ -408,24 +418,26 @@ export async function createFriendships(payload: {
     const now = new Date().toISOString();
 
     // Create or reactivate friendship relationship (bidirectional)
+    const friendshipsInsert: FriendInsert[] = [
+      {
+        userId: payload.userId,
+        friendId: friend.id,
+        muted: false,
+        active: true,
+        updatedAt: now,
+      },
+      {
+        userId: friend.id,
+        friendId: payload.userId,
+        muted: false,
+        active: true,
+        updatedAt: now,
+      },
+    ];
+
     await db
       .insert(friends)
-      .values([
-        {
-          userId: payload.userId,
-          friendId: friend.id,
-          muted: false,
-          active: true,
-          updatedAt: now,
-        },
-        {
-          userId: friend.id,
-          friendId: payload.userId,
-          muted: false,
-          active: true,
-          updatedAt: now,
-        },
-      ])
+      .values(friendshipsInsert)
       .onConflictDoUpdate({
         target: [friends.userId, friends.friendId],
         set: {
@@ -792,18 +804,20 @@ export async function submitSong(payload: {
     }
 
     // if userEchoSession already exists, update it, otherwise insert a new one (onboarding)
+    const userEchoSessionInsert: UserEchoSessionInsert = {
+      userId: payload.userId,
+      sessionId: payload.sessionId,
+      token: payload.userEchoSessionToken,
+      platform: payload.platform,
+      trackId: payload.trackId,
+      trackName: payload.trackName,
+      trackArtists: payload.artists,
+      trackAlbumImageUrl: payload.albumImageUrl,
+    };
+
     await db
       .insert(userEchoSessions)
-      .values({
-        userId: payload.userId,
-        sessionId: payload.sessionId,
-        token: payload.userEchoSessionToken,
-        platform: payload.platform,
-        trackId: payload.trackId,
-        trackName: payload.trackName,
-        trackArtists: payload.artists,
-        trackAlbumImageUrl: payload.albumImageUrl,
-      })
+      .values(userEchoSessionInsert)
       .onConflictDoUpdate({
         target: userEchoSessions.token,
         set: {
@@ -899,12 +913,14 @@ export async function handleCrossPlatformSongSubmission(payload: {
       };
     }
 
+    const songlinkCacheInsert: SonglinkCacheInsert = {
+      title: payload.trackName,
+      artists: payload.artists,
+    };
+
     const [songlinkCacheRecord] = await db
       .insert(songlinkCache)
-      .values({
-        title: payload.trackName,
-        artists: payload.artists,
-      })
+      .values(songlinkCacheInsert)
       .onConflictDoUpdate({
         target: [songlinkCache.title, songlinkCache.artists],
         set: { lastCheckedAt: new Date().toISOString() },
@@ -931,11 +947,13 @@ export async function handleCrossPlatformSongSubmission(payload: {
         );
       }
 
-      await db.insert(songLinkCacheMappings).values({
+      const songLinkCacheMappingInsert: SongLinkCacheMappingInsert = {
         songlinkCacheId: songlinkCacheRecord.id,
         platform: platformKey,
         trackId: trackId,
-      });
+      };
+
+      await db.insert(songLinkCacheMappings).values(songLinkCacheMappingInsert);
     }
 
     return { ok: true, message: "Song submitted successfully" };
@@ -1447,11 +1465,13 @@ export async function submitPlaylistRanking({
   submittedByPhoneNumber: string;
 }) {
   try {
-    await db.insert(userRankings).values({
+    const userRankingInsert: UserRankingInsert = {
       userId,
       playlistId,
       rankedUserId,
-    });
+    };
+
+    await db.insert(userRankings).values(userRankingInsert);
 
     await sendMessagesTask.trigger({
       data: {

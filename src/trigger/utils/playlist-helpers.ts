@@ -10,11 +10,11 @@ import {
   userEchoSessions,
   users,
 } from "@/db/schema";
-import { CONTACT_CARD_PLACEHOLDER, Platform } from "@/db/types";
 import { AppleMusicPlatform } from "@/platforms/apple_music_platform";
 import { SpotifyPlatform } from "@/platforms/spotify_platform";
 import type { FriendSong } from "@/trigger/generate-playlists";
 import { sendMessagesTask } from "@/trigger/send-messages";
+import { CONTACT_CARD_PLACEHOLDER, Platform } from "@/types";
 
 export type PlaylistUser = {
   userId: number;
