@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { appleDevToken, users } from "@/db/schema";
+import { getCurrentUser } from "@/lib/cookieSession";
 import FriendRequest from "./_components/FriendRequest";
 
 interface PageProps {
@@ -48,11 +49,15 @@ export default async function FriendRequestPage({
     const [dev] = await db.select().from(appleDevToken).limit(1);
     const appleDeveloperToken = dev?.token ?? "";
 
+    // Get current user session for friendship verification
+    const currentUser = await getCurrentUser();
+
     return (
       <FriendRequest
         inviter={inviter}
         accountStatus={accountStatus}
         appleDeveloperToken={appleDeveloperToken}
+        currentUser={currentUser}
       />
     );
   } catch (error: unknown) {

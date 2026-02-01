@@ -410,9 +410,7 @@ export async function createFriendships(payload: {
     }
 
     if (friend.id === payload.userId) {
-      throw new Error(
-        `Friend is the same as the user in createFriendships(): ${payload.userId}`,
-      );
+      throw new Error("Friend is the same as the user");
     }
 
     const now = new Date().toISOString();

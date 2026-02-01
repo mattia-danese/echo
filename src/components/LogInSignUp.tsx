@@ -2,27 +2,21 @@
 
 import Script from "next/script";
 import { useEffect, useState } from "react";
-import { logInExistingUser, sendOTP, verifyOTP } from "@/app/actions";
+import {
+  checkRegistrationData,
+  logInExistingUser,
+  sendOTP,
+  verifyOTP,
+} from "@/app/actions";
 import Hero from "@/components/Hero";
 import HowItWorks from "@/components/HowItWorks";
+import OTPModal from "@/components/OTPModal";
 import PhoneNumberChecker from "@/components/PhoneNumberChecker";
 import RegistrationForm, { type FormData } from "@/components/RegistrationForm";
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@/components/ui/input-otp";
 import { Spinner } from "@/components/ui/spinner";
+import { Platform } from "@/db/types";
+import { isPhoneNumberValid } from "@/lib/validation";
 
 // MusicKit is loaded via Next.js Script in the component render
 
@@ -41,7 +35,8 @@ export default function LogInSignUp({
   const [phoneNumberChecked, setPhoneNumberChecked] = useState(
     !!initialPhoneNumber,
   );
-  const [showRegistration, setShowRegistration] = useState(false);
+  const [isRegistrationMode, setIsRegistrationMode] = useState(false);
+  const [isCheckingUser, setIsCheckingUser] = useState(false);
   const [otpOpen, setOtpOpen] = useState(false);
   const [otpValue, setOtpValue] = useState("");
   const [otpSending, setOtpSending] = useState(false);
@@ -56,6 +51,8 @@ export default function LogInSignUp({
     dateOfBirth: null,
   });
   const [consentChecked, setConsentChecked] = useState(false);
+  const [formDataError, setFormDataError] = useState("");
+  const [musicUserToken, setMusicUserToken] = useState("");
 
   useEffect(() => {
     // Clean up URL, preserving tab parameter if present
@@ -69,33 +66,185 @@ export default function LogInSignUp({
     window.history.replaceState({}, document.title, url.toString());
   }, []);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: phoneNumber is a valid dependency
+  // Only trigger for deep links where phone is pre-filled and assumed to be existing user
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Only run once on mount for deep link login
   useEffect(() => {
-    async function initiateLogin() {
-      if (phoneNumberChecked && !showRegistration) {
-        setOtpOpen(true);
-        setOtpValue("");
-        setOtpSending(true);
-        setOtpError("");
+    async function initiateDeepLinkLogin() {
+      if (!initialPhoneNumber) return;
 
-        try {
-          const resp = await sendOTP(phoneNumber);
-          if (!resp.ok) {
-            setOtpError("Failed to send code. Please try again.");
-          }
-        } catch {
+      setOtpOpen(true);
+      setOtpValue("");
+      setOtpSending(true);
+      setOtpError("");
+
+      try {
+        const resp = await sendOTP(phoneNumber);
+        if (!resp.ok) {
           setOtpError("Failed to send code. Please try again.");
-        } finally {
-          setOtpSending(false);
         }
+      } catch {
+        setOtpError("Failed to send code. Please try again.");
+      } finally {
+        setOtpSending(false);
       }
     }
-    void initiateLogin();
-  }, [phoneNumberChecked, showRegistration]);
+    void initiateDeepLinkLogin();
+  }, []); // Empty deps - only runs once on mount
+
+  // Clear form errors when relevant fields change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Only clear error on form field changes
+  useEffect(() => {
+    if (formDataError && isRegistrationMode) {
+      setFormDataError("");
+    }
+  }, [
+    formData.firstName,
+    formData.lastName,
+    formData.dateOfBirth,
+    formData.gender,
+    formData.platform,
+  ]);
+
+  const handlePhoneNumberChange = (value: string) => {
+    setPhoneNumber(value);
+    // Reset state when phone number changes after initial check
+    if (phoneNumberChecked) {
+      setPhoneNumberChecked(false);
+      setIsRegistrationMode(false);
+      setFormDataError("");
+    }
+  };
+
+  const isFormValid = () => {
+    return (
+      formData.firstName.trim() &&
+      formData.lastName.trim() &&
+      formData.phoneNumber.trim() &&
+      phoneNumberChecked &&
+      consentChecked &&
+      formData.platform &&
+      formData.gender &&
+      formData.dateOfBirth
+    );
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // If we haven't checked the user yet, do the check first
+    if (!phoneNumberChecked) {
+      setIsCheckingUser(true);
+      try {
+        const response = await fetch("/api/get-user-by-phone-number", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phoneNumber }),
+        });
+
+        const data = await response.json();
+
+        if (data.exists) {
+          // User exists - proceed to login with OTP
+          setPhoneNumberChecked(true);
+          setIsRegistrationMode(false);
+          // Open OTP modal and send code
+          setOtpOpen(true);
+          await sendOTP(phoneNumber);
+        } else {
+          // User doesn't exist - show registration form
+          setPhoneNumberChecked(true);
+          setIsRegistrationMode(true);
+        }
+      } catch (error) {
+        console.error("Error checking user:", error);
+      } finally {
+        setIsCheckingUser(false);
+      }
+      return;
+    }
+
+    // If we're in registration mode, handle registration submission
+    if (isRegistrationMode) {
+      await handleRegistrationSubmit();
+    }
+  };
+
+  const handleRegistrationSubmit = async () => {
+    setIsCheckingUser(true);
+
+    // Apple Music authorization if needed
+    if (formData.platform === Platform.APPLE_MUSIC) {
+      const instance = MusicKit.getInstance?.();
+      await instance?.authorize();
+      setMusicUserToken(instance?.musicUserToken);
+    }
+
+    // Validate registration data
+    const { ok, message } = await checkRegistrationData({
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      phoneNumber: formData.phoneNumber,
+      dateOfBirth: formData.dateOfBirth?.toISOString().split("T")[0] ?? "",
+    });
+
+    if (!ok) {
+      setFormDataError(message);
+      setIsCheckingUser(false);
+      return;
+    }
+
+    // Send OTP for registration
+    setOtpOpen(true);
+    await sendOTP(formData.phoneNumber);
+    setIsCheckingUser(false);
+  };
+
+  const continueRegistrationAfterOTP = async () => {
+    // Apple Music path: authorize and then complete
+    if (formData.platform === Platform.APPLE_MUSIC) {
+      const resp = await fetch("/api/auth/apple/callback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          phoneNumber: formData.phoneNumber,
+          friendLinkToken: "", // No inviter in landing page flow
+          platform: formData.platform,
+          gender: formData.gender,
+          dateOfBirth: formData.dateOfBirth?.toISOString().split("T")[0] ?? "",
+          musicUserToken,
+        }),
+      });
+      if (resp.ok) {
+        const data: { redirect?: string } = await resp.json();
+        if (data.redirect) window.location.href = data.redirect;
+      }
+      return;
+    }
+
+    // Spotify path: build auth URL and redirect
+    const params = new URLSearchParams({
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      phoneNumber: encodeURIComponent(formData.phoneNumber),
+      friendLinkToken: "", // No inviter in landing page flow
+      platform: formData.platform,
+      gender: formData.gender,
+      dateOfBirth: formData.dateOfBirth
+        ? formData.dateOfBirth.toISOString().split("T")[0]
+        : "",
+    });
+
+    window.location.href = `${process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI}?state=${encodeURIComponent(
+      params.toString(),
+    )}`;
+  };
 
   const handleVerifyOTP = async () => {
     setOtpError("");
     setOtpVerifying(true);
+
     try {
       const resp = await verifyOTP(phoneNumber, otpValue);
       if (!resp.ok || !resp.data?.verified) {
@@ -103,13 +252,18 @@ export default function LogInSignUp({
         return;
       }
 
-      // OTP verified, now log in the user
-      const loginResult = await logInExistingUser(phoneNumber);
-      if (loginResult.ok) {
-        setOtpOpen(false);
-        // Redirect will happen automatically via createSession
+      if (isRegistrationMode) {
+        // Complete registration flow
+        await continueRegistrationAfterOTP();
       } else {
-        setOtpError("Login failed. Please try again.");
+        // Complete login flow
+        const loginResult = await logInExistingUser(phoneNumber);
+        if (loginResult.ok) {
+          setOtpOpen(false);
+          // Redirect happens automatically
+        } else {
+          setOtpError("Login failed. Please try again.");
+        }
       }
     } catch {
       setOtpError("Verification failed. Please try again.");
@@ -120,9 +274,10 @@ export default function LogInSignUp({
 
   const handleOtpModalChange = (open: boolean) => {
     setOtpOpen(open);
-    // Reset phone number checked state if user cancels out of the modal
     if (!open) {
+      // Reset state when user cancels OTP modal
       setPhoneNumberChecked(false);
+      setIsRegistrationMode(false);
     }
   };
 
@@ -194,84 +349,70 @@ export default function LogInSignUp({
         )}
 
         {!accountStatus && (
-          <div className="w-full max-w-md">
+          <form onSubmit={handleSubmit} className="w-full max-w-md space-y-6">
             <PhoneNumberChecker
               phoneNumber={phoneNumber}
-              setPhoneNumber={setPhoneNumber}
-              phoneNumberChecked={phoneNumberChecked}
-              setPhoneNumberChecked={setPhoneNumberChecked}
-              setShowRegistration={setShowRegistration}
+              setPhoneNumber={handlePhoneNumberChange}
             />
-          </div>
-        )}
 
-        {/* Form */}
-        {!accountStatus && phoneNumberChecked && showRegistration && (
-          <RegistrationForm
-            phoneNumber={phoneNumber}
-            phoneNumberChecked={phoneNumberChecked}
-            disableAppleMusic={!appleDeveloperToken}
-            formData={formData}
-            setFormData={setFormData}
-            consentChecked={consentChecked}
-            setConsentChecked={setConsentChecked}
-          />
+            {/* Registration fields appear here when isRegistrationMode=true */}
+            {isRegistrationMode && phoneNumberChecked && (
+              <RegistrationForm
+                renderAsFieldsOnly={true}
+                phoneNumber={phoneNumber}
+                phoneNumberChecked={phoneNumberChecked}
+                formData={formData}
+                setFormData={setFormData}
+                consentChecked={consentChecked}
+                setConsentChecked={setConsentChecked}
+                disableAppleMusic={!appleDeveloperToken}
+              />
+            )}
+
+            {/* Form data error display */}
+            {formDataError && (
+              <div className="text-red-500 text-sm text-center">
+                {formDataError} is invalid
+              </div>
+            )}
+
+            {/* Single submit button - changes text based on mode */}
+            {phoneNumber && isPhoneNumberValid(phoneNumber) && (
+              <Button
+                type="submit"
+                disabled={
+                  isCheckingUser || (isRegistrationMode && !isFormValid())
+                }
+                className="w-full bg-white text-black hover:bg-gray-100 rounded-lg py-3 font-medium"
+              >
+                {isCheckingUser ? (
+                  <Spinner className="size-5" />
+                ) : isRegistrationMode ? (
+                  "register"
+                ) : (
+                  "login"
+                )}
+              </Button>
+            )}
+          </form>
         )}
 
         {/* How It Works */}
         <HowItWorks />
 
-        {/* Login OTP Dialog */}
-        {phoneNumberChecked && !showRegistration && (
-          <AlertDialog open={otpOpen} onOpenChange={handleOtpModalChange}>
-            <AlertDialogContent className="bg-black text-white border-white">
-              <AlertDialogHeader>
-                <AlertDialogTitle>verify your phone number</AlertDialogTitle>
-                <AlertDialogDescription>
-                  we sent a 6-digit code to {phoneNumber}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-
-              <div className="flex flex-col items-center gap-4 py-2">
-                <InputOTP
-                  maxLength={6}
-                  value={otpValue}
-                  onChange={(value: string) => setOtpValue(value)}
-                  containerClassName="justify-center"
-                >
-                  <InputOTPGroup>
-                    <InputOTPSlot index={0} />
-                    <InputOTPSlot index={1} />
-                    <InputOTPSlot index={2} />
-                    <InputOTPSlot index={3} />
-                    <InputOTPSlot index={4} />
-                    <InputOTPSlot index={5} />
-                  </InputOTPGroup>
-                </InputOTP>
-                {otpError && (
-                  <div className="text-red-500 text-sm">{otpError}</div>
-                )}
-              </div>
-
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={otpVerifying}>
-                  cancel
-                </AlertDialogCancel>
-                <Button
-                  onClick={handleVerifyOTP}
-                  disabled={otpValue.length !== 6 || otpVerifying || otpSending}
-                  className="bg-white text-black hover:bg-gray-100"
-                >
-                  {otpVerifying ? (
-                    <Spinner className="size-5" />
-                  ) : (
-                    "verify & log in"
-                  )}
-                </Button>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
+        {/* OTP Dialog - handles both login and registration */}
+        <OTPModal
+          open={otpOpen}
+          onOpenChange={handleOtpModalChange}
+          phoneNumber={phoneNumber}
+          otpValue={otpValue}
+          onOtpChange={setOtpValue}
+          onVerify={handleVerifyOTP}
+          otpError={otpError}
+          otpSending={otpSending}
+          otpVerifying={otpVerifying}
+          verifyButtonText="verify & log in"
+        />
       </main>
     </div>
   );

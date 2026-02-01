@@ -2,13 +2,16 @@
 
 import Script from "next/script";
 import { useEffect, useState } from "react";
-import { createFriendships } from "@/app/actions";
+import { createFriendships, sendOTP, verifyOTP } from "@/app/actions";
 import Hero from "@/components/Hero";
 import HowItWorks from "@/components/HowItWorks";
+import OTPModal from "@/components/OTPModal";
 import PhoneNumberChecker from "@/components/PhoneNumberChecker";
 import RegistrationForm, { type FormData } from "@/components/RegistrationForm";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import type { Platform } from "@/db/types";
+import { isPhoneNumberValid } from "@/lib/validation";
 
 type FriendshipStatus = "created" | "error" | "error-same-user" | null;
 
@@ -19,16 +22,24 @@ interface FriendRequestProps {
   };
   accountStatus?: string;
   appleDeveloperToken: string;
+  currentUser: {
+    id: number;
+    firstName: string;
+    platform: string;
+    phoneNumber: string;
+  } | null;
 }
 
 export default function FriendRequest({
   inviter,
   accountStatus,
   appleDeveloperToken,
+  currentUser,
 }: FriendRequestProps) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [phoneNumberChecked, setPhoneNumberChecked] = useState(false);
-  const [showRegistration, setShowRegistration] = useState(false);
+  const [isRegistrationMode, setIsRegistrationMode] = useState(false);
+  const [isCheckingUser, setIsCheckingUser] = useState(false);
   const [friendshipStatus, setFriendshipStatus] =
     useState<FriendshipStatus>(null);
   const [formData, setFormData] = useState<FormData>({
@@ -40,6 +51,18 @@ export default function FriendRequest({
     dateOfBirth: null,
   });
   const [consentChecked, setConsentChecked] = useState(false);
+
+  // OTP state
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [otpValue, setOtpValue] = useState("");
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpError, setOtpError] = useState("");
+  const [pendingUserData, setPendingUserData] = useState<{
+    id: number;
+    platform: Platform;
+    firstName: string;
+  } | null>(null);
 
   useEffect(() => {
     const newUrl = window.location.origin + window.location.pathname;
@@ -61,11 +84,108 @@ export default function FriendRequest({
     if (ok) {
       setFriendshipStatus("created");
     } else {
-      if (message === "Friend is the same as the user") {
+      if (message.includes("Friend is the same as the user")) {
         setFriendshipStatus("error-same-user");
       } else {
         setFriendshipStatus("error");
       }
+    }
+  };
+
+  const handlePhoneNumberChange = (value: string) => {
+    setPhoneNumber(value);
+    if (phoneNumberChecked) {
+      setPhoneNumberChecked(false);
+      setIsRegistrationMode(false);
+      setFriendshipStatus(null);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!phoneNumberChecked) {
+      setIsCheckingUser(true);
+      try {
+        const response = await fetch("/api/get-user-by-phone-number", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phoneNumber }),
+        });
+
+        const data = await response.json();
+
+        if (data.exists) {
+          setPhoneNumberChecked(true);
+          setIsRegistrationMode(false);
+
+          // Case 1: User is logged in AND phone matches their account
+          if (currentUser && currentUser.phoneNumber === phoneNumber) {
+            await handleCreateFriendship({
+              id: currentUser.id,
+              platform: currentUser.platform as Platform,
+              firstName: currentUser.firstName,
+            });
+          } else {
+            // Case 2: User exists but not logged in (or different account)
+            setPendingUserData({
+              id: data.id,
+              platform: data.platform,
+              firstName: data.firstName,
+            });
+            setOtpOpen(true);
+            setOtpValue("");
+            setOtpSending(true);
+            setOtpError("");
+            try {
+              await sendOTP(phoneNumber);
+            } catch {
+              setOtpError("Failed to send code. Please try again.");
+            } finally {
+              setOtpSending(false);
+            }
+          }
+        } else {
+          // Case 3: User doesn't exist - show registration form
+          setPhoneNumberChecked(true);
+          setIsRegistrationMode(true);
+        }
+      } catch (error) {
+        console.error("Error checking user:", error);
+      } finally {
+        setIsCheckingUser(false);
+      }
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    setOtpError("");
+    setOtpVerifying(true);
+
+    try {
+      const resp = await verifyOTP(phoneNumber, otpValue);
+      if (!resp.ok || !resp.data?.verified) {
+        setOtpError("Invalid code. Please try again.");
+        return;
+      }
+
+      // OTP verified - create friendship
+      if (pendingUserData) {
+        setOtpOpen(false);
+        await handleCreateFriendship(pendingUserData);
+      }
+    } catch {
+      setOtpError("Verification failed. Please try again.");
+    } finally {
+      setOtpVerifying(false);
+    }
+  };
+
+  const handleOtpModalChange = (open: boolean) => {
+    setOtpOpen(open);
+    if (!open) {
+      setPhoneNumberChecked(false);
+      setPendingUserData(null);
     }
   };
 
@@ -141,34 +261,61 @@ export default function FriendRequest({
           </div>
         )}
 
-        {!accountStatus && (
-          <div className="w-full max-w-md">
+        {!accountStatus && !friendshipStatus && (
+          <form onSubmit={handleSubmit} className="w-full max-w-md space-y-6">
             <PhoneNumberChecker
               phoneNumber={phoneNumber}
-              setPhoneNumber={setPhoneNumber}
-              phoneNumberChecked={phoneNumberChecked}
-              setPhoneNumberChecked={setPhoneNumberChecked}
-              setShowRegistration={setShowRegistration}
-              handleCreateFriendship={handleCreateFriendship}
+              setPhoneNumber={handlePhoneNumberChange}
             />
-          </div>
+
+            {/* Accept button */}
+            {phoneNumber &&
+              isPhoneNumberValid(phoneNumber) &&
+              !isRegistrationMode && (
+                <Button
+                  type="submit"
+                  disabled={isCheckingUser}
+                  className="w-full bg-white text-black hover:bg-gray-100 rounded-lg py-3 font-medium"
+                >
+                  {isCheckingUser ? <Spinner className="size-5" /> : "accept"}
+                </Button>
+              )}
+          </form>
         )}
 
-        {!accountStatus && phoneNumberChecked && showRegistration && (
-          <RegistrationForm
-            phoneNumber={phoneNumber}
-            phoneNumberChecked={phoneNumberChecked}
-            inviter={inviter}
-            disableAppleMusic={!appleDeveloperToken}
-            formData={formData}
-            setFormData={setFormData}
-            consentChecked={consentChecked}
-            setConsentChecked={setConsentChecked}
-          />
-        )}
+        {/* Registration form */}
+        {!accountStatus &&
+          !friendshipStatus &&
+          isRegistrationMode &&
+          phoneNumberChecked && (
+            <RegistrationForm
+              phoneNumber={phoneNumber}
+              phoneNumberChecked={phoneNumberChecked}
+              inviter={inviter}
+              disableAppleMusic={!appleDeveloperToken}
+              formData={formData}
+              setFormData={setFormData}
+              consentChecked={consentChecked}
+              setConsentChecked={setConsentChecked}
+            />
+          )}
 
+        <OTPModal
+          open={otpOpen}
+          onOpenChange={handleOtpModalChange}
+          phoneNumber={phoneNumber}
+          otpValue={otpValue}
+          onOtpChange={setOtpValue}
+          onVerify={handleVerifyOTP}
+          otpError={otpError}
+          otpSending={otpSending}
+          otpVerifying={otpVerifying}
+          verifyButtonText="verify & accept"
+        />
+
+        {/* Friendship status messages */}
         {phoneNumberChecked &&
-          !showRegistration &&
+          !isRegistrationMode &&
           friendshipStatus !== null && (
             <div className="text-white text-center">
               {friendshipStatus === "created"
