@@ -1,5 +1,6 @@
 import { logger } from "@trigger.dev/sdk/v3";
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
   friends,
@@ -354,43 +355,33 @@ export const compileOnboardingFallbackPlaylist = async (
 
 const convertTrack = async (trackId: string, platform: Platform) => {
   try {
-    const [submittedTrack] = await db
-      .select({ songlinkCacheId: songLinkCacheMappings.songlinkCacheId })
-      .from(songLinkCacheMappings)
-      .where(eq(songLinkCacheMappings.trackId, trackId))
-      .limit(1);
+    const sourceMapping = alias(songLinkCacheMappings, "source");
+    const targetMapping = alias(songLinkCacheMappings, "target");
 
-    if (!submittedTrack) {
-      return {
-        ok: false,
-        trackId: null,
-        error: `TrackId ${trackId} not found in songlink_cache_mappings when converting track to ${platform}`,
-      };
-    }
-
-    const [convertedTrack] = await db
-      .select({ trackId: songLinkCacheMappings.trackId })
-      .from(songLinkCacheMappings)
+    const [result] = await db
+      .select({ trackId: targetMapping.trackId })
+      .from(sourceMapping)
+      .innerJoin(
+        targetMapping,
+        eq(sourceMapping.songlinkCacheId, targetMapping.songlinkCacheId),
+      )
       .where(
         and(
-          eq(
-            songLinkCacheMappings.songlinkCacheId,
-            submittedTrack.songlinkCacheId,
-          ),
-          eq(songLinkCacheMappings.platform, platform),
+          eq(sourceMapping.trackId, trackId),
+          eq(targetMapping.platform, platform),
         ),
       )
       .limit(1);
 
-    if (!convertedTrack) {
+    if (!result) {
       return {
         ok: false,
         trackId: null,
-        error: `Track with songlinkCacheId ${submittedTrack.songlinkCacheId} not found in songlink_cache_mappings when converting track to ${platform}`,
+        error: `Track conversion failed for trackId ${trackId} to ${platform}`,
       };
     }
 
-    return { ok: true, trackId: convertedTrack.trackId, error: null };
+    return { ok: true, trackId: result.trackId, error: null };
   } catch (error) {
     return { ok: false, trackId: null, error: error };
   }

@@ -30,11 +30,17 @@ export default async function FriendRequestPage({
     }
     const accountStatus = resolvedSearchParams.accountStatus;
 
-    const [user] = await db
-      .select({ firstName: users.firstName, platform: users.platform })
-      .from(users)
-      .where(and(eq(users.friendLinkToken, token), eq(users.isDeleted, false)))
-      .limit(1);
+    const [[user], [dev], currentUser] = await Promise.all([
+      db
+        .select({ firstName: users.firstName, platform: users.platform })
+        .from(users)
+        .where(
+          and(eq(users.friendLinkToken, token), eq(users.isDeleted, false)),
+        )
+        .limit(1),
+      db.select().from(appleDevToken).limit(1),
+      getCurrentUser(),
+    ]);
 
     if (!user) {
       throw new Error(`User with friend link ${token} not found`);
@@ -45,12 +51,7 @@ export default async function FriendRequestPage({
       link: token,
     };
 
-    // Fetch Apple developer token to pass to client when needed (MusicKit config)
-    const [dev] = await db.select().from(appleDevToken).limit(1);
     const appleDeveloperToken = dev?.token ?? "";
-
-    // Get current user session for friendship verification
-    const currentUser = await getCurrentUser();
 
     return (
       <FriendRequest

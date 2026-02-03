@@ -31,7 +31,7 @@ async function setSessionCookie(token: string, expiresAt: Date) {
   });
 }
 
-async function clearSessionCookie() {
+export async function clearSessionCookie() {
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, "", {
     httpOnly: true,
@@ -58,31 +58,12 @@ export async function createSession(userId: number) {
   await setSessionCookie(token, expiresAt);
 }
 
-export async function validateSession(): Promise<null | { userId: number }> {
+export async function getCurrentUser() {
   const cookieStore = await cookies();
   const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!raw) return null;
 
   const tokenHash = hashToken(raw);
-
-  const [session] = await db
-    .select({ userId: authSessions.userId })
-    .from(authSessions)
-    .where(
-      and(
-        eq(authSessions.tokenHash, tokenHash),
-        gt(authSessions.expiresAt, new Date().toISOString()),
-      ),
-    )
-    .limit(1);
-
-  if (!session) return null;
-  return { userId: session.userId };
-}
-
-export async function getCurrentUser() {
-  const validated = await validateSession();
-  if (!validated) return null;
 
   const [user] = await db
     .select({
@@ -93,12 +74,17 @@ export async function getCurrentUser() {
       profilePictureUrl: users.profilePictureUrl,
       phoneNumber: users.phoneNumber,
     })
-    .from(users)
-    .where(eq(users.id, validated.userId))
+    .from(authSessions)
+    .innerJoin(users, eq(authSessions.userId, users.id))
+    .where(
+      and(
+        eq(authSessions.tokenHash, tokenHash),
+        gt(authSessions.expiresAt, new Date().toISOString()),
+      ),
+    )
     .limit(1);
 
-  if (!user) return null;
-  return user;
+  return user ?? null;
 }
 
 export async function deleteSession() {

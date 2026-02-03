@@ -1,6 +1,15 @@
 "use server";
 
-import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  sql,
+} from "drizzle-orm";
 
 import LogInSignUp from "@/components/LogInSignUp";
 import Profile from "@/components/Profile";
@@ -62,99 +71,132 @@ export default async function RootPage({ searchParams }: PageProps) {
 
   /*
     BELOW ARE ALL METHODS FOR PROFILE PAGE
+    Queries are parallelized where possible for performance
   */
 
-  // Songs Shared: user_echo_sessions where track_id IS NOT NULL for this user
-  const [{ count: songsShared }] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(userEchoSessions)
-    .where(
-      and(
-        eq(userEchoSessions.userId, user.id),
-        isNotNull(userEchoSessions.trackId),
-      ),
-    );
-
-  // Songs Discovered: count of playlist_songs across all playlists belonging to the user
+  // Subquery for playlist IDs (used by multiple queries)
   const playlistIdsSubquery = db
     .select({ id: playlists.id })
     .from(playlists)
     .where(eq(playlists.userId, user.id));
 
-  const [{ count: songsDiscovered }] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(playlistSongs)
-    .where(inArray(playlistSongs.playlistId, playlistIdsSubquery));
+  // Run all independent queries in parallel
+  const [
+    sharedSongs,
+    [{ count: songsDiscovered }],
+    friendsList,
+    userPlaylists,
+    playlistSongsRows,
+    rankings,
+    recentEchoSessions,
+  ] = await Promise.all([
+    // sharedSongs query (includes sessionId for streak calculation)
+    db
+      .select({
+        trackId: userEchoSessions.trackId,
+        platform: userEchoSessions.platform,
+        trackName: userEchoSessions.trackName,
+        trackArtists: userEchoSessions.trackArtists,
+        trackAlbumImageUrl: userEchoSessions.trackAlbumImageUrl,
+        sessionId: userEchoSessions.sessionId,
+      })
+      .from(userEchoSessions)
+      .where(
+        and(
+          eq(userEchoSessions.userId, user.id),
+          isNotNull(userEchoSessions.trackId),
+        ),
+      )
+      .orderBy(desc(userEchoSessions.createdAt)),
 
-  // Friends list: include both directions and de-duplicate
-  const friendsList = await db
-    .select({
-      id: users.id,
-      firstName: users.firstName,
-      lastName: users.lastName,
-      profilePic: users.profilePictureUrl,
-      isMuted: friends.muted,
-    })
-    .from(friends)
-    .innerJoin(users, eq(users.id, friends.friendId))
-    .where(and(eq(friends.userId, user.id), eq(friends.active, true)))
-    .orderBy(asc(users.firstName), asc(users.lastName));
+    // songsDiscovered count
+    db
+      .select({ count: count() })
+      .from(playlistSongs)
+      .where(inArray(playlistSongs.playlistId, playlistIdsSubquery)),
 
-  // Past echoes → "your songs": join mappings and cache in a single query
-  const sharedSongs = await db
-    .select({
-      trackId: userEchoSessions.trackId,
-      platform: userEchoSessions.platform,
-      trackName: userEchoSessions.trackName,
-      trackArtists: userEchoSessions.trackArtists,
-      trackAlbumImageUrl: userEchoSessions.trackAlbumImageUrl,
-    })
-    .from(userEchoSessions)
-    .where(
-      and(
-        eq(userEchoSessions.userId, user.id),
-        isNotNull(userEchoSessions.trackId),
-      ),
-    )
-    .orderBy(desc(userEchoSessions.createdAt));
+    // friendsList
+    db
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        profilePic: users.profilePictureUrl,
+        isMuted: friends.muted,
+      })
+      .from(friends)
+      .innerJoin(users, eq(users.id, friends.friendId))
+      .where(and(eq(friends.userId, user.id), eq(friends.active, true)))
+      .orderBy(asc(users.firstName), asc(users.lastName)),
 
-  // Your playlists: simple select filtered by user and ordered by newest first
-  const userPlaylists = await db
-    .select({
-      id: playlists.id,
-      platform: playlists.platform,
-      platformPlaylistId: playlists.platformPlaylistId,
-      playlistName: playlists.playlistName,
-      playlistImageUrl: playlists.playlistImageUrl,
-      playlistUrl: sql<string>`''`,
-      echoSessionId: playlists.sessionId,
-    })
-    .from(playlists)
-    .where(eq(playlists.userId, user.id))
-    .orderBy(desc(playlists.createdAt));
+    // userPlaylists
+    db
+      .select({
+        id: playlists.id,
+        platform: playlists.platform,
+        platformPlaylistId: playlists.platformPlaylistId,
+        playlistName: playlists.playlistName,
+        playlistImageUrl: playlists.playlistImageUrl,
+        playlistUrl: sql<string>`''`,
+        echoSessionId: playlists.sessionId,
+      })
+      .from(playlists)
+      .where(eq(playlists.userId, user.id))
+      .orderBy(desc(playlists.createdAt)),
 
-  // Playlist songs joined with user echo sessions to get track metadata and submitter info
-  // Use distinctOn to get only one row per playlist song (in case multiple users submitted the same track)
-  const playlistSongsRows = await db
-    .selectDistinctOn([playlistSongs.id], {
-      playlistId: playlistSongs.playlistId,
-      trackId: playlistSongs.trackId,
-      trackName: userEchoSessions.trackName,
-      trackArtists: userEchoSessions.trackArtists,
-      trackAlbumImageUrl: userEchoSessions.trackAlbumImageUrl,
-      platform: userEchoSessions.platform,
-      submittedByUserId: playlistSongs.submittedByUserId,
-      submittedByFirstName: users.firstName,
-      submittedByLastName: users.lastName,
-      submittedByPhoneNumber: users.phoneNumber,
-    })
-    .from(playlistSongs)
-    .innerJoin(
-      userEchoSessions,
-      eq(playlistSongs.trackId, userEchoSessions.trackId),
-    )
-    .innerJoin(users, eq(playlistSongs.submittedByUserId, users.id))
-    .where(inArray(playlistSongs.playlistId, playlistIdsSubquery));
+    // playlistSongsRows
+    db
+      .selectDistinctOn([playlistSongs.id], {
+        playlistId: playlistSongs.playlistId,
+        trackId: playlistSongs.trackId,
+        trackName: userEchoSessions.trackName,
+        trackArtists: userEchoSessions.trackArtists,
+        trackAlbumImageUrl: userEchoSessions.trackAlbumImageUrl,
+        platform: userEchoSessions.platform,
+        submittedByUserId: playlistSongs.submittedByUserId,
+        submittedByFirstName: users.firstName,
+        submittedByLastName: users.lastName,
+        submittedByPhoneNumber: users.phoneNumber,
+      })
+      .from(playlistSongs)
+      .innerJoin(
+        userEchoSessions,
+        eq(playlistSongs.trackId, userEchoSessions.trackId),
+      )
+      .innerJoin(users, eq(playlistSongs.submittedByUserId, users.id))
+      .where(inArray(playlistSongs.playlistId, playlistIdsSubquery)),
+
+    // rankings
+    db
+      .select({
+        playlistId: userRankings.playlistId,
+        rankedUserId: userRankings.rankedUserId,
+      })
+      .from(userRankings)
+      .where(eq(userRankings.userId, user.id))
+      .orderBy(desc(userRankings.createdAt)),
+
+    // recentEchoSessions (limit 2 with end field for both needsToRank and countdown)
+    db
+      .select({ id: echoSessions.id, end: echoSessions.end })
+      .from(echoSessions)
+      .orderBy(desc(echoSessions.createdAt))
+      .limit(2),
+  ]);
+
+  // Derive songsShared count from sharedSongs result
+  const songsShared = sharedSongs.length;
+
+  // Derive sharedSessionIds from sharedSongs for streak calculation
+  const sharedSessionIds = new Set(sharedSongs.map((row) => row.sessionId));
+
+  // Derive currentSessionEndTime from recentEchoSessions
+  const currentSessionEndTime = recentEchoSessions[0]?.end ?? null;
+
+  // Derive rankingsMap from rankings
+  const rankingsMap = new Map(
+    rankings.map((row) => [row.playlistId, row.rankedUserId]),
+  );
 
   const playlistSongsByPlaylist: Record<
     number,
@@ -207,22 +249,7 @@ export default async function RootPage({ searchParams }: PageProps) {
     );
   }
 
-  // Streak
-  const userSharedSessions = await db
-    .select({ sessionId: userEchoSessions.sessionId })
-    .from(userEchoSessions)
-    .where(
-      and(
-        eq(userEchoSessions.userId, user.id),
-        isNotNull(userEchoSessions.trackId),
-      ),
-    )
-    .orderBy(desc(userEchoSessions.createdAt));
-
-  const sharedSessionIds = new Set(
-    userSharedSessions.map((row) => row.sessionId),
-  );
-
+  // Streak calculation (uses sharedSessionIds derived from parallel query above)
   let streak = 0;
   if (sharedSessionIds.size > 0) {
     const maxSessionsToCheck = sharedSessionIds.size + 1; // +1 to detect the first miss
@@ -246,21 +273,7 @@ export default async function RootPage({ searchParams }: PageProps) {
     }
   }
 
-  // User rankings
-  const rankings = await db
-    .select({
-      playlistId: userRankings.playlistId,
-      rankedUserId: userRankings.rankedUserId,
-    })
-    .from(userRankings)
-    .where(eq(userRankings.userId, user.id))
-    .orderBy(desc(userRankings.createdAt));
-
-  const rankingsMap = new Map(
-    rankings.map((row) => [row.playlistId, row.rankedUserId]),
-  );
-
-  // Does user need to rank
+  // Does user need to rank (uses rankingsMap and recentEchoSessions from parallel query above)
   let needsToRank = false;
 
   if (userPlaylists.length > 0) {
@@ -270,13 +283,6 @@ export default async function RootPage({ searchParams }: PageProps) {
 
     // Check if user hasn't ranked their most recent playlist
     if (!rankingsMap.has(mostRecentPlaylistId)) {
-      // Get the most recent two echo sessions to check if the playlist's session is the second most recent
-      const recentEchoSessions = await db
-        .select({ id: echoSessions.id })
-        .from(echoSessions)
-        .orderBy(desc(echoSessions.createdAt))
-        .limit(2);
-
       if (recentEchoSessions.length >= 2) {
         const secondMostRecentEchoSession = recentEchoSessions[1];
 
@@ -289,15 +295,6 @@ export default async function RootPage({ searchParams }: PageProps) {
       }
     }
   }
-
-  // Ranking Countdown
-  const [currentSession] = await db
-    .select({ end: echoSessions.end })
-    .from(echoSessions)
-    .orderBy(desc(echoSessions.createdAt))
-    .limit(1);
-
-  const currentSessionEndTime = currentSession?.end ?? null;
 
   return (
     <Profile

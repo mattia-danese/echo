@@ -19,6 +19,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { UTApi } from "uploadthing/server";
 import { db } from "@/db";
 import {
+  authSessions,
   friends,
   songLinkCacheMappings,
   songlinkCache,
@@ -30,7 +31,11 @@ import {
   users,
   userTrackPlays,
 } from "@/db/schema";
-import { createSession, deleteAllSessionsForUser } from "@/lib/cookieSession";
+import {
+  clearSessionCookie,
+  createSession,
+  deleteAllSessionsForUser,
+} from "@/lib/cookieSession";
 import { lastFmAdmin } from "@/lib/lastFmAdmin";
 import { songLinkAdmin } from "@/lib/songLinkAdmin";
 import { twilioAdmin } from "@/lib/twilioAdmin";
@@ -225,38 +230,35 @@ export async function createUser(payload: {
       f.userId === newUser.id ? f.friendId : f.userId,
     );
 
-    // Update hasCrossPlatformFriends if any reactivated friend has different platform
+    // Update hasCrossPlatformFriends for new user and friends with different platforms
     if (friendUserIds.length > 0) {
       await db
         .update(users)
         .set({ hasCrossPlatformFriends: true })
         .where(
-          and(
-            eq(users.id, newUser.id),
-            exists(
-              db
-                .select()
-                .from(users)
-                .where(
-                  and(
-                    inArray(users.id, friendUserIds),
-                    ne(users.platform, payload.platform),
-                    eq(users.isDeleted, false),
+          or(
+            // New user: set if any friend has different platform
+            and(
+              eq(users.id, newUser.id),
+              exists(
+                db
+                  .select()
+                  .from(users)
+                  .where(
+                    and(
+                      inArray(users.id, friendUserIds),
+                      ne(users.platform, payload.platform),
+                      eq(users.isDeleted, false),
+                    ),
                   ),
-                ),
+              ),
             ),
-          ),
-        );
-
-      // Also update friends' hasCrossPlatformFriends if user has different platform
-      await db
-        .update(users)
-        .set({ hasCrossPlatformFriends: true })
-        .where(
-          and(
-            inArray(users.id, friendUserIds),
-            ne(users.platform, payload.platform),
-            eq(users.isDeleted, false),
+            // Friends: set if they have different platform than new user
+            and(
+              inArray(users.id, friendUserIds),
+              ne(users.platform, payload.platform),
+              eq(users.isDeleted, false),
+            ),
           ),
         );
     }
@@ -925,6 +927,8 @@ export async function handleCrossPlatformSongSubmission(payload: {
       })
       .returning({ id: songlinkCache.id });
 
+    const mappingsToInsert: SongLinkCacheMappingInsert[] = [];
+
     for (const platformKey of Object.values(Platform)) {
       let trackId = "";
 
@@ -945,14 +949,14 @@ export async function handleCrossPlatformSongSubmission(payload: {
         );
       }
 
-      const songLinkCacheMappingInsert: SongLinkCacheMappingInsert = {
+      mappingsToInsert.push({
         songlinkCacheId: songlinkCacheRecord.id,
         platform: platformKey,
         trackId: trackId,
-      };
-
-      await db.insert(songLinkCacheMappings).values(songLinkCacheMappingInsert);
+      });
     }
+
+    await db.insert(songLinkCacheMappings).values(mappingsToInsert);
 
     return { ok: true, message: "Song submitted successfully" };
   } catch (error: unknown) {
@@ -1253,57 +1257,64 @@ export async function deleteUser(userId: number, clearCookie = true) {
 
   const friendIds = friendsOfDeletedUser.map((f) => f.friendId);
 
-  await db
-    .update(users)
-    .set({ isDeleted: true, updatedAt: now })
-    .where(eq(users.id, userId));
-
-  await db
-    .update(friends)
-    .set({ active: false, updatedAt: now })
-    .where(
-      and(
-        eq(friends.active, true),
-        or(eq(friends.userId, userId), eq(friends.friendId, userId)),
-      ),
-    );
-
-  await db.delete(userAuth).where(eq(userAuth.userId, userId));
-  await deleteAllSessionsForUser(userId, clearCookie);
-
-  // Update hasCrossPlatformFriends for all friends (query will only update those who need it)
-  if (friendIds.length > 0) {
+  await db.transaction(async (tx) => {
     const friendUserAlias = alias(users, "friendUser");
 
-    // Set to false if no cross-platform friends remain
-    await db
-      .update(users)
-      .set({ hasCrossPlatformFriends: false })
-      .where(
-        and(
-          inArray(users.id, friendIds),
-          eq(users.hasCrossPlatformFriends, true),
-          not(
-            exists(
-              db
-                .select()
-                .from(friends)
-                .innerJoin(
-                  friendUserAlias,
-                  eq(friends.friendId, friendUserAlias.id),
-                )
-                .where(
-                  and(
-                    eq(friends.userId, users.id),
-                    eq(friends.active, true),
-                    ne(friendUserAlias.platform, users.platform),
-                    eq(friendUserAlias.isDeleted, false),
-                  ),
-                ),
-            ),
+    // Run independent operations in parallel
+    await Promise.all([
+      tx
+        .update(users)
+        .set({ isDeleted: true, updatedAt: now })
+        .where(eq(users.id, userId)),
+      tx
+        .update(friends)
+        .set({ active: false, updatedAt: now })
+        .where(
+          and(
+            eq(friends.active, true),
+            or(eq(friends.userId, userId), eq(friends.friendId, userId)),
           ),
         ),
-      );
+      tx.delete(userAuth).where(eq(userAuth.userId, userId)),
+      tx.delete(authSessions).where(eq(authSessions.userId, userId)),
+    ]);
+
+    // Update hasCrossPlatformFriends for all friends (must run after friendships are deactivated)
+    if (friendIds.length > 0) {
+      await tx
+        .update(users)
+        .set({ hasCrossPlatformFriends: false })
+        .where(
+          and(
+            inArray(users.id, friendIds),
+            eq(users.hasCrossPlatformFriends, true),
+            not(
+              exists(
+                tx
+                  .select()
+                  .from(friends)
+                  .innerJoin(
+                    friendUserAlias,
+                    eq(friends.friendId, friendUserAlias.id),
+                  )
+                  .where(
+                    and(
+                      eq(friends.userId, users.id),
+                      eq(friends.active, true),
+                      ne(friendUserAlias.platform, users.platform),
+                      eq(friendUserAlias.isDeleted, false),
+                    ),
+                  ),
+              ),
+            ),
+          ),
+        );
+    }
+  });
+
+  // Clear session cookie after transaction succeeds (non-DB operation, can't rollback)
+  if (clearCookie) {
+    await clearSessionCookie();
   }
 }
 

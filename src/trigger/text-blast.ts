@@ -28,6 +28,8 @@ export const textBlastTask = task({
       .from(users)
       .where(eq(users.isDeleted, false));
 
+    const messageInserts: MessageInsert[] = [];
+
     for (const user of userData) {
       for (const message of payload.messages) {
         const response = await client.messages.create({
@@ -38,14 +40,16 @@ export const textBlastTask = task({
 
         logger.log("message sent", { response });
 
-        const messageInsert: MessageInsert = {
+        messageInserts.push({
           userId: user.id,
           message: message,
           messageType: MessageType.OUTBOUND,
-        };
-
-        await db.insert(messages).values(messageInsert);
+        });
       }
+    }
+
+    if (messageInserts.length > 0) {
+      await db.insert(messages).values(messageInserts);
     }
 
     return {
