@@ -24,10 +24,6 @@ export default async function FriendRequestPage({
 
     const token = resolvedParams.slug;
 
-    // Allow static files to be served by Next.js default handling
-    if (token === "sms-optin.png") {
-      redirect("/sms-optin.png");
-    }
     const accountStatus = resolvedSearchParams.accountStatus;
 
     const [[user], [dev], currentUser] = await Promise.all([
