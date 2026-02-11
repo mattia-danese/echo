@@ -2,7 +2,7 @@ import Image from "next/image";
 
 export default function HowItWorks() {
   return (
-    <section className="w-full max-w-3xl text-white flex flex-col items-center gap-12 mt-24 pt-12 mb-24 pb-12">
+    <section className="w-full max-w-3xl text-white flex flex-col items-center gap-12 mt-12 mb-24 pb-12">
       <div className="text-3xl text-center">how it works</div>
 
       <div className="flex flex-col w-full gap-20">
@@ -12,8 +12,8 @@ export default function HowItWorks() {
             <Image
               src="/how_it_works_texts_1.png"
               alt="invite friends via your echo link"
-              width={200}
-              height={150}
+              width={230}
+              height={173}
               className="object-contain"
               priority
             />
@@ -39,8 +39,8 @@ export default function HowItWorks() {
             <Image
               src="/how_it_works_texts_2.png"
               alt="share a spotify song link by text"
-              width={200}
-              height={150}
+              width={230}
+              height={173}
               className="object-contain"
             />
           </div>
@@ -52,8 +52,8 @@ export default function HowItWorks() {
             <Image
               src="/how_it_works_texts_3.png"
               alt="discover the playlist from your friends"
-              width={150}
-              height={112.5}
+              width={180}
+              height={135}
               className="object-contain"
             />
           </div>
