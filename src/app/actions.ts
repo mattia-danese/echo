@@ -103,7 +103,11 @@ export async function createUser(payload: {
   try {
     // Check if user already exists
     const [existingUser] = await db
-      .select({ id: users.id, isDeleted: users.isDeleted })
+      .select({
+        id: users.id,
+        isDeleted: users.isDeleted,
+        friendLinkToken: users.friendLinkToken,
+      })
       .from(users)
       .where(eq(users.phoneNumber, payload.phoneNumber))
       .limit(1);
@@ -116,6 +120,11 @@ export async function createUser(payload: {
         message: "User with this phone number already exists.",
       };
     }
+
+    // is user referring themselves
+    const isSelfReferral =
+      !!existingUser &&
+      existingUser.friendLinkToken === payload.referralFriendLinkToken;
 
     // Determine if this is a new user or reactivation
     const isNewUser = !existingUser;
@@ -176,6 +185,40 @@ export async function createUser(payload: {
     // Generate friend link
     const friendLinkToken = crypto.randomBytes(16).toString("base64url");
 
+    // getting inverter info
+    let referredByUserId: number | null = null;
+    let referralFriend:
+      | {
+          id: number;
+          firstName: string;
+          platform: Platform;
+          phoneNumber: string;
+        }
+      | undefined;
+
+    if (payload.referralFriendLinkToken && !isSelfReferral) {
+      const [referrer] = await db
+        .select({
+          id: users.id,
+          firstName: users.firstName,
+          platform: users.platform,
+          phoneNumber: users.phoneNumber,
+        })
+        .from(users)
+        .where(
+          and(
+            eq(users.friendLinkToken, payload.referralFriendLinkToken),
+            eq(users.isDeleted, false),
+          ),
+        )
+        .limit(1);
+
+      if (referrer) {
+        referredByUserId = referrer.id;
+        referralFriend = referrer;
+      }
+    }
+
     // Create or reactivate user (upsert on phone number)
     const userInsert: UserInsert = {
       firstName: payload.firstName,
@@ -186,6 +229,7 @@ export async function createUser(payload: {
       friendLinkToken: friendLinkToken,
       whenOnboardingComplete: null,
       platform: payload.platform,
+      referredByUserId,
     };
 
     const [newUser] = await db
@@ -202,6 +246,7 @@ export async function createUser(payload: {
           platform: payload.platform,
           isDeleted: false,
           updatedAt: new Date().toISOString(),
+          ...(referredByUserId !== null ? { referredByUserId } : {}),
         },
       })
       .returning({
@@ -272,12 +317,13 @@ export async function createUser(payload: {
 
     let friendFirstName = "";
 
-    if (payload.referralFriendLinkToken) {
+    if (payload.referralFriendLinkToken && !isSelfReferral) {
       const { ok, data, message } = await createFriendships({
         userId: newUser.id,
         referralFriendLinkToken: payload.referralFriendLinkToken,
         userPlatform: payload.platform,
         userFirstName: payload.firstName,
+        referralFriend,
       });
 
       if (!ok || !data) {
@@ -387,23 +433,35 @@ export async function createFriendships(payload: {
   userPlatform: Platform;
   userFirstName: string;
   referralFriendLinkToken: string;
+  referralFriend?: {
+    id: number;
+    firstName: string;
+    platform: Platform;
+    phoneNumber: string;
+  };
 }) {
   try {
-    const [friend] = await db
-      .select({
-        id: users.id,
-        firstName: users.firstName,
-        platform: users.platform,
-        phoneNumber: users.phoneNumber,
-      })
-      .from(users)
-      .where(
-        and(
-          eq(users.friendLinkToken, payload.referralFriendLinkToken),
-          eq(users.isDeleted, false),
-        ),
-      )
-      .limit(1);
+    let friend = payload.referralFriend;
+
+    if (!friend) {
+      const [resolvedFriend] = await db
+        .select({
+          id: users.id,
+          firstName: users.firstName,
+          platform: users.platform,
+          phoneNumber: users.phoneNumber,
+        })
+        .from(users)
+        .where(
+          and(
+            eq(users.friendLinkToken, payload.referralFriendLinkToken),
+            eq(users.isDeleted, false),
+          ),
+        )
+        .limit(1);
+
+      friend = resolvedFriend;
+    }
 
     if (!friend) {
       throw new Error(

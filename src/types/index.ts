@@ -1,5 +1,6 @@
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import type {
+  ambassadors,
   appleDevToken,
   authSessions,
   echoSessions,
@@ -37,6 +38,9 @@ export type UserInsert = InferInsertModel<typeof users>;
 
 export type UserAuth = InferSelectModel<typeof userAuth>;
 export type UserAuthInsert = InferInsertModel<typeof userAuth>;
+
+export type Ambassador = InferSelectModel<typeof ambassadors>;
+export type AmbassadorInsert = InferInsertModel<typeof ambassadors>;
 
 export type Friend = InferSelectModel<typeof friends>;
 export type FriendInsert = InferInsertModel<typeof friends>;

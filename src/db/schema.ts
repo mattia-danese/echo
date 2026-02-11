@@ -59,6 +59,7 @@ export const users = pgTable(
     isDeleted: boolean("is_deleted").default(false).notNull(),
     sentGetLink: boolean("sent_get_link").default(false).notNull(),
     firstSharedSessionId: integer("first_shared_session_id"),
+    referredByUserId: integer("referred_by_user_id"),
 
     ...timestamps,
   },
@@ -72,6 +73,38 @@ export const users = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("set null"),
+    foreignKey({
+      columns: [table.referredByUserId],
+      foreignColumns: [table.id],
+      name: "users_referred_by_user_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("set null"),
+  ],
+);
+
+export const ambassadors = pgTable(
+  "ambassadors",
+  {
+    userId: integer("user_id").primaryKey().notNull(),
+    activatedAt: timestamp("activated_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+    deactivatedAt: timestamp("deactivated_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    ...timestamps,
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "ambassadors_user_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
   ],
 );
 
