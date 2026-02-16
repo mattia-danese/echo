@@ -498,18 +498,25 @@ export const populatePlatformPlaylist = async (
 export const persistPlaylistsToDatabase = async (
   newPlaylists: PlaylistRecord[],
   newPlaylistSongs: PlaylistSongRecord[],
-) => {
+): Promise<{
+  ok: boolean;
+  error: unknown;
+  skippedUserIds: number[];
+}> => {
   try {
     if (newPlaylists.length === 0) {
       logger.info("no playlists to save to database, skipping");
-      return { ok: true, error: null };
+      return { ok: true, error: null, skippedUserIds: [] };
     }
 
-    logger.log("saving playlists to database");
+    logger.log("saving playlists to database", {
+      numPlaylists: newPlaylists.length,
+    });
 
     const playlistsInserted = await db
       .insert(playlists)
       .values(newPlaylists)
+      .onConflictDoNothing()
       .returning({
         id: playlists.id,
         platformPlaylistId: playlists.platformPlaylistId,
@@ -519,13 +526,34 @@ export const persistPlaylistsToDatabase = async (
       playlistsInserted.map((r) => [r.platformPlaylistId, r.id]),
     );
 
+    // Determine which playlists were skipped due to conflict
+    const insertedPlatformIds = new Set(
+      playlistsInserted.map((r) => r.platformPlaylistId),
+    );
+    const skippedPlaylists = newPlaylists.filter(
+      (p) => !insertedPlatformIds.has(p.platformPlaylistId),
+    );
+    const skippedUserIds = skippedPlaylists.map((p) => p.userId);
+
+    if (skippedPlaylists.length > 0) {
+      logger.warn("some playlists were skipped due to conflict", {
+        numSkipped: skippedPlaylists.length,
+        skippedPlaylists,
+      });
+    }
+
     logger.log("saving playlists to database done", {
-      numPlaylists: playlistIdByPlatformPlaylistId.size,
+      numInserted: playlistsInserted.length,
+      numSkipped: skippedPlaylists.length,
     });
 
-    // save each playlistSong to database
-    if (newPlaylistSongs.length > 0) {
-      for (const playlistSong of newPlaylistSongs) {
+    // Filter out playlist songs whose parent playlist was skipped
+    const validPlaylistSongs = newPlaylistSongs.filter((ps) =>
+      playlistIdByPlatformPlaylistId.has(ps.platformPlaylistId),
+    );
+
+    if (validPlaylistSongs.length > 0) {
+      for (const playlistSong of validPlaylistSongs) {
         playlistSong.playlistId = playlistIdByPlatformPlaylistId.get(
           playlistSong.platformPlaylistId,
         ) as number;
@@ -533,18 +561,18 @@ export const persistPlaylistsToDatabase = async (
 
       logger.log("saving playlist songs to database");
 
-      await db.insert(playlistSongs).values(newPlaylistSongs);
+      await db.insert(playlistSongs).values(validPlaylistSongs);
 
       logger.log("saving playlist songs to database done", {
-        numPlaylistSongs: newPlaylistSongs.length,
+        numPlaylistSongs: validPlaylistSongs.length,
       });
     } else {
       logger.log("no playlist songs to save (playlists are generic)");
     }
 
-    return { ok: true, error: null };
+    return { ok: true, error: null, skippedUserIds };
   } catch (error) {
-    return { ok: false, error: error };
+    return { ok: false, error: error, skippedUserIds: [] };
   }
 };
 

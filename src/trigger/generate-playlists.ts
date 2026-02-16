@@ -333,17 +333,30 @@ export const generatePlaylistsTask = schedules.task({
       numPlaylistSongRecords: playlistSongRecords.length,
     });
 
-    const { ok: persistPlaylistsOk, error: persistPlaylistsError } =
-      await persistPlaylistsToDatabase(playlistRecords, playlistSongRecords);
+    const {
+      ok: persistPlaylistsOk,
+      error: persistPlaylistsError,
+      skippedUserIds,
+    } = await persistPlaylistsToDatabase(playlistRecords, playlistSongRecords);
+
     if (!persistPlaylistsOk) {
       logger.error("error persisting playlists to database", {
         persistPlaylistsError,
       });
-      // throwing error here because we want to fail the task if we cannot persist playlists to database
       throw persistPlaylistsError;
     }
 
-    logger.log("playlists persisted to database");
+    // Record skipped playlist inserts as user errors
+    for (const userId of skippedUserIds) {
+      userErrors[userId] ??= [];
+      userErrors[userId].push(
+        "playlist insert skipped due to database conflict",
+      );
+    }
+
+    logger.log("playlists persisted to database", {
+      numSkipped: skippedUserIds.length,
+    });
 
     // text each user their playlist
     await textUsers(
