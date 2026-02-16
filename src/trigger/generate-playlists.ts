@@ -243,6 +243,7 @@ export const generatePlaylistsTask = schedules.task({
         platformPlaylistId: genericPlaylist.id,
         playlistName: genericPlaylist.name,
         playlistImageUrl: genericPlaylist.imageUrl,
+        isGeneric: true,
       });
 
       logger.log("onboarding user using generic playlist", {

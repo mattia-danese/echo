@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import {
   boolean,
   date,
@@ -9,6 +10,7 @@ import {
   primaryKey,
   timestamp,
   unique,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
 
@@ -260,6 +262,7 @@ export const playlists = pgTable(
     platformPlaylistId: varchar("platform_playlist_id").notNull(),
     playlistName: varchar("playlist_name").notNull(),
     playlistImageUrl: varchar("playlist_image_url").notNull(),
+    isGeneric: boolean("is_generic").default(false).notNull(),
 
     createdAt: timestamps.createdAt,
   },
@@ -278,7 +281,14 @@ export const playlists = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
-    unique("playlists_platform_playlist_id_key").on(table.platformPlaylistId),
+    unique("playlists_user_id_session_id_key").on(
+      table.userId,
+      table.sessionId,
+    ),
+    // Non-generic playlists should be unique per platform playlist id.
+    uniqueIndex("playlists_platform_platform_playlist_id_non_generic_key")
+      .on(table.platform, table.platformPlaylistId)
+      .where(eq(table.isGeneric, false)),
   ],
 );
 

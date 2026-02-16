@@ -49,6 +49,7 @@ export type PlaylistRecord = {
   platformPlaylistId: string;
   playlistName: string;
   playlistImageUrl: string;
+  isGeneric?: boolean;
 };
 
 export type PlaylistSongRecord = {
