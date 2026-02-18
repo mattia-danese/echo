@@ -3,6 +3,7 @@ import {
   boolean,
   date,
   foreignKey,
+  index,
   integer,
   jsonb,
   pgEnum,
@@ -285,6 +286,7 @@ export const playlists = pgTable(
       table.userId,
       table.sessionId,
     ),
+    index("playlists_session_id_idx").on(table.sessionId),
     // Non-generic playlists should be unique per platform playlist id.
     uniqueIndex("playlists_platform_platform_playlist_id_non_generic_key")
       .on(table.platform, table.platformPlaylistId)
@@ -318,6 +320,7 @@ export const playlistSongs = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+    index("playlist_songs_playlist_id_idx").on(table.playlistId),
   ],
 );
 
@@ -365,6 +368,7 @@ export const songLinkCacheMappings = pgTable(
       table.platform,
       table.trackId,
     ),
+    index("songlink_cache_mappings_track_id_idx").on(table.trackId),
     unique("songlink_cache_mappings_platform_songlink_cache_id_key").on(
       table.platform,
       table.songlinkCacheId,
@@ -393,6 +397,7 @@ export const authSessions = pgTable(
       .onUpdate("cascade")
       .onDelete("cascade"),
     unique("auth_sessions_token_hash_key").on(table.tokenHash),
+    index("auth_sessions_user_id_idx").on(table.userId),
   ],
 );
 
@@ -498,5 +503,9 @@ export const userRankings = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+    index("user_rankings_user_id_created_at_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
   ],
 );
