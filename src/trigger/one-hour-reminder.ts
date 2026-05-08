@@ -12,14 +12,16 @@ export const oneHourReminderTask = schedules.task({
   // Set an optional maxDuration to prevent tasks from running indefinitely
   maxDuration: 300, // Stop executing after 300 secs (5 mins) of compute
 
-  cron: {
-    pattern: "0 20 * * *", // run daily at 8:00 PM EST, with conditional logic inside
-    timezone: "America/New_York",
-    environments: ["DEVELOPMENT"],
-  },
+  // Cron paused — uncomment to resume scheduled runs.
+  // cron: {
+  //   pattern: "0 20 * * *", // run daily at 8:00 PM EST, with conditional logic inside
+  //   timezone: "America/New_York",
+  //   environments: ["DEVELOPMENT"],
+  // },
 
   run: async () => {
     logger.log("one hour reminder task starting ...");
+
     // Check if we should run today by checking if a session ends today
     const [echoSession] = await db
       .select({ id: echoSessions.id, end: echoSessions.end })

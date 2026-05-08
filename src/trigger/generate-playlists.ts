@@ -50,11 +50,12 @@ export const generatePlaylistsTask = schedules.task({
   // Set an optional maxDuration to prevent tasks from running indefinitely
   maxDuration: 300, // Stop executing after 300 secs (5 mins) of compute
 
-  cron: {
-    pattern: "30 21 * * *", // run daily at 9:30 PM EST, with conditional logic inside
-    timezone: "America/New_York",
-    environments: ["DEVELOPMENT"],
-  },
+  // Cron paused — uncomment to resume scheduled runs.
+  // cron: {
+  //   pattern: "30 21 * * *", // run daily at 9:30 PM EST, with conditional logic inside
+  //   timezone: "America/New_York",
+  //   environments: ["DEVELOPMENT"],
+  // },
 
   run: async () => {
     logger.log("generate playlists task starting ...");

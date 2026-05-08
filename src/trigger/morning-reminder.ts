@@ -125,11 +125,13 @@ export const morningReminderTask = schedules.task({
   // Set an optional maxDuration to prevent tasks from running indefinitely
   maxDuration: 300, // Stop executing after 300 secs (5 mins) of compute
 
-  cron: {
-    pattern: "0 11 * * *", // run daily at 11:00 AM EST, with conditional logic inside
-    timezone: "America/New_York",
-    environments: ["DEVELOPMENT"],
-  },
+  // Cron paused — uncomment to resume scheduled runs.
+  // cron: {
+  //   pattern: "0 11 * * *", // run daily at 11:00 AM EST, with conditional logic inside
+  //   timezone: "America/New_York",
+  //   environments: ["DEVELOPMENT"],
+  // },
+
   run: async () => {
     logger.log("morning reminder task starting ...");
 
